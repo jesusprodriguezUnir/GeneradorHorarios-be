@@ -256,4 +256,80 @@ public class ConstraintsTests
 
         constraint.Penalty(entry, _state).Should().BeGreaterThan(0);
     }
+
+    [Fact]
+    public void MaxConsecutiveSlots_NotSatisfied_ExceedsLimit_Bidirectional()
+    {
+        var allocation = TestData.Allocation1Id;
+        var group = TestData.Group1Id;
+
+        _state.Assign(TestData.Session(allocationId: allocation, groupId: group), day: 1, slot: 0, classroomId: TestData.RegularClassroomId);
+        _state.Assign(TestData.Session(allocationId: allocation, groupId: group), day: 1, slot: 2, classroomId: TestData.RegularClassroomId);
+
+        var constraint = new MaxConsecutiveSlotsConstraint();
+        var entry = new ProposedEntry(
+            TestData.Session(allocationId: allocation, groupId: group, maxConsecutiveSlots: 2),
+            1, 1, TestData.RegularClassroomId);
+
+        constraint.IsSatisfied(entry, _state).Should().BeFalse();
+    }
+
+    [Fact]
+    public void ConsecutiveBlockPreference_PenaltyZero_WhenSplittable()
+    {
+        var constraint = new ConsecutiveBlockPreferenceConstraint();
+        var entry = new ProposedEntry(
+            TestData.Session(splittableAcrossDays: true),
+            1, 0, TestData.RegularClassroomId);
+
+        constraint.Penalty(entry, _state).Should().Be(0);
+    }
+
+    [Fact]
+    public void ConsecutiveBlockPreference_PenaltyPositive_WhenSplitAcrossDays()
+    {
+        var constraint = new ConsecutiveBlockPreferenceConstraint();
+        var allocation = TestData.Allocation1Id;
+        var group = TestData.Group1Id;
+
+        _state.Assign(TestData.Session(allocationId: allocation, groupId: group, splittableAcrossDays: false), day: 1, slot: 0, classroomId: TestData.RegularClassroomId);
+
+        var entry = new ProposedEntry(
+            TestData.Session(allocationId: allocation, groupId: group, splittableAcrossDays: false),
+            2, 0, TestData.RegularClassroomId);
+
+        constraint.Penalty(entry, _state).Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public void ConsecutiveBlockPreference_PenaltyPositive_WhenSameDayNotConsecutive()
+    {
+        var constraint = new ConsecutiveBlockPreferenceConstraint();
+        var allocation = TestData.Allocation1Id;
+        var group = TestData.Group1Id;
+
+        _state.Assign(TestData.Session(allocationId: allocation, groupId: group, splittableAcrossDays: false), day: 1, slot: 0, classroomId: TestData.RegularClassroomId);
+
+        var entry = new ProposedEntry(
+            TestData.Session(allocationId: allocation, groupId: group, splittableAcrossDays: false),
+            1, 2, TestData.RegularClassroomId);
+
+        constraint.Penalty(entry, _state).Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public void ConsecutiveBlockPreference_PenaltyZero_WhenSameDayConsecutive()
+    {
+        var constraint = new ConsecutiveBlockPreferenceConstraint();
+        var allocation = TestData.Allocation1Id;
+        var group = TestData.Group1Id;
+
+        _state.Assign(TestData.Session(allocationId: allocation, groupId: group, splittableAcrossDays: false), day: 1, slot: 0, classroomId: TestData.RegularClassroomId);
+
+        var entry = new ProposedEntry(
+            TestData.Session(allocationId: allocation, groupId: group, splittableAcrossDays: false),
+            1, 1, TestData.RegularClassroomId);
+
+        constraint.Penalty(entry, _state).Should().Be(0);
+    }
 }

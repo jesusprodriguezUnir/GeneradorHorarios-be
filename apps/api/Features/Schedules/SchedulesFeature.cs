@@ -368,21 +368,22 @@ public static class ScheduleEndpoints
         foreach (var a in assignments)
         {
             if (!allocations.TryGetValue(a.AllocationId, out var alloc)) continue;
+            if (!teachers.TryGetValue(a.TeacherId, out var teacher)) continue;
+            
             var classroomType = alloc.RequiredClassroomType is not null
                 ? ParseClassroomType(alloc.RequiredClassroomType)
                 : (ClassroomType?)null;
 
-            teachers.TryGetValue(a.TeacherId, out var teacher);
-            var specialties = new List<string>();
-            if (teacher is not null && !string.IsNullOrWhiteSpace(teacher.Specialties))
+            List<string> specialties;
+            try
             {
-                try
-                {
-                    specialties = JsonSerializer.Deserialize<List<string>>(teacher.Specialties) ?? [];
-                }
-                catch { }
+                specialties = JsonSerializer.Deserialize<List<string>>(teacher.Specialties) ?? new List<string>();
             }
-            int maxWeeklyHours = teacher?.MaxWeeklyHours ?? 25;
+            catch
+            {
+                specialties = new List<string>();
+            }
+            int maxWeeklyHours = teacher.MaxWeeklyHours;
 
             // Generar una sesión por cada hora semanal
             for (int i = 0; i < a.WeeklyHours; i++)
@@ -400,7 +401,8 @@ public static class ScheduleEndpoints
                     RequiresSpecialist: alloc.RequiresSpecialist,
                     SubjectKey: alloc.SubjectKey ?? "",
                     TeacherSpecialties: specialties,
-                    TeacherMaxWeeklyHours: maxWeeklyHours));
+                    TeacherMaxWeeklyHours: maxWeeklyHours,
+                    SplittableAcrossDays: alloc.SplittableAcrossDays));
             }
         }
         return sessions;
@@ -451,6 +453,7 @@ public static class ScheduleEndpoints
             new DistributeSubjectAcrossDays(),
             new TeacherConsecutiveLoadConstraint(3),
             new TeacherGapsConstraint(),
+            new ConsecutiveBlockPreferenceConstraint(),
         };
     }
 

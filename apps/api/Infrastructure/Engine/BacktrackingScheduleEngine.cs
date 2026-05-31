@@ -9,6 +9,23 @@ namespace HorariosEscolares.Infrastructure.Engine;
 /// </summary>
 public sealed class BacktrackingScheduleEngine : IScheduleEngine
 {
+    private class BestSolutionTracker
+    {
+        private readonly object _lock = new();
+        public List<AssignedSlot> Best { get; set; } = [];
+
+        public void Update(IReadOnlyList<AssignedSlot> current)
+        {
+            lock (_lock)
+            {
+                if (current.Count > Best.Count)
+                {
+                    Best = [.. current];
+                }
+            }
+        }
+    }
+
     public async Task<ScheduleResult> GenerateAsync(
         GenerationContext context,
         CancellationToken cancellationToken,
@@ -20,9 +37,10 @@ public sealed class BacktrackingScheduleEngine : IScheduleEngine
         var startTime = DateTime.UtcNow;
         var sessions = PrioritizeSessions(context.Sessions);
         var state = new AssignmentState(context.School);
+        var tracker = new BestSolutionTracker();
 
         var result = await Task.Run(
-            () => Backtrack(sessions, 0, state, context, timeoutCts.Token, progress),
+            () => Backtrack(sessions, 0, state, context, timeoutCts.Token, progress, tracker),
             cancellationToken);
 
         var elapsed = (int)(DateTime.UtcNow - startTime).TotalSeconds;
@@ -45,11 +63,21 @@ public sealed class BacktrackingScheduleEngine : IScheduleEngine
     private static List<SessionToAssign> PrioritizeSessions(
         IReadOnlyList<SessionToAssign> sessions)
     {
+        var teacherTotalHours = sessions
+            .GroupBy(s => s.TeacherId)
+            .ToDictionary(g => g.Key, g => g.Count());
+
         return [.. sessions.OrderByDescending(s =>
         {
             int score = 0;
             if (s.RequiredClassroomType is not null) score += 100; // aula especial → más difícil
             if (s.MaxConsecutiveSlots == 1) score += 50;           // no puede ir consecutiva
+            if (!s.SplittableAcrossDays) score += 40;              // bloque indivisible → difícil
+
+            // Priorizar profesores con mucha carga semanal (más restrictivos)
+            int tHours = teacherTotalHours.GetValueOrDefault(s.TeacherId, 0);
+            score += tHours * 2;
+
             return score;
         })];
     }
@@ -62,9 +90,13 @@ public sealed class BacktrackingScheduleEngine : IScheduleEngine
         AssignmentState state,
         GenerationContext context,
         CancellationToken ct,
-        IProgress<GenerationProgress>? progress)
+        IProgress<GenerationProgress>? progress,
+        BestSolutionTracker tracker)
     {
-        if (ct.IsCancellationRequested || index >= sessions.Count)
+        if (ct.IsCancellationRequested)
+            return tracker.Best;
+
+        if (index >= sessions.Count)
             return [.. state.Assigned];
 
         var session = sessions[index];
@@ -75,13 +107,14 @@ public sealed class BacktrackingScheduleEngine : IScheduleEngine
             if (ct.IsCancellationRequested) break;
 
             state.Assign(session, day, slot, classroom);
+            tracker.Update(state.Assigned);
 
             progress?.Report(new GenerationProgress(
                 state.Assigned.Count,
                 sessions.Count,
                 $"Asignando {session.SubjectName} a {session.GroupLabel}..."));
 
-            var result = Backtrack(sessions, index + 1, state, context, ct, progress);
+            var result = Backtrack(sessions, index + 1, state, context, ct, progress, tracker);
 
             // Si llegamos al final sin cancelar, éxito total
             if (!ct.IsCancellationRequested && result.Count == sessions.Count)
@@ -90,8 +123,8 @@ public sealed class BacktrackingScheduleEngine : IScheduleEngine
             state.Unassign(session, day, slot, classroom);
         }
 
-        // Sin candidatos o timeout → devolver lo que tenemos (solución parcial)
-        return [.. state.Assigned];
+        // Sin candidatos o timeout → devolver la mejor solución parcial encontrada
+        return tracker.Best;
     }
 
     // ── Candidatos filtrados por hard constraints y ordenados por soft ────────

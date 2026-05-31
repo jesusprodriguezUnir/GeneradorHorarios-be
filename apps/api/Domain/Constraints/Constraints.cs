@@ -78,14 +78,25 @@ public sealed class MaxConsecutiveSlotsConstraint : IHardConstraint
         int count = 1;
 
         // Contar hacia atrás
-        int check = slot - 1;
+        int checkBack = slot - 1;
         while (assigned.Any(a => a.AllocationId == allocationId
                                && a.GroupId == groupId
                                && a.DayOfWeek == day
-                               && a.SlotIndex == check))
+                               && a.SlotIndex == checkBack))
         {
             count++;
-            check--;
+            checkBack--;
+        }
+
+        // Contar hacia adelante
+        int checkForward = slot + 1;
+        while (assigned.Any(a => a.AllocationId == allocationId
+                               && a.GroupId == groupId
+                               && a.DayOfWeek == day
+                               && a.SlotIndex == checkForward))
+        {
+            count++;
+            checkForward++;
         }
 
         return count;
@@ -222,5 +233,48 @@ public sealed class TeacherGapsConstraint : ISoftConstraint
         }
 
         return gaps * Weight * 5;
+    }
+}
+
+/// <summary>Penaliza dividir asignaturas indivisibles en días distintos, o ponerlas no consecutivas.</summary>
+public sealed class ConsecutiveBlockPreferenceConstraint : ISoftConstraint
+{
+    public string Name => "Preferencia de bloques consecutivos";
+    public int Weight => 5;
+
+    public int Penalty(ProposedEntry entry, AssignmentState state)
+    {
+        if (entry.Session.SplittableAcrossDays) return 0; // Se puede dividir libremente
+
+        // Si ya hay sesiones de esta asignatura asignadas en otros días, penalizamos
+        var assignedOnOtherDays = state.Assigned
+            .Any(a => a.AllocationId == entry.Session.AllocationId 
+                   && a.GroupId == entry.Session.GroupId 
+                   && a.DayOfWeek != entry.Day);
+
+        if (assignedOnOtherDays)
+        {
+            // Penalización por repartir la asignatura en diferentes días
+            return Weight * 15;
+        }
+
+        // Si ya hay una sesión asignada en el mismo día, pero no es consecutiva, penalizamos
+        var assignedOnSameDay = state.Assigned
+            .Where(a => a.AllocationId == entry.Session.AllocationId 
+                     && a.GroupId == entry.Session.GroupId 
+                     && a.DayOfWeek == entry.Day)
+            .ToList();
+
+        if (assignedOnSameDay.Count > 0)
+        {
+            bool isConsecutive = assignedOnSameDay.Any(a => Math.Abs(a.SlotIndex - entry.Slot) == 1);
+            if (!isConsecutive)
+            {
+                // Penalización por no ponerla consecutiva
+                return Weight * 10;
+            }
+        }
+
+        return 0;
     }
 }

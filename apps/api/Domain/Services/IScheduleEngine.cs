@@ -37,9 +37,10 @@ public record SessionToAssign(
     ClassroomType? RequiredClassroomType,
     int MaxConsecutiveSlots,
     bool RequiresSpecialist,
-    string SubjectKey,
     IReadOnlyList<string> TeacherSpecialties,
-    int TeacherMaxWeeklyHours);
+    string SubjectKey,
+    int TeacherMaxWeeklyHours,
+    bool SplittableAcrossDays);
 
 public record ScheduleResult
 {

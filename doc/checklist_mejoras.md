@@ -65,23 +65,24 @@ Cada vez que realicemos una acción, editaremos este archivo actualizando el est
   - [x] Probar escenario donde un especialista escaso obliga a un resultado parcial con la explicación correcta del conflicto.
   - [x] Ejecutar tests: `dotnet test` (50 tests unitarios y 14 de integración correctos).
 
-### [/] Día 4 · Constraints de colegio real II — bloques y heurística
+### [x] Día 4 · Constraints de colegio real II — bloques y heurística
 *Problema: Las consecutivas solo cuentan hacia atrás, no hay bloques mínimos y la heurística es estática.*
-- [ ] **Corregir `MaxConsecutiveSlotsConstraint` (`Constraints.cs:77`)**:
-  - [ ] Modificar el contador para evaluar consecutivas en ambas direcciones (hacia adelante y hacia atrás).
-- [ ] **Implementar bloques consecutivos / divisibilidad**:
-  - [ ] Usar `SubjectAllocation.SplittableAcrossDays` para agrupar o dar preferencia a sesiones consecutivas (p. ej., clases de 2h seguidas para Educación Física).
-- [ ] **Mejorar heurística `PrioritizeSessions`**:
-  - [ ] Incorporar el número de horas semanales y la carga actual de asignaciones del profesor en la prioridad.
-  - [ ] Implementar un mecanismo de seguimiento **best-so-far** en el método `Backtrack` para devolver la mejor solución parcial encontrada ante un timeout.
-- [ ] **Verificación**:
-  - [ ] Escribir tests de distribución y medir tiempos de generación con el seed real (manteniéndose por debajo de los 30s).
+- [x] **Corregir `MaxConsecutiveSlotsConstraint` (`Constraints.cs:77`)**:
+  - [x] Modificar el contador para evaluar consecutivas en ambas direcciones (hacia adelante y hacia atrás).
+- [x] **Implementar bloques consecutivos / divisibilidad**:
+  - [x] Usar `SubjectAllocation.SplittableAcrossDays` para agrupar o dar preferencia a sesiones consecutivas (p. ej., clases de 2h seguidas para Educación Física).
+- [x] **Mejorar heurística `PrioritizeSessions`**:
+  - [x] Incorporar el número de horas semanales y la carga actual de asignaciones del profesor en la prioridad.
+  - [x] Implementar un mecanismo de seguimiento **best-so-far** en el método `Backtrack` para devolver la mejor solución parcial encontrada ante un timeout.
+- [x] **Verificación**:
+  - [x] Escribir tests de distribución y medir tiempos de generación con el seed real (manteniéndose por debajo de los 30s).
+  - [x] Ejecutar tests: `dotnet test` (55 tests unitarios y 14 de integración correctos).
 
 ---
 
 ## 🌐 FASE 2 — Genérico para cualquier centro (Días 5–7)
 
-### [ ] Día 5 · Configuración de jornada del centro de extremo a extremo
+### [/] Día 5 · Configuración de jornada del centro de extremo a extremo
 - [ ] **Extender endpoint `PUT /api/schools/me`**:
   - [ ] Soportar la edición de `SlotsPerDay`, `DaysPerWeek`, `MorningStart`, `SlotMinutes`, `BreakAfterSlot` y `BreakMinutes`.
   - [ ] Añadir validación coherente en el payload del endpoint.
