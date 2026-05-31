@@ -171,4 +171,89 @@ public class ConstraintsTests
 
         constraint.Penalty(entry, _state).Should().BeGreaterThan(0);
     }
+
+    [Fact]
+    public void RequiresSpecialistConstraint_Satisfied_WhenNotRequired()
+    {
+        var constraint = new RequiresSpecialistConstraint();
+        var entry = new ProposedEntry(
+            TestData.Session(requiresSpecialist: false, teacherSpecialties: ["Generalista"]),
+            1, 0, TestData.RegularClassroomId);
+
+        constraint.IsSatisfied(entry, _state).Should().BeTrue();
+    }
+
+    [Fact]
+    public void RequiresSpecialistConstraint_Satisfied_WhenTeacherHasSpecialty()
+    {
+        var constraint = new RequiresSpecialistConstraint();
+        var entry = new ProposedEntry(
+            TestData.Session(requiresSpecialist: true, subjectKey: "ing", teacherSpecialties: ["Inglés"]),
+            1, 0, TestData.RegularClassroomId);
+
+        constraint.IsSatisfied(entry, _state).Should().BeTrue();
+    }
+
+    [Fact]
+    public void RequiresSpecialistConstraint_NotSatisfied_WhenTeacherLacksSpecialty()
+    {
+        var constraint = new RequiresSpecialistConstraint();
+        var entry = new ProposedEntry(
+            TestData.Session(requiresSpecialist: true, subjectKey: "mus", teacherSpecialties: ["Generalista"]),
+            1, 0, TestData.RegularClassroomId);
+
+        constraint.IsSatisfied(entry, _state).Should().BeFalse();
+    }
+
+    [Fact]
+    public void MaxWeeklyHoursConstraint_Satisfied_BelowLimit()
+    {
+        var constraint = new MaxWeeklyHoursConstraint();
+        var teacher = TestData.Teacher1Id;
+        var entry = new ProposedEntry(
+            TestData.Session(teacherId: teacher, teacherMaxWeeklyHours: 5),
+            1, 0, TestData.RegularClassroomId);
+
+        constraint.IsSatisfied(entry, _state).Should().BeTrue();
+    }
+
+    [Fact]
+    public void MaxWeeklyHoursConstraint_NotSatisfied_AtLimit()
+    {
+        var constraint = new MaxWeeklyHoursConstraint();
+        var teacher = TestData.Teacher1Id;
+
+        var session1 = TestData.Session(teacherId: teacher, teacherMaxWeeklyHours: 2);
+        var session2 = TestData.Session(teacherId: teacher, teacherMaxWeeklyHours: 2);
+        _state.Assign(session1, 1, 0, TestData.RegularClassroomId);
+        _state.Assign(session2, 1, 1, TestData.RegularClassroomId);
+
+        var entry = new ProposedEntry(
+            TestData.Session(teacherId: teacher, teacherMaxWeeklyHours: 2),
+            1, 2, TestData.RegularClassroomId);
+
+        constraint.IsSatisfied(entry, _state).Should().BeFalse();
+    }
+
+    [Fact]
+    public void TeacherGaps_PenaltyZero_WhenNoGaps()
+    {
+        var constraint = new TeacherGapsConstraint();
+        var teacher = TestData.Teacher1Id;
+        var entry = new ProposedEntry(TestData.Session(teacherId: teacher), 1, 0, TestData.RegularClassroomId);
+
+        constraint.Penalty(entry, _state).Should().Be(0);
+    }
+
+    [Fact]
+    public void TeacherGaps_PenaltyPositive_WhenGapsExist()
+    {
+        var constraint = new TeacherGapsConstraint();
+        var teacher = TestData.Teacher1Id;
+
+        _state.Assign(TestData.Session(teacherId: teacher), 1, 0, TestData.RegularClassroomId);
+        var entry = new ProposedEntry(TestData.Session(teacherId: teacher), 1, 2, TestData.RegularClassroomId);
+
+        constraint.Penalty(entry, _state).Should().BeGreaterThan(0);
+    }
 }

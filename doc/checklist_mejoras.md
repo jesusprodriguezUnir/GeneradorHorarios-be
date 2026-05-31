@@ -48,23 +48,24 @@ Cada vez que realicemos una acción, editaremos este archivo actualizando el est
   - [x] Crear test con centro de 6 slots/día y recreo tras el 2º slot, asegurando que ninguna asignatura cae en el slot de recreo y el "último tramo" se determina bien.
   - [x] Ejecutar tests: `dotnet test` (43 tests unitarios y 14 tests de integración exitosos en verde).
 
-### [/] Día 3 · Constraints de colegio real I — especialistas y horas de profesor
+### [x] Día 3 · Constraints de colegio real I — especialistas y horas de profesor
 *Problema: Atributos inactivos en el modelo; profesores generalistas impartiendo especialidades sin control.*
-- [ ] **Implementar `RequiresSpecialistConstraint` (Dura)**:
-  - [ ] Reutilizar `SubjectAllocation.RequiresSpecialist` y `Teacher.Specialties` (JSON).
-  - [ ] Propagar la especialidad del profesor al `SessionToAssign` o contexto del motor.
-  - [ ] Evitar que se asigne un profesor que no tenga la especialidad requerida por la asignatura.
-- [ ] **Implementar `MaxWeeklyHoursConstraint` (Dura)**:
-  - [ ] Reutilizar la propiedad `Teacher.MaxWeeklyHours` (actualmente ignorada).
-  - [ ] Registrar en `AssignmentState` el recuento de horas asignadas por profesor y rechazar asignaciones que lo excedan.
-- [ ] **Implementar `TeacherGapsConstraint` (Blanda)**:
-  - [ ] Penalizar las ventanas libres o "huecos" intermedios en el horario diario del profesor.
-  - [ ] Utilizar el `HashSet` de slots de profesor disponible en `AssignmentState` para el cálculo.
-- [ ] **Verificación**:
-  - [ ] Escribir tests unitarios por constraint en `ConstraintsTests.cs`.
-  - [ ] Probar escenario donde un especialista escaso obliga a un resultado parcial con la explicación correcta del conflicto.
+- [x] **Implementar `RequiresSpecialistConstraint` (Dura)**:
+  - [x] Reutilizar `SubjectAllocation.RequiresSpecialist` y `Teacher.Specialties` (JSON).
+  - [x] Propagar la especialidad del profesor al `SessionToAssign` o contexto del motor (Estructura de specialties de profesores inyectada en `SessionToAssign`).
+  - [x] Evitar que se asigne un profesor que no tenga la especialidad requerida por la asignatura (implementada en `RequiresSpecialistConstraint`).
+- [x] **Implementar `MaxWeeklyHoursConstraint` (Dura)**:
+  - [x] Reutilizar la propiedad `Teacher.MaxWeeklyHours` (actualmente ignorada).
+  - [x] Registrar en `AssignmentState` el recuento de horas asignadas por profesor y rechazar asignaciones que lo excedan.
+- [x] **Implementar `TeacherGapsConstraint` (Blanda)**:
+  - [x] Penalizar las ventanas libres o "huecos" intermedios en el horario diario del profesor.
+  - [x] Utilizar el `HashSet` de slots de profesor disponible en `AssignmentState` para el cálculo.
+- [x] **Verificación**:
+  - [x] Escribir tests unitarios por constraint en `ConstraintsTests.cs` (7 nuevos tests añadidos y validados).
+  - [x] Probar escenario donde un especialista escaso obliga a un resultado parcial con la explicación correcta del conflicto.
+  - [x] Ejecutar tests: `dotnet test` (50 tests unitarios y 14 de integración correctos).
 
-### [ ] Día 4 · Constraints de colegio real II — Bloques y heurística
+### [/] Día 4 · Constraints de colegio real II — bloques y heurística
 *Problema: Las consecutivas solo cuentan hacia atrás, no hay bloques mínimos y la heurística es estática.*
 - [ ] **Corregir `MaxConsecutiveSlotsConstraint` (`Constraints.cs:77`)**:
   - [ ] Modificar el contador para evaluar consecutivas en ambas direcciones (hacia adelante y hacia atrás).

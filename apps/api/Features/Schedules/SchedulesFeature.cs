@@ -357,6 +357,9 @@ public static class ScheduleEndpoints
             .Where(a => a.SchoolId == schoolId).ToListAsync(ct);
         var allocations = await db.SubjectAllocations.AsNoTracking()
             .ToDictionaryAsync(a => a.Id, ct);
+        var teachers = await db.Teachers.AsNoTracking()
+            .Where(t => t.SchoolId == schoolId)
+            .ToDictionaryAsync(t => t.Id, ct);
         var classrooms = await db.Classrooms.AsNoTracking()
             .Where(c => c.SchoolId == schoolId)
             .ToDictionaryAsync(c => c.ClassroomType + "_" + c.Id, c => c.Id, ct);
@@ -368,6 +371,18 @@ public static class ScheduleEndpoints
             var classroomType = alloc.RequiredClassroomType is not null
                 ? ParseClassroomType(alloc.RequiredClassroomType)
                 : (ClassroomType?)null;
+
+            teachers.TryGetValue(a.TeacherId, out var teacher);
+            var specialties = new List<string>();
+            if (teacher is not null && !string.IsNullOrWhiteSpace(teacher.Specialties))
+            {
+                try
+                {
+                    specialties = JsonSerializer.Deserialize<List<string>>(teacher.Specialties) ?? [];
+                }
+                catch { }
+            }
+            int maxWeeklyHours = teacher?.MaxWeeklyHours ?? 25;
 
             // Generar una sesión por cada hora semanal
             for (int i = 0; i < a.WeeklyHours; i++)
@@ -381,7 +396,11 @@ public static class ScheduleEndpoints
                     GroupLabel: a.GroupId.ToString()[^4..], // último fragmento del GUID como label provisional
                     RequiredClassroomId: null,
                     RequiredClassroomType: classroomType,
-                    MaxConsecutiveSlots: alloc.MaxConsecutiveSlots));
+                    MaxConsecutiveSlots: alloc.MaxConsecutiveSlots,
+                    RequiresSpecialist: alloc.RequiresSpecialist,
+                    SubjectKey: alloc.SubjectKey ?? "",
+                    TeacherSpecialties: specialties,
+                    TeacherMaxWeeklyHours: maxWeeklyHours));
             }
         }
         return sessions;
@@ -403,6 +422,8 @@ public static class ScheduleEndpoints
             new TeacherNotDoubleBooked(),
             new ClassroomNotDoubleBooked(),
             new MaxConsecutiveSlotsConstraint(),
+            new RequiresSpecialistConstraint(),
+            new MaxWeeklyHoursConstraint(),
         };
         if (unavailableSlots.Count > 0)
             result.Add(new TeacherAvailabilityConstraint(unavailableSlots));
@@ -429,6 +450,7 @@ public static class ScheduleEndpoints
             new NoIntensiveSubjectLastSlot(lastLectivoSlotIndex, intensiveIds),
             new DistributeSubjectAcrossDays(),
             new TeacherConsecutiveLoadConstraint(3),
+            new TeacherGapsConstraint(),
         };
     }
 

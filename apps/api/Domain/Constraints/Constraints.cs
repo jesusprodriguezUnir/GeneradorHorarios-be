@@ -159,3 +159,68 @@ public sealed class TeacherConsecutiveLoadConstraint : ISoftConstraint
         return consecutive >= _maxPreferred ? Weight * 15 : 0;
     }
 }
+
+/// <summary>Evita asignar un profesor sin la especialidad requerida para la asignatura.</summary>
+public sealed class RequiresSpecialistConstraint : IHardConstraint
+{
+    public string Name => "Especialidad requerida";
+
+    public bool IsSatisfied(ProposedEntry entry, AssignmentState state)
+    {
+        if (!entry.Session.RequiresSpecialist) return true;
+
+        var specialties = entry.Session.TeacherSpecialties;
+        var key = entry.Session.SubjectKey.ToLower();
+
+        if (key == "ing")
+            return specialties.Any(s => s.Contains("Inglés", StringComparison.OrdinalIgnoreCase));
+        if (key == "ef")
+            return specialties.Any(s => s.Contains("Física", StringComparison.OrdinalIgnoreCase) || s.Contains("Deporte", StringComparison.OrdinalIgnoreCase));
+        if (key == "mus")
+            return specialties.Any(s => s.Contains("Música", StringComparison.OrdinalIgnoreCase));
+
+        return specialties.Any(s => s.Contains("Generalista", StringComparison.OrdinalIgnoreCase));
+    }
+}
+
+/// <summary>No superar el límite de horas semanales de docencia de un profesor.</summary>
+public sealed class MaxWeeklyHoursConstraint : IHardConstraint
+{
+    public string Name => "Límite horas semanales";
+
+    public bool IsSatisfied(ProposedEntry entry, AssignmentState state)
+        => state.GetTeacherAssignedHours(entry.Session.TeacherId) < entry.Session.TeacherMaxWeeklyHours;
+}
+
+/// <summary>Penaliza las ventanas libres intermedias (huecos) en el horario diario de un profesor.</summary>
+public sealed class TeacherGapsConstraint : ISoftConstraint
+{
+    public string Name => "Evitar huecos profesor";
+    public int Weight => 4;
+
+    public int Penalty(ProposedEntry entry, AssignmentState state)
+    {
+        var slots = state.Assigned
+            .Where(a => a.TeacherId == entry.Session.TeacherId && a.DayOfWeek == entry.Day)
+            .Select(a => a.SlotIndex)
+            .Append(entry.Slot)
+            .OrderBy(s => s)
+            .ToList();
+
+        if (slots.Count <= 1) return 0;
+
+        int gaps = 0;
+        int min = slots[0];
+        int max = slots[^1];
+
+        for (int s = min + 1; s < max; s++)
+        {
+            if (!slots.Contains(s))
+            {
+                gaps++;
+            }
+        }
+
+        return gaps * Weight * 5;
+    }
+}

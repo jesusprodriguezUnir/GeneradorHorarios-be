@@ -163,6 +163,7 @@ public sealed class AssignmentState
 {
     private readonly HashSet<(Guid TeacherId, int Day, int Slot)> _teacherSlots = [];
     private readonly HashSet<(Guid ClassroomId, int Day, int Slot)> _classroomSlots = [];
+    private readonly Dictionary<Guid, int> _teacherAssignedHours = [];
     private readonly List<AssignedSlot> _assigned = [];
 
     public IReadOnlyList<AssignedSlot> Assigned => _assigned;
@@ -175,6 +176,9 @@ public sealed class AssignmentState
 
     public bool IsClassroomBusy(Guid classroomId, int day, int slot)
         => _classroomSlots.Contains((classroomId, day, slot));
+
+    public int GetTeacherAssignedHours(Guid teacherId)
+        => _teacherAssignedHours.GetValueOrDefault(teacherId, 0);
 
     public Guid? FindAvailableClassroom(
         int day, int slot,
@@ -194,6 +198,7 @@ public sealed class AssignmentState
     {
         _teacherSlots.Add((session.TeacherId, day, slot));
         _classroomSlots.Add((classroomId, day, slot));
+        _teacherAssignedHours[session.TeacherId] = _teacherAssignedHours.GetValueOrDefault(session.TeacherId, 0) + 1;
         _assigned.Add(new AssignedSlot(
             session.AssignmentId, session.GroupId, session.TeacherId,
             session.AllocationId, classroomId, day, slot));
@@ -203,6 +208,7 @@ public sealed class AssignmentState
     {
         _teacherSlots.Remove((session.TeacherId, day, slot));
         _classroomSlots.Remove((classroomId, day, slot));
+        _teacherAssignedHours[session.TeacherId] = Math.Max(0, _teacherAssignedHours.GetValueOrDefault(session.TeacherId, 0) - 1);
         _assigned.RemoveAll(a => a.AssignmentId == session.AssignmentId
                                && a.DayOfWeek == day
                                && a.SlotIndex == slot);

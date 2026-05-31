@@ -42,7 +42,11 @@ public static class TestData
         string subjectName = "Lengua",
         string groupLabel = "1A",
         ClassroomType? requiredClassroomType = null,
-        int maxConsecutiveSlots = 2)
+        int maxConsecutiveSlots = 2,
+        bool requiresSpecialist = false,
+        string subjectKey = "",
+        IReadOnlyList<string>? teacherSpecialties = null,
+        int teacherMaxWeeklyHours = 25)
         => new(
             assignmentId ?? Guid.NewGuid(),
             groupId ?? Group1Id,
@@ -52,7 +56,11 @@ public static class TestData
             groupLabel,
             null,
             requiredClassroomType,
-            maxConsecutiveSlots);
+            maxConsecutiveSlots,
+            requiresSpecialist,
+            subjectKey,
+            teacherSpecialties ?? new List<string> { "Generalista" },
+            teacherMaxWeeklyHours);
 
     public static GenerationContext Context(
         IReadOnlyList<SessionToAssign>? sessions = null,

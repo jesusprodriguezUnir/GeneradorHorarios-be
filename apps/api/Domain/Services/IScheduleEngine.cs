@@ -35,7 +35,11 @@ public record SessionToAssign(
     string GroupLabel,
     Guid? RequiredClassroomId,       // null = cualquier aula regular
     ClassroomType? RequiredClassroomType,
-    int MaxConsecutiveSlots);
+    int MaxConsecutiveSlots,
+    bool RequiresSpecialist,
+    string SubjectKey,
+    IReadOnlyList<string> TeacherSpecialties,
+    int TeacherMaxWeeklyHours);
 
 public record ScheduleResult
 {
