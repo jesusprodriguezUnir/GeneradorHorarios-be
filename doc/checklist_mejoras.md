@@ -82,17 +82,17 @@ Cada vez que realicemos una acción, editaremos este archivo actualizando el est
 
 ## 🌐 FASE 2 — Genérico para cualquier centro (Días 5–7)
 
-### [/] Día 5 · Configuración de jornada del centro de extremo a extremo
-- [ ] **Extender endpoint `PUT /api/schools/me`**:
-  - [ ] Soportar la edición de `SlotsPerDay`, `DaysPerWeek`, `MorningStart`, `SlotMinutes`, `BreakAfterSlot` y `BreakMinutes`.
-  - [ ] Añadir validación coherente en el payload del endpoint.
-- [ ] **Soportar Jornada Partida**:
-  - [ ] Reutilizar `School.AfternoonStart` en el motor de asignaciones y en `SlotCalculator`.
-  - [ ] Modelar el bloque de tarde como tramos lectivos adicionales con sus franjas horarias y slots correspondientes.
-- [ ] **Verificación**:
-  - [ ] Test de integración que configure jornada partida, genere un horario y compruebe índices de tarde coherentes.
+### [x] Día 5 · Configuración de jornada del centro de extremo a extremo
+- [x] **Extender endpoint `PUT /api/schools/me`**:
+  - [x] Soportar la edición de `SlotsPerDay`, `DaysPerWeek`, `MorningStart`, `SlotMinutes`, `BreakAfterSlot` y `BreakMinutes`.
+  - [x] Añadir validación coherente en el payload del endpoint.
+- [x] **Soportar Jornada Partida**:
+  - [x] Reutilizar `School.AfternoonStart` en el motor de asignaciones y en `SlotCalculator`.
+  - [x] Modelar el bloque de tarde como tramos lectivos adicionales con sus franjas horarias y slots correspondientes.
+- [x] **Verificación**:
+  - [x] Test de integración que configure jornada partida, genere un horario y compruebe índices de tarde coherentes.
 
-### [ ] Día 6 · Asistente de configuración de centro (backend)
+### [/] Día 6 · Asistente de configuración de centro (backend)
 - [ ] **Endpoint para clonar la plantilla LOMLOE oficial**:
   - [ ] Implementar endpoint que copie asignaturas y horas por defecto a la configuración del centro.
   - [ ] Permitir modificar las horas de `SubjectAllocation` dentro de los límites min/max (usando `SubjectsFeature.cs:28`).

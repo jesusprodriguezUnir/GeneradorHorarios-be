@@ -25,16 +25,90 @@ public static class SubjectEndpoints
             var user = ctx.GetCurrentUserOrFail();
 
             // Buscar template del colegio o la oficial
-            var templates = await db.CurriculumTemplates.AsNoTracking()
-                .Where(t => t.IsOfficial || t.SchoolId == user.SchoolId)
-                .ToListAsync();
+            var customTemplate = await db.CurriculumTemplates.AsNoTracking()
+                .FirstOrDefaultAsync(t => t.SchoolId == user.SchoolId);
 
-            var templateIds = templates.Select(t => t.Id).ToList();
+            var templateId = customTemplate?.Id;
+            if (templateId == null)
+            {
+                var officialTemplate = await db.CurriculumTemplates.AsNoTracking()
+                    .FirstOrDefaultAsync(t => t.IsOfficial);
+                templateId = officialTemplate?.Id;
+            }
+
+            if (templateId == null)
+                return Results.Ok(Enumerable.Empty<SubjectDto>());
+
             var allocations = await db.SubjectAllocations.AsNoTracking()
-                .Where(a => templateIds.Contains(a.TemplateId))
+                .Where(a => a.TemplateId == templateId)
                 .ToListAsync();
 
             return Results.Ok(allocations.Select(a => new SubjectDto(
+                a.Id, a.SubjectName, a.SubjectShort, a.SubjectKey,
+                a.WeeklyHoursMin, a.WeeklyHoursMax, a.WeeklyHoursDefault,
+                a.RequiresSpecialist, a.RequiredClassroomType,
+                a.MaxConsecutiveSlots, a.SplittableAcrossDays, a.IsOfficial)));
+        });
+
+        // POST /api/subjects/clone-official — clonar plantilla oficial para el colegio
+        g.MapPost("/clone-official", async (HttpContext ctx, AppDbContext db) =>
+        {
+            var user = ctx.GetCurrentUserOrFail();
+            if (!user.IsAdmin) return Results.Forbid();
+
+            // Verificar si el colegio ya tiene una plantilla propia
+            var exists = await db.CurriculumTemplates.AsNoTracking()
+                .AnyAsync(t => t.SchoolId == user.SchoolId);
+            if (exists)
+                return Results.BadRequest(new { message = "El colegio ya tiene una plantilla configurada." });
+
+            // Buscar la plantilla oficial
+            var officialTemplate = await db.CurriculumTemplates.AsNoTracking()
+                .FirstOrDefaultAsync(t => t.IsOfficial);
+            if (officialTemplate is null)
+                return Results.NotFound(new { message = "Plantilla LOMLOE oficial no encontrada." });
+
+            // Obtener el nombre del colegio
+            var schoolName = await db.Schools.Where(s => s.Id == user.SchoolId)
+                .Select(s => s.Name).FirstOrDefaultAsync() ?? "Colegio";
+
+            // Crear la nueva plantilla personalizada del centro
+            var newTemplate = new CurriculumTemplate
+            {
+                SchoolId = user.SchoolId,
+                Name = $"Plantilla de {schoolName}",
+                Region = officialTemplate.Region,
+                Stage = officialTemplate.Stage,
+                IsOfficial = false
+            };
+            db.CurriculumTemplates.Add(newTemplate);
+
+            // Obtener las asignaturas oficiales
+            var officialAllocations = await db.SubjectAllocations.AsNoTracking()
+                .Where(a => a.TemplateId == officialTemplate.Id)
+                .ToListAsync();
+
+            // Clonar las asignaturas oficiales a la nueva plantilla
+            var clonedAllocations = officialAllocations.Select(a => new SubjectAllocation
+            {
+                TemplateId = newTemplate.Id,
+                SubjectName = a.SubjectName,
+                SubjectShort = a.SubjectShort,
+                SubjectKey = a.SubjectKey,
+                WeeklyHoursMin = a.WeeklyHoursMin,
+                WeeklyHoursMax = a.WeeklyHoursMax,
+                WeeklyHoursDefault = a.WeeklyHoursDefault,
+                RequiresSpecialist = a.RequiresSpecialist,
+                RequiredClassroomType = a.RequiredClassroomType,
+                MaxConsecutiveSlots = a.MaxConsecutiveSlots,
+                SplittableAcrossDays = a.SplittableAcrossDays,
+                IsOfficial = false
+            }).ToList();
+
+            db.SubjectAllocations.AddRange(clonedAllocations);
+            await db.SaveChangesAsync();
+
+            return Results.Ok(clonedAllocations.Select(a => new SubjectDto(
                 a.Id, a.SubjectName, a.SubjectShort, a.SubjectKey,
                 a.WeeklyHoursMin, a.WeeklyHoursMax, a.WeeklyHoursDefault,
                 a.RequiresSpecialist, a.RequiredClassroomType,
@@ -49,6 +123,18 @@ public static class SubjectEndpoints
 
             var a = await db.SubjectAllocations.FirstOrDefaultAsync(x => x.Id == id);
             if (a is null) return Results.NotFound();
+
+            // Validar fuga cross-tenant y edición de plantilla oficial
+            var template = await db.CurriculumTemplates.AsNoTracking()
+                .FirstOrDefaultAsync(t => t.Id == a.TemplateId);
+            if (template is null)
+                return Results.BadRequest(new { message = "La plantilla asociada no existe." });
+
+            if (template.IsOfficial)
+                return Results.BadRequest(new { message = "No se puede modificar la plantilla LOMLOE oficial. Primero debes clonarla para tu centro." });
+
+            if (template.SchoolId != user.SchoolId)
+                return Results.Forbid();
 
             if (req.WeeklyHoursDefault < a.WeeklyHoursMin || req.WeeklyHoursDefault > a.WeeklyHoursMax)
                 return Results.BadRequest(new

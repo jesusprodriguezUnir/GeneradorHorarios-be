@@ -109,6 +109,44 @@ public static class ScheduleEndpoints
                 .Where(c => c.SchoolId == user.SchoolId)
                 .ToListAsync(ct);
 
+            // ── Validaciones previas a la generación ─────────────────────────
+            foreach (var session in sessions)
+            {
+                if (session.RequiresSpecialist)
+                {
+                    var specialties = session.TeacherSpecialties;
+                    var key = session.SubjectKey.ToLower();
+                    bool hasSpecialty = false;
+
+                    if (key == "ing")
+                        hasSpecialty = specialties.Any(s => s.Contains("Inglés", StringComparison.OrdinalIgnoreCase));
+                    else if (key == "ef")
+                        hasSpecialty = specialties.Any(s => s.Contains("Física", StringComparison.OrdinalIgnoreCase) || s.Contains("Deporte", StringComparison.OrdinalIgnoreCase));
+                    else if (key == "mus")
+                        hasSpecialty = specialties.Any(s => s.Contains("Música", StringComparison.OrdinalIgnoreCase));
+                    else
+                        hasSpecialty = specialties.Any(s => s.Contains("Generalista", StringComparison.OrdinalIgnoreCase));
+
+                    if (!hasSpecialty)
+                    {
+                        var teacherName = await db.Teachers
+                            .Where(t => t.Id == session.TeacherId)
+                            .Select(t => t.FullName)
+                            .FirstOrDefaultAsync(ct) ?? "Profesor";
+                        return Results.BadRequest(new { message = $"Conflicto de asignación: El profesor {teacherName} no tiene la especialidad requerida para impartir {session.SubjectName}." });
+                    }
+                }
+
+                if (session.RequiredClassroomType.HasValue)
+                {
+                    bool hasClassroom = classrooms.Any(c => ParseClassroomType(c.ClassroomType) == session.RequiredClassroomType.Value);
+                    if (!hasClassroom)
+                    {
+                        return Results.BadRequest(new { message = $"Falta configuración de espacio: El centro no tiene ninguna aula de tipo '{session.RequiredClassroomType}' configurada para impartir {session.SubjectName}." });
+                    }
+                }
+            }
+
             var slots = SlotCalculator.Compute(school, school.SlotsPerDay);
             int lastLectivoSlotIndex = slots.Where(s => !s.IsBreak).Any()
                 ? slots.Where(s => !s.IsBreak).Max(s => s.Index)

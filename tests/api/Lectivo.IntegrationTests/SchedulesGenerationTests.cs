@@ -132,4 +132,109 @@ public class SchedulesGenerationTests
         totalAssigned.Should().Be(totalRequired);
         totalAssigned.Should().BeGreaterThan(0);
     }
+
+    [Fact]
+    public async Task Generate_WithNonSpecialistTeacher_ReturnsBadRequest()
+    {
+        var client = _factory.CreateAdminClient();
+
+        // 1. Crear un profesor sin la especialidad de Inglés
+        var teacherPayload = new
+        {
+            fullName = "Profesor No Especialista",
+            email = "no-especialista@ceip-miguel-hernandez.es",
+            teacherType = "definitivo",
+            maxWeeklyHours = 25,
+            specialties = new[] { "Generalista" },
+            colorKey = "mat"
+        };
+        var createTeacherResponse = await client.PostAsync("/api/teachers",
+            new StringContent(JsonSerializer.Serialize(teacherPayload), Encoding.UTF8, "application/json"));
+        createTeacherResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+        
+        using var teacherDoc = JsonDocument.Parse(await createTeacherResponse.Content.ReadAsStringAsync());
+        var teacherId = teacherDoc.RootElement.GetProperty("id").GetGuid();
+
+        // 2. Crear una asignación de Inglés para este profesor
+        var assignmentPayload = new
+        {
+            teacherId = teacherId,
+            groupId = Guid.Parse("00000000-0000-0000-0003-000000000001"), // 1ºA
+            allocationId = Guid.Parse("00000000-0000-0000-0004-000000000004"), // Inglés (sIng)
+            weeklyHours = 2
+        };
+        var createAssignmentResponse = await client.PostAsync("/api/assignments",
+            new StringContent(JsonSerializer.Serialize(assignmentPayload), Encoding.UTF8, "application/json"));
+        createAssignmentResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+        
+        using var assignmentDoc = JsonDocument.Parse(await createAssignmentResponse.Content.ReadAsStringAsync());
+        var assignmentId = assignmentDoc.RootElement.GetProperty("id").GetGuid();
+
+        try
+        {
+            // 3. Lanzar la generación y comprobar que falla por especialidad
+            var generatePayload = new { academicYear = "2025-2026", timeoutSeconds = 30 };
+            var generateResponse = await client.PostAsync("/api/schedules/generate",
+                new StringContent(JsonSerializer.Serialize(generatePayload), Encoding.UTF8, "application/json"));
+
+            generateResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+            var generateJson = await generateResponse.Content.ReadAsStringAsync();
+            generateJson.Should().Contain("no tiene la especialidad requerida para impartir");
+        }
+        finally
+        {
+            // Limpieza
+            await client.DeleteAsync($"/api/assignments/{assignmentId}");
+            await client.DeleteAsync($"/api/teachers/{teacherId}");
+        }
+    }
+
+    [Fact]
+    public async Task Generate_WithMissingClassroomType_ReturnsBadRequest()
+    {
+        var client = _factory.CreateAdminClient();
+
+        // 1. Obtener las aulas actuales
+        var getClassroomsResponse = await client.GetAsync("/api/classrooms");
+        getClassroomsResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        
+        using var classroomsDoc = JsonDocument.Parse(await getClassroomsResponse.Content.ReadAsStringAsync());
+        var gymClassroom = classroomsDoc.RootElement.EnumerateArray()
+            .FirstOrDefault(c => c.GetProperty("classroomType").GetString() == "gym");
+
+        gymClassroom.Should().NotBeNull();
+        var gymId = gymClassroom.GetProperty("id").GetGuid();
+        var gymName = gymClassroom.GetProperty("name").GetString();
+        var gymCapacity = gymClassroom.GetProperty("capacity").GetInt32();
+        var gymIsShared = gymClassroom.GetProperty("isShared").GetBoolean();
+
+        // 2. Eliminar temporalmente el Gimnasio
+        var deleteResponse = await client.DeleteAsync($"/api/classrooms/{gymId}");
+        deleteResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        try
+        {
+            // 3. Lanzar la generación y comprobar que falla por falta de aula gym (requerida por E. Física)
+            var generatePayload = new { academicYear = "2025-2026", timeoutSeconds = 30 };
+            var generateResponse = await client.PostAsync("/api/schedules/generate",
+                new StringContent(JsonSerializer.Serialize(generatePayload), Encoding.UTF8, "application/json"));
+
+            generateResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+            var generateJson = await generateResponse.Content.ReadAsStringAsync();
+            generateJson.Should().Contain("Falta configuración de espacio");
+        }
+        finally
+        {
+            // 4. Restaurar el Gimnasio
+            var restorePayload = new
+            {
+                name = gymName,
+                classroomType = "gym",
+                capacity = gymCapacity,
+                isShared = gymIsShared
+            };
+            await client.PostAsync("/api/classrooms",
+                new StringContent(JsonSerializer.Serialize(restorePayload), Encoding.UTF8, "application/json"));
+        }
+    }
 }
