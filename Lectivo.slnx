@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/apps/">
+    <Project Path="apps/api/api.csproj" />
+  </Folder>
+  <Folder Name="/tests/" />
+  <Folder Name="/tests/api/">
+    <Project Path="tests/api/Lectivo.IntegrationTests/Lectivo.IntegrationTests.csproj" />
+    <Project Path="tests/api/Lectivo.UnitTests/Lectivo.UnitTests.csproj" />
+  </Folder>
+</Solution>

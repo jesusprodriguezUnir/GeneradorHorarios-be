@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a3a5c;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0f2640;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4ecdc4;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#2bb5ac;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f9c846;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#f0a500;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- Background circle -->
+  <circle cx="200" cy="200" r="190" fill="url(#bgGrad)" filter="url(#shadow)"/>
+
+  <!-- Subtle grid pattern background -->
+  <g opacity="0.06" stroke="#4ecdc4" stroke-width="1">
+    <line x1="80" y1="100" x2="320" y2="100"/>
+    <line x1="80" y1="140" x2="320" y2="140"/>
+    <line x1="80" y1="180" x2="320" y2="180"/>
+    <line x1="80" y1="220" x2="320" y2="220"/>
+    <line x1="80" y1="260" x2="320" y2="260"/>
+    <line x1="120" y1="80" x2="120" y2="300"/>
+    <line x1="160" y1="80" x2="160" y2="300"/>
+    <line x1="200" y1="80" x2="200" y2="300"/>
+    <line x1="240" y1="80" x2="240" y2="300"/>
+    <line x1="280" y1="80" x2="280" y2="300"/>
+  </g>
+
+  <!-- Main grid icon — schedule representation -->
+  <!-- Grid container -->
+  <rect x="95" y="115" width="210" height="175" rx="12" ry="12"
+        fill="none" stroke="#4ecdc4" stroke-width="2.5" opacity="0.3"/>
+
+  <!-- Header row (days) -->
+  <rect x="95" y="115" width="210" height="32" rx="12" ry="12" fill="#4ecdc4" opacity="0.15"/>
+  <rect x="95" y="135" width="210" height="12" fill="#4ecdc4" opacity="0.15"/>
+
+  <!-- Day column headers -->
+  <rect x="108" y="122" width="24" height="12" rx="3" fill="#4ecdc4" opacity="0.6"/>
+  <rect x="140" y="122" width="24" height="12" rx="3" fill="#4ecdc4" opacity="0.6"/>
+  <rect x="172" y="122" width="24" height="12" rx="3" fill="#4ecdc4" opacity="0.6"/>
+  <rect x="204" y="122" width="24" height="12" rx="3" fill="#4ecdc4" opacity="0.6"/>
+  <rect x="236" y="122" width="24" height="12" rx="3" fill="#4ecdc4" opacity="0.6"/>
+  <rect x="268" y="122" width="24" height="12" rx="3" fill="#4ecdc4" opacity="0.6"/>
+
+  <!-- Row 1 — Filled cells -->
+  <rect x="108" y="154" width="24" height="18" rx="3" fill="#f9c846" opacity="0.9"/>
+  <rect x="140" y="154" width="24" height="18" rx="3" fill="#4ecdc4" opacity="0.7"/>
+  <rect x="172" y="154" width="24" height="18" rx="3" fill="#4ecdc4" opacity="0.7"/>
+  <rect x="204" y="154" width="24" height="18" rx="3" fill="#f9c846" opacity="0.9"/>
+  <rect x="236" y="154" width="24" height="18" rx="3" fill="#4ecdc4" opacity="0.7"/>
+  <rect x="268" y="154" width="24" height="18" rx="3" fill="#4ecdc4" opacity="0.4"/>
+
+  <!-- Row 2 -->
+  <rect x="108" y="178" width="24" height="18" rx="3" fill="#4ecdc4" opacity="0.7"/>
+  <rect x="140" y="178" width="24" height="18" rx="3" fill="#f9c846" opacity="0.9"/>
+  <rect x="172" y="178" width="24" height="18" rx="3" fill="#4ecdc4" opacity="0.4"/>
+  <rect x="204" y="178" width="24" height="18" rx="3" fill="#4ecdc4" opacity="0.7"/>
+  <rect x="236" y="178" width="24" height="18" rx="3" fill="#f9c846" opacity="0.9"/>
+  <rect x="268" y="178" width="24" height="18" rx="3" fill="#4ecdc4" opacity="0.7"/>
+
+  <!-- Recreo separator -->
+  <rect x="108" y="202" width="184" height="8" rx="2" fill="#ffffff" opacity="0.08"/>
+
+  <!-- Row 3 -->
+  <rect x="108" y="216" width="24" height="18" rx="3" fill="#4ecdc4" opacity="0.4"/>
+  <rect x="140" y="216" width="24" height="18" rx="3" fill="#4ecdc4" opacity="0.7"/>
+  <rect x="172" y="216" width="24" height="18" rx="3" fill="#f9c846" opacity="0.9"/>
+  <rect x="204" y="216" width="24" height="18" rx="3" fill="#4ecdc4" opacity="0.4"/>
+  <rect x="236" y="216" width="24" height="18" rx="3" fill="#4ecdc4" opacity="0.7"/>
+  <rect x="268" y="216" width="24" height="18" rx="3" fill="#f9c846" opacity="0.9"/>
+
+  <!-- Row 4 -->
+  <rect x="108" y="240" width="24" height="18" rx="3" fill="#f9c846" opacity="0.9"/>
+  <rect x="140" y="240" width="24" height="18" rx="3" fill="#4ecdc4" opacity="0.4"/>
+  <rect x="172" y="240" width="24" height="18" rx="3" fill="#4ecdc4" opacity="0.7"/>
+  <rect x="204" y="240" width="24" height="18" rx="3" fill="#f9c846" opacity="0.6"/>
+  <rect x="236" y="240" width="24" height="18" rx="3" fill="#4ecdc4" opacity="0.7"/>
+  <rect x="268" y="240" width="24" height="18" rx="3" fill="#4ecdc4" opacity="0.4"/>
+
+  <!-- Checkmark overlay — generated successfully -->
+  <circle cx="285" cy="115" r="22" fill="#0f2640"/>
+  <circle cx="285" cy="115" r="20" fill="url(#goldGrad)"/>
+  <polyline points="275,115 282,122 296,107" stroke="#1a3a5c" stroke-width="3.5"
+            stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+  <!-- Bottom text area -->
+  <text x="200" y="328" font-family="Georgia, 'Times New Roman', serif"
+        font-size="22" font-weight="700" fill="#ffffff"
+        text-anchor="middle" letter-spacing="1">Horarios</text>
+  <text x="200" y="352" font-family="Georgia, 'Times New Roman', serif"
+        font-size="22" font-weight="400" fill="#4ecdc4"
+        text-anchor="middle" letter-spacing="3">ESCOLARES</text>
+
+  <!-- Tagline -->
+  <text x="200" y="372" font-family="Arial, sans-serif"
+        font-size="9" fill="#ffffff" opacity="0.4"
+        text-anchor="middle" letter-spacing="2">GENERA · ORGANIZA · PUBLICA</text>
+</svg>

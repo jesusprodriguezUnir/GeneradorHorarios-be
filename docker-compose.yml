@@ -1,0 +1,20 @@
+services:
+  sql-server:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: lectivo-sqlserver
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=Lectivo_Dev_2024!
+      - MSSQL_PID=Express
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "Lectivo_Dev_2024!" -Q "SELECT 1" -No
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  sqlserver-data:

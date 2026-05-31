@@ -1,0 +1,78 @@
+using Microsoft.EntityFrameworkCore;
+using HorariosEscolares.Features.Auth;
+using HorariosEscolares.Infrastructure.Persistence;
+using HorariosEscolares.Infrastructure.Persistence.Entities;
+
+namespace HorariosEscolares.Features.Groups;
+
+public record GroupDto(Guid Id, int CourseLevel, string GroupLabel, string DisplayName,
+    int StudentCount, Guid? TutorId, string? TutorName, Guid? HomeClassroomId);
+
+public record CreateGroupRequest(int CourseLevel, string GroupLabel, int StudentCount, Guid? TutorId, Guid? HomeClassroomId);
+public record UpdateGroupRequest(int? StudentCount, Guid? TutorId, Guid? HomeClassroomId);
+
+public static class GroupEndpoints
+{
+    public static IEndpointRouteBuilder MapGroupEndpoints(this IEndpointRouteBuilder app)
+    {
+        var g = app.MapGroup("/api/groups");
+
+        g.MapGet("/", async (HttpContext ctx, AppDbContext db) =>
+        {
+            var user = ctx.GetCurrentUserOrFail();
+            var groups = await db.CourseGroups.AsNoTracking()
+                .Where(x => x.SchoolId == user.SchoolId)
+                .OrderBy(x => x.CourseLevel).ThenBy(x => x.GroupLabel)
+                .ToListAsync();
+            var tutorNames = await db.Teachers.AsNoTracking()
+                .Where(t => t.SchoolId == user.SchoolId)
+                .ToDictionaryAsync(t => t.Id, t => t.FullName);
+            return Results.Ok(groups.Select(gr => ToDto(gr, tutorNames)));
+        });
+
+        g.MapPost("/", async (HttpContext ctx, AppDbContext db, CreateGroupRequest req) =>
+        {
+            var user = ctx.GetCurrentUserOrFail();
+            if (!user.IsAdmin) return Results.Forbid();
+            var gr = new CourseGroup
+            {
+                SchoolId = user.SchoolId, CourseLevel = req.CourseLevel, GroupLabel = req.GroupLabel,
+                StudentCount = req.StudentCount, TutorId = req.TutorId, HomeClassroomId = req.HomeClassroomId,
+            };
+            db.CourseGroups.Add(gr);
+            await db.SaveChangesAsync();
+            return Results.Created($"/api/groups/{gr.Id}", ToDto(gr, []));
+        });
+
+        g.MapPut("/{id:guid}", async (Guid id, HttpContext ctx, AppDbContext db, UpdateGroupRequest req) =>
+        {
+            var user = ctx.GetCurrentUserOrFail();
+            if (!user.IsAdmin) return Results.Forbid();
+            var gr = await db.CourseGroups.FirstOrDefaultAsync(x => x.Id == id && x.SchoolId == user.SchoolId);
+            if (gr is null) return Results.NotFound();
+            if (req.StudentCount.HasValue) gr.StudentCount = req.StudentCount.Value;
+            if (req.TutorId.HasValue) gr.TutorId = req.TutorId;
+            if (req.HomeClassroomId.HasValue) gr.HomeClassroomId = req.HomeClassroomId;
+            await db.SaveChangesAsync();
+            return Results.Ok(ToDto(gr, []));
+        });
+
+        g.MapDelete("/{id:guid}", async (Guid id, HttpContext ctx, AppDbContext db) =>
+        {
+            var user = ctx.GetCurrentUserOrFail();
+            if (!user.IsAdmin) return Results.Forbid();
+            var gr = await db.CourseGroups.FirstOrDefaultAsync(x => x.Id == id && x.SchoolId == user.SchoolId);
+            if (gr is null) return Results.NotFound();
+            db.CourseGroups.Remove(gr);
+            await db.SaveChangesAsync();
+            return Results.NoContent();
+        });
+
+        return app;
+    }
+
+    private static GroupDto ToDto(CourseGroup gr, Dictionary<Guid, string> tutorNames)
+        => new(gr.Id, gr.CourseLevel, gr.GroupLabel, gr.DisplayName, gr.StudentCount,
+            gr.TutorId, gr.TutorId.HasValue && tutorNames.TryGetValue(gr.TutorId.Value, out var n) ? n : null,
+            gr.HomeClassroomId);
+}

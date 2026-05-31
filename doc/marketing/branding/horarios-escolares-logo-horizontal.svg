@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 100" width="520" height="100">
+  <defs>
+    <linearGradient id="bgH" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a3a5c"/>
+      <stop offset="100%" style="stop-color:#0f2640"/>
+    </linearGradient>
+    <linearGradient id="accentH" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4ecdc4"/>
+      <stop offset="100%" style="stop-color:#2bb5ac"/>
+    </linearGradient>
+    <linearGradient id="goldH" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f9c846"/>
+      <stop offset="100%" style="stop-color:#f0a500"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="520" height="100" rx="14" fill="url(#bgH)"/>
+
+  <!-- Icon — compact grid -->
+  <g transform="translate(18, 14)">
+    <!-- Grid frame -->
+    <rect x="0" y="0" width="72" height="72" rx="10" fill="none"
+          stroke="#4ecdc4" stroke-width="2" opacity="0.35"/>
+
+    <!-- Header -->
+    <rect x="0" y="0" width="72" height="18" rx="10" fill="#4ecdc4" opacity="0.12"/>
+    <rect x="0" y="10" width="72" height="8" fill="#4ecdc4" opacity="0.12"/>
+
+    <!-- Day dots -->
+    <circle cx="13" cy="9" r="3" fill="#4ecdc4" opacity="0.7"/>
+    <circle cx="25" cy="9" r="3" fill="#4ecdc4" opacity="0.7"/>
+    <circle cx="37" cy="9" r="3" fill="#4ecdc4" opacity="0.7"/>
+    <circle cx="49" cy="9" r="3" fill="#4ecdc4" opacity="0.7"/>
+    <circle cx="61" cy="9" r="3" fill="#4ecdc4" opacity="0.7"/>
+
+    <!-- Row 1 -->
+    <rect x="6"  y="24" width="14" height="9" rx="2" fill="#f9c846" opacity="0.9"/>
+    <rect x="24" y="24" width="14" height="9" rx="2" fill="#4ecdc4" opacity="0.7"/>
+    <rect x="42" y="24" width="14" height="9" rx="2" fill="#4ecdc4" opacity="0.5"/>
+    <rect x="60" y="24" width="6"  height="9" rx="2" fill="#f9c846" opacity="0.9"/>
+
+    <!-- Row 2 -->
+    <rect x="6"  y="38" width="14" height="9" rx="2" fill="#4ecdc4" opacity="0.5"/>
+    <rect x="24" y="38" width="14" height="9" rx="2" fill="#f9c846" opacity="0.9"/>
+    <rect x="42" y="38" width="14" height="9" rx="2" fill="#4ecdc4" opacity="0.7"/>
+    <rect x="60" y="38" width="6"  height="9" rx="2" fill="#4ecdc4" opacity="0.5"/>
+
+    <!-- Recreo -->
+    <rect x="6" y="51" width="60" height="4" rx="1" fill="#ffffff" opacity="0.07"/>
+
+    <!-- Row 3 -->
+    <rect x="6"  y="59" width="14" height="9" rx="2" fill="#4ecdc4" opacity="0.7"/>
+    <rect x="24" y="59" width="14" height="9" rx="2" fill="#4ecdc4" opacity="0.5"/>
+    <rect x="42" y="59" width="14" height="9" rx="2" fill="#f9c846" opacity="0.9"/>
+    <rect x="60" y="59" width="6"  height="9" rx="2" fill="#4ecdc4" opacity="0.7"/>
+
+    <!-- Check badge -->
+    <circle cx="62" cy="10" r="11" fill="#0f2640"/>
+    <circle cx="62" cy="10" r="9.5" fill="url(#goldH)"/>
+    <polyline points="57.5,10 61,13.5 67,6.5" stroke="#1a3a5c" stroke-width="2.2"
+              stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  </g>
+
+  <!-- Divider -->
+  <line x1="108" y1="22" x2="108" y2="78" stroke="#4ecdc4" stroke-width="1" opacity="0.2"/>
+
+  <!-- Text -->
+  <text x="126" y="48" font-family="Georgia, serif" font-size="26" font-weight="700"
+        fill="#ffffff" letter-spacing="0.5">Horarios</text>
+  <text x="126" y="70" font-family="Georgia, serif" font-size="18" font-weight="400"
+        fill="#4ecdc4" letter-spacing="4">ESCOLARES</text>
+
+  <!-- Tagline right -->
+  <text x="500" y="56" font-family="Arial, sans-serif" font-size="9"
+        fill="#ffffff" opacity="0.35" text-anchor="end" letter-spacing="1.5">
+    GENERA · ORGANIZA · PUBLICA
+  </text>
+</svg>

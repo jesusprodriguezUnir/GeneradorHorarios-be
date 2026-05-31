@@ -1,0 +1,32 @@
+# .NET
+bin/
+obj/
+*.user
+appsettings.Development.json
+appsettings.*.json
+!appsettings.json
+!appsettings.Development.example.json
+
+# Angular
+node_modules/
+dist/
+.angular/
+src/web/src/environments/environment.ts
+src/web/src/environments/environment.prod.ts
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.suo
+*.ncrunch*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Vercel
+.vercel/
+
+# Railway
+.railway/

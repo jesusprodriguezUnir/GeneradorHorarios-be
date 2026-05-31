@@ -1,0 +1,20 @@
+# .NET
+apps/api/bin/
+apps/api/obj/
+apps/api/*.user
+apps/api/appsettings.Development.json
+
+# Node / Angular
+apps/web/node_modules/
+apps/web/dist/
+apps/web/.angular/
+
+# IDEs
+.vscode/
+.idea/
+*.suo
+*.user
+
+# OS
+.DS_Store
+Thumbs.db
