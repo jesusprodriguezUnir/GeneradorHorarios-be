@@ -149,3 +149,4 @@ D:\Personal\GeneradorHorarios\tests\api\Lectivo.UnitTests\obj\Debug\net8.0\refin
 D:\Personal\GeneradorHorarios\tests\api\Lectivo.UnitTests\obj\Debug\net8.0\Lectivo.UnitTests.pdb
 D:\Personal\GeneradorHorarios\tests\api\Lectivo.UnitTests\obj\Debug\net8.0\Lectivo.UnitTests.genruntimeconfig.cache
 D:\Personal\GeneradorHorarios\tests\api\Lectivo.UnitTests\obj\Debug\net8.0\ref\Lectivo.UnitTests.dll
+D:\Personal\GeneradorHorarios\tests\api\Lectivo.UnitTests\obj\Debug\net8.0\Lectivo.UnitTests.sourcelink.json

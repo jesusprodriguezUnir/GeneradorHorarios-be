@@ -15,35 +15,35 @@ Cada vez que realicemos una acción, editaremos este archivo actualizando el est
 
 ## 🚀 FASE 1 — Corregir el motor (Días 1–4)
 
-### [ ] Día 1 · Arreglar el cableado roto de `SchoolConfig` y aulas
+### [x] Día 1 · Arreglar el cableado roto de `SchoolConfig` y aulas
 *Problema: El motor recibe datos basura en producción (aulas vacías y slots por día equivalentes a slot minutes).*
-- [ ] **Modificar Entidades (`Entities.cs`)**:
-  - [ ] Añadir `SlotsPerDay` (int, default 5) y `DaysPerWeek` (int, default 5) a la clase/entidad `School`.
-  - [ ] Generar migración de EF Core: `dotnet ef migrations add AddSchoolSlotsAndDays`.
-- [ ] **Corregir construcción de `SchoolConfig` (`SchedulesFeature.cs:113`)**:
-  - [ ] Cargar las `Classrooms` reales del centro desde la base de datos.
-  - [ ] Mapear las aulas cargadas a `ClassroomInfo`.
-  - [ ] Pasar `school.SlotsPerDay` en lugar de `school.SlotMinutes` al constructor de `SchoolConfig`.
-- [ ] **Extender `SchoolConfig` (`BacktrackingScheduleEngine.cs:208`)**:
-  - [ ] Añadir la propiedad `DaysPerWeek` a `SchoolConfig`.
-  - [ ] Reemplazar el bucle `for (day = 1; day <= 5)` hardcodeado en `GetCandidateSlots` por `schoolConfig.DaysPerWeek`.
-- [ ] **Rediseñar Constraint de Aulas (`Constraints.cs:33`)**:
-  - [ ] Eliminar `ClassroomNotDoubleBooked` inerte.
-  - [ ] Crear una constraint funcional que consulte el estado de asignaciones (`state`) para evitar reservas duplicadas de la misma aula.
-- [ ] **Verificación**:
-  - [ ] Crear test de integración que llame a `/generate` con el seed real.
-  - [ ] Verificar que `totalAssigned == totalRequired` y que cada entry tiene un `ClassroomId` válido.
-  - [ ] Ejecutar compilación y tests: `dotnet build` + `dotnet test tests/api/Lectivo.UnitTests`.
+- [x] **Modificar Entidades (`Entities.cs`)**:
+  - [x] Añadir `SlotsPerDay` (int, default 5) y `DaysPerWeek` (int, default 5) a la clase/entidad `School`.
+  - [x] Generar migración de EF Core: `dotnet ef migrations add AddSchoolSlotsAndDays`.
+- [x] **Corregir construcción de `SchoolConfig` (`SchedulesFeature.cs:113`)**:
+  - [x] Cargar las `Classrooms` reales del centro desde la base de datos.
+  - [x] Mapear las aulas cargadas a `ClassroomInfo`.
+  - [x] Pasar `school.SlotsPerDay` en lugar de `school.SlotMinutes` al constructor de `SchoolConfig`.
+- [x] **Extender `SchoolConfig` (`BacktrackingScheduleEngine.cs:208`)**:
+  - [x] Añadir la propiedad `DaysPerWeek` a `SchoolConfig`.
+  - [x] Reemplazar el bucle `for (day = 1; day <= 5)` hardcodeado en `GetCandidateSlots` por `schoolConfig.DaysPerWeek`.
+- [x] **Rediseñar Constraint de Aulas (`Constraints.cs:33`)**:
+  - [x] Eliminar `ClassroomNotDoubleBooked` inerte.
+  - [x] Crear una constraint funcional que consulte el estado de asignaciones (`state`) para evitar reservas duplicadas de la misma aula (Code implemented, unit tests updated and verified).
+- [x] **Verificación**:
+  - [x] Crear/Verificar test de integración que llame a `/generate` con el seed real.
+  - [x] Verificar que `totalAssigned == totalRequired` y que cada entry tiene un `ClassroomId` válido.
+  - [x] Ejecutar compilación y tests: `dotnet build` + `dotnet test tests/api/Lectivo.UnitTests` + `dotnet test tests/api/Lectivo.IntegrationTests`.
 
-### [ ] Día 2 · Recreos como constraint del motor + `SlotsPerDay` real
+### [/] Día 2 · Recreos como constraint del motor + `SlotsPerDay` real
 *Problema: Las clases se solapan sobre el recreo; el recreo solo se calcula en el frontend/pintado.*
-- [ ] **Unificar modelo de slots (`SlotCalculator.Compute`)**:
-  - [ ] Modificar o reutilizar la lógica de `SlotCalculator.Compute` para que el motor entienda qué índices de slots son lectivos y cuáles son recreos (`BreakAfterSlot`).
-- [ ] **Actualizar generación de candidatos (`GetCandidateSlots`)**:
-  - [ ] Impedir que `GetCandidateSlots` proponga slots correspondientes al recreo como asignables.
-  - [ ] Hacer que `SlotsPerDay` provenga dinámicamente de la configuración del centro de extremo a extremo.
-- [ ] **Quitar hardcodes de último slot (`NoIntensiveSubjectLastSlot` / `SchedulesFeature.cs:414`)**:
-  - [ ] Reemplazar "slot 4 = último" por un cálculo dinámico del último índice lectivo basado en la configuración del centro.
+- [/] **Unificar modelo de slots (`SlotCalculator.Compute`)**:
+  - [/] Modificar o reutilizar la lógica de `SlotCalculator.Compute` para que el motor entienda qué índices de slots son lectivos y cuáles son recreos (`BreakAfterSlot`).
+- [/] **Actualizar generación de candidatos (`GetCandidateSlots`)**:
+  - [/] Impedir que `GetCandidateSlots` proponga slots correspondientes al recreo como asignables.
+  - [/] Hacer que `SlotsPerDay` provenga dinámicamente de la configuración del centro de extremo a extremo.
+- [/] **Quitar hardcodes de último slot (`NoIntensiveSubjectLastSlot` / `SchedulesFeature.cs:414`)**:
+  - [/] Reemplazar "slot 4 = último" por un cálculo dinámico del último índice lectivo basado en la configuración del centro.
 - [ ] **Verificación**:
   - [ ] Crear test con centro de 6 slots/día y recreo tras el 2º slot, asegurando que ninguna asignatura cae en el slot de recreo y el "último tramo" se determina bien.
   - [ ] Ejecutar tests: `dotnet test`.

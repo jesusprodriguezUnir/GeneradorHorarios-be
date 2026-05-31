@@ -12,6 +12,8 @@ public class School
     public int SlotMinutes { get; set; } = 60;
     public int BreakAfterSlot { get; set; } = 2;
     public int BreakMinutes { get; set; } = 30;
+    public int SlotsPerDay { get; set; } = 5;
+    public int DaysPerWeek { get; set; } = 5;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 

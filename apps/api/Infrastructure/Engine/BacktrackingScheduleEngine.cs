@@ -103,7 +103,7 @@ public sealed class BacktrackingScheduleEngine : IScheduleEngine
     {
         var candidates = new List<(int Day, int Slot, Guid ClassroomId, int Penalty)>();
 
-        for (int day = 1; day <= 5; day++)
+        for (int day = 1; day <= context.School.DaysPerWeek; day++)
         {
             for (int slot = 0; slot < context.School.SlotsPerDay; slot++)
             {
@@ -170,6 +170,9 @@ public sealed class AssignmentState
     public bool IsTeacherBusy(Guid teacherId, int day, int slot)
         => _teacherSlots.Contains((teacherId, day, slot));
 
+    public bool IsClassroomBusy(Guid classroomId, int day, int slot)
+        => _classroomSlots.Contains((classroomId, day, slot));
+
     public Guid? FindAvailableClassroom(
         int day, int slot,
         ClassroomType? requiredType,
@@ -207,6 +210,7 @@ public sealed class AssignmentState
 
 public record SchoolConfig(
     int SlotsPerDay,
+    int DaysPerWeek,
     IReadOnlyList<ClassroomInfo> Classrooms);
 
 public record ClassroomInfo(Guid Id, string Name, ClassroomType Type);

@@ -35,10 +35,7 @@ public sealed class ClassroomNotDoubleBooked : IHardConstraint
     public string Name => "Aula no duplicada";
 
     public bool IsSatisfied(ProposedEntry entry, AssignmentState state)
-        => state.FindAvailableClassroom(
-               entry.Day, entry.Slot,
-               entry.Session.RequiredClassroomType,
-               []) is not null; // La disponibilidad ya se comprueba en el motor
+        => !state.IsClassroomBusy(entry.ClassroomId, entry.Day, entry.Slot);
 }
 
 /// <summary>Respetar la no-disponibilidad declarada de un profesor.</summary>

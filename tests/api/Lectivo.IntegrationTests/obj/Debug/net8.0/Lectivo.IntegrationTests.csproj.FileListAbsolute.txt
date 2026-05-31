@@ -490,3 +490,4 @@ D:\Personal\GeneradorHorarios\tests\api\Lectivo.IntegrationTests\obj\Debug\net8.
 D:\Personal\GeneradorHorarios\tests\api\Lectivo.IntegrationTests\obj\Debug\net8.0\Lectivo.IntegrationTests.pdb
 D:\Personal\GeneradorHorarios\tests\api\Lectivo.IntegrationTests\obj\Debug\net8.0\Lectivo.IntegrationTests.genruntimeconfig.cache
 D:\Personal\GeneradorHorarios\tests\api\Lectivo.IntegrationTests\obj\Debug\net8.0\ref\Lectivo.IntegrationTests.dll
+D:\Personal\GeneradorHorarios\tests\api\Lectivo.IntegrationTests\obj\Debug\net8.0\Lectivo.IntegrationTests.sourcelink.json

@@ -110,4 +110,26 @@ public class SchedulesGenerationTests
             new StringContent(JsonSerializer.Serialize(editPayload), Encoding.UTF8, "application/json"));
         editResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
+
+    [Fact]
+    public async Task Generate_WithRealSeedData_SuccessfullyAssignsAllSessionsAndClassrooms()
+    {
+        var client = _factory.CreateAdminClient();
+
+        var payload = new { academicYear = "2025-2026", timeoutSeconds = 30 };
+        var response = await client.PostAsync("/api/schedules/generate",
+            new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json"));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var json = await response.Content.ReadAsStringAsync();
+        using var doc = JsonDocument.Parse(json);
+        
+        doc.RootElement.GetProperty("status").GetString().Should().Be("generated");
+        
+        var totalAssigned = doc.RootElement.GetProperty("totalAssigned").GetInt32();
+        var totalRequired = doc.RootElement.GetProperty("totalRequired").GetInt32();
+        
+        totalAssigned.Should().Be(totalRequired);
+        totalAssigned.Should().BeGreaterThan(0);
+    }
 }

@@ -105,12 +105,20 @@ public static class ScheduleEndpoints
             if (sessions.Count == 0)
                 return Results.BadRequest(new { message = "No hay asignaciones configuradas. Ve a Configuración → Asignaturas para asignar profesores a grupos." });
 
+            var classrooms = await db.Classrooms.AsNoTracking()
+                .Where(c => c.SchoolId == user.SchoolId)
+                .ToListAsync(ct);
+
             var hardConstraints = await BuildHardConstraints(db, user.SchoolId, ct);
             var softConstraints = await BuildSoftConstraints(db, user.SchoolId, ct);
 
             var context = new GenerationContext
             {
-                School = new SchoolConfig(school.SlotMinutes, []),
+                School = new SchoolConfig(
+                    school.SlotsPerDay,
+                    school.DaysPerWeek,
+                    classrooms.Select(c => new ClassroomInfo(c.Id, c.Name, ParseClassroomType(c.ClassroomType))).ToList()
+                ),
                 Sessions = sessions,
                 HardConstraints = hardConstraints,
                 SoftConstraints = softConstraints,
@@ -387,6 +395,7 @@ public static class ScheduleEndpoints
         var result = new List<IHardConstraint>
         {
             new TeacherNotDoubleBooked(),
+            new ClassroomNotDoubleBooked(),
             new MaxConsecutiveSlotsConstraint(),
         };
         if (unavailableSlots.Count > 0)

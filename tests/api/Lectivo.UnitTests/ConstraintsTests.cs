@@ -31,12 +31,22 @@ public class ConstraintsTests
     }
 
     [Fact]
-    public void ClassroomNotDoubleBooked_CurrentImplementation_PassesWithEmptyClassroomList()
+    public void ClassroomNotDoubleBooked_Satisfied_WhenClassroomFree()
     {
-        // Nota: el constraint actual pasa [] como lista de aulas, por lo que
-        // FindAvailableClassroom siempre devuelve null. El motor filtra aulas antes.
         var constraint = new ClassroomNotDoubleBooked();
         var entry = new ProposedEntry(TestData.Session(), 1, 0, TestData.RegularClassroomId);
+
+        constraint.IsSatisfied(entry, _state).Should().BeTrue();
+    }
+
+    [Fact]
+    public void ClassroomNotDoubleBooked_NotSatisfied_WhenClassroomBusy()
+    {
+        var session = TestData.Session();
+        _state.Assign(session, day: 1, slot: 0, classroomId: TestData.RegularClassroomId);
+
+        var constraint = new ClassroomNotDoubleBooked();
+        var entry = new ProposedEntry(TestData.Session(assignmentId: Guid.NewGuid()), 1, 0, TestData.RegularClassroomId);
 
         constraint.IsSatisfied(entry, _state).Should().BeFalse();
     }

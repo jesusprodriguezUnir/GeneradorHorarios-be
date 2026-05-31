@@ -16,8 +16,9 @@ public static class TestData
     public static Guid RegularClassroomId { get; } = Guid.Parse("00000000-0000-0000-0002-000000000001");
     public static Guid GymClassroomId { get; } = Guid.Parse("00000000-0000-0000-0002-000000000007");
 
-    public static SchoolConfig DefaultSchool(int slotsPerDay = 5) => new(
+    public static SchoolConfig DefaultSchool(int slotsPerDay = 5, int daysPerWeek = 5) => new(
         slotsPerDay,
+        daysPerWeek,
         new List<ClassroomInfo>
         {
             new(RegularClassroomId, "Aula 1A", ClassroomType.Regular),

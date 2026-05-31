@@ -1,7 +1,8 @@
-# .NET
-apps/api/bin/
-apps/api/obj/
-apps/api/*.user
+
+# .NET (ignora bin/ y obj/ en todos los subproyectos)
+**/bin/
+**/obj/
+*.user
 apps/api/appsettings.Development.json
 
 # Node / Angular
