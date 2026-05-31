@@ -173,11 +173,13 @@ public static class ScheduleEndpoints
             var hardConstraints = await BuildHardConstraints(db, user.SchoolId, ct);
             var softConstraints = await BuildSoftConstraints(db, user.SchoolId, lastLectivoSlotIndex, ct);
 
+            var workingDays = SlotCalculator.ParseWorkingDays(school.WorkingDays);
             var context = new GenerationContext
             {
                 School = new SchoolConfig(
                     school.SlotsPerDay,
                     school.DaysPerWeek,
+                    workingDays,
                     slots.Select(s => new SlotConfig(s.Index, s.IsBreak)).ToList(),
                     classrooms.Select(c => new ClassroomInfo(c.Id, c.Name, ParseClassroomType(c.ClassroomType))).ToList()
                 ),

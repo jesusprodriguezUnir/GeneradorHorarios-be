@@ -29,9 +29,17 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasIndex(x => x.Slug).IsUnique();
             e.Property(x => x.Name).HasMaxLength(200).IsRequired();
             e.Property(x => x.Slug).HasMaxLength(100).IsRequired();
+            // Identificación
+            e.Property(x => x.CenterCode).HasMaxLength(20);
+            e.Property(x => x.Locality).HasMaxLength(150);
+            e.Property(x => x.Community).HasMaxLength(50).HasDefaultValue("madrid");
+            e.Property(x => x.Stage).HasMaxLength(30).HasDefaultValue("primaria");
+            e.Property(x => x.AcademicYear).HasMaxLength(20).HasDefaultValue("2025/2026");
+            // Jornada
             e.Property(x => x.ScheduleType).HasMaxLength(20).HasDefaultValue("continua");
             e.Property(x => x.MorningStart).HasColumnType("time");
             e.Property(x => x.AfternoonStart).HasColumnType("time");
+            e.Property(x => x.WorkingDays).HasMaxLength(100).HasDefaultValue("[1,2,3,4,5]");
         });
 
         // ── AppUser ──────────────────────────────────────────────────────────

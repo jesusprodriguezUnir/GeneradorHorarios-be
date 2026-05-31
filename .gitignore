@@ -30,3 +30,7 @@ apps/web/.angular/
 # OS / Misc
 .DS_Store
 Thumbs.db
+
+# Logs
+logs/
+apps/api/logs/

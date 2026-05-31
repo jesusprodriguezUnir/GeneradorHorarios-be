@@ -173,7 +173,7 @@ public class BacktrackingScheduleEngineTests
             new(5, IsBreak: false),
         };
 
-        var school = new SchoolConfig(6, 5, slots, new List<ClassroomInfo>
+        var school = new SchoolConfig(6, 5, [1, 2, 3, 4, 5], slots, new List<ClassroomInfo>
         {
             new(TestData.RegularClassroomId, "Aula 1", ClassroomType.Regular)
         });

@@ -11,8 +11,11 @@ using HorariosEscolares.Features.Subjects;
 using HorariosEscolares.Features.Assignments;
 using HorariosEscolares.Features.Constraints;
 using HorariosEscolares.Features.Schedules;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseSerilog((ctx, cfg) => cfg.ReadFrom.Configuration(ctx.Configuration));
 
 // ── Servicios ─────────────────────────────────────────────────────────────────
 
@@ -37,7 +40,13 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 builder.Services.AddSignalR();
-builder.Services.AddHealthChecks();
+
+var redisConn = builder.Configuration.GetConnectionString("Redis");
+var healthChecksBuilder = builder.Services.AddHealthChecks();
+if (!string.IsNullOrWhiteSpace(redisConn))
+{
+    healthChecksBuilder.AddRedis(redisConn);
+}
 
 builder.Services.AddCors(options =>
 {
@@ -61,6 +70,16 @@ builder.Services.AddDbContext<AppDbContext>(options =>
     });
 });
 
+// Redis / Caché con fallback a memoria
+if (!string.IsNullOrWhiteSpace(redisConn))
+{
+    builder.Services.AddStackExchangeRedisCache(o => o.Configuration = redisConn);
+}
+else
+{
+    builder.Services.AddDistributedMemoryCache(); // fallback a memoria
+}
+
 // Motor de generación de horarios
 builder.Services.AddScoped<IScheduleEngine, BacktrackingScheduleEngine>();
 
@@ -74,6 +93,8 @@ using (var scope = app.Services.CreateScope())
 }
 
 // ── Pipeline ──────────────────────────────────────────────────────────────────
+app.UseSerilogRequestLogging();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();

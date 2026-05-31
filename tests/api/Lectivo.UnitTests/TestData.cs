@@ -21,9 +21,11 @@ public static class TestData
         var slots = Enumerable.Range(0, slotsPerDay)
             .Select(i => new SlotConfig(i, IsBreak: false))
             .ToList();
+        var workingDays = Enumerable.Range(1, daysPerWeek).ToList();
         return new SchoolConfig(
             slotsPerDay,
             daysPerWeek,
+            workingDays,
             slots,
             new List<ClassroomInfo>
             {

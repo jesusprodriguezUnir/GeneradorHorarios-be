@@ -136,7 +136,7 @@ public sealed class BacktrackingScheduleEngine : IScheduleEngine
     {
         var candidates = new List<(int Day, int Slot, Guid ClassroomId, int Penalty)>();
 
-        for (int day = 1; day <= context.School.DaysPerWeek; day++)
+        foreach (var day in context.School.WorkingDays)
         {
             foreach (var slotConfig in context.School.Slots)
             {
@@ -255,6 +255,7 @@ public record SlotConfig(int Index, bool IsBreak);
 public record SchoolConfig(
     int SlotsPerDay,
     int DaysPerWeek,
+    IReadOnlyList<int> WorkingDays,
     IReadOnlyList<SlotConfig> Slots,
     IReadOnlyList<ClassroomInfo> Classrooms);
 

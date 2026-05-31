@@ -70,14 +70,27 @@ public static class DbInitializer
         // ════════════════════════════════════════════════════════════════════
         db.Schools.Add(new School
         {
-            Id           = schoolId,
-            Name         = "CEIP Miguel Hernández",
-            Slug         = "ceip-miguel-hernandez",
-            ScheduleType = "continua",
-            MorningStart = new TimeOnly(9, 0),
-            SlotMinutes  = 60,
+            Id             = schoolId,
+            Name           = "CEIP Miguel Hernández",
+            Slug           = "ceip-miguel-hernandez",
+            // Identificación
+            CenterCode     = "28013291",
+            Locality       = "Madrid",
+            Community      = "madrid",
+            Stage          = "primaria",
+            MinCourseLevel = 1,
+            MaxCourseLevel = 6,
+            AcademicYear   = "2025/2026",
+            // Jornada
+            ScheduleType   = "continua",
+            MorningStart   = new TimeOnly(9, 0),
+            SlotMinutes    = 60,
             BreakAfterSlot = 2,
-            BreakMinutes = 30,
+            BreakMinutes   = 30,
+            SlotsPerDay    = 5,
+            AfternoonSlots = 0,
+            DaysPerWeek    = 5,
+            WorkingDays    = "[1,2,3,4,5]",
         });
 
         // ── Usuarios demo ────────────────────────────────────────────────────

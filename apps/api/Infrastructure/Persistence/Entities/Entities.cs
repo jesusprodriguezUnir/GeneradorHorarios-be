@@ -6,6 +6,17 @@ public class School
     public Guid Id { get; set; } = Guid.NewGuid();
     public required string Name { get; set; }
     public required string Slug { get; set; }
+
+    // ── Identificación del centro ─────────────────────────────────────────────
+    public string? CenterCode { get; set; }          // Código oficial del centro (ej. CAM)
+    public string? Locality { get; set; }            // Localidad/municipio
+    public string Community { get; set; } = "madrid";
+    public string Stage { get; set; } = "primaria";
+    public int MinCourseLevel { get; set; } = 1;
+    public int MaxCourseLevel { get; set; } = 6;
+    public string AcademicYear { get; set; } = "2025/2026";
+
+    // ── Configuración de jornada ──────────────────────────────────────────────
     public string ScheduleType { get; set; } = "continua";
     public TimeOnly MorningStart { get; set; } = new(9, 0);
     public TimeOnly? AfternoonStart { get; set; }
@@ -13,7 +24,16 @@ public class School
     public int BreakAfterSlot { get; set; } = 2;
     public int BreakMinutes { get; set; } = 30;
     public int SlotsPerDay { get; set; } = 5;
+
+    /// <summary>Nº de slots de la jornada de tarde (solo jornada partida). 0 = jornada continua.</summary>
+    public int AfternoonSlots { get; set; } = 0;
+
+    /// <summary>Derivado de WorkingDays.Count; se sincroniza al guardar.</summary>
     public int DaysPerWeek { get; set; } = 5;
+
+    /// <summary>Días lectivos de la semana como JSON de ints (1=lunes…7=domingo). Ej: "[1,2,3,4,5]".</summary>
+    public string WorkingDays { get; set; } = "[1,2,3,4,5]";
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
 

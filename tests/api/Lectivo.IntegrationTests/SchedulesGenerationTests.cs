@@ -238,4 +238,46 @@ public class SchedulesGenerationTests
                 new StringContent(JsonSerializer.Serialize(restorePayload), Encoding.UTF8, "application/json"));
         }
     }
+
+    [Fact]
+    public async Task Generate_ExcludedDay_ProducesNoEntriesForThatDay()
+    {
+        var client = _factory.CreateAdminClient();
+
+        // Excluir el miércoles (día 3)
+        await client.PutAsync("/api/schools/me",
+            new StringContent(
+                JsonSerializer.Serialize(new { workingDays = new[] { 1, 2, 4, 5 } }),
+                Encoding.UTF8, "application/json"));
+
+        try
+        {
+            var payload = new { academicYear = "2025-2026-excl", timeoutSeconds = 30 };
+            var response = await client.PostAsync("/api/schedules/generate",
+                new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json"));
+
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+            var json = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(json);
+            var scheduleId = doc.RootElement.GetProperty("scheduleId").GetGuid();
+
+            var getResponse = await client.GetAsync($"/api/schedules/{scheduleId}");
+            getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+            var getJson = await getResponse.Content.ReadAsStringAsync();
+
+            using var scheduleDoc = JsonDocument.Parse(getJson);
+            var entries = scheduleDoc.RootElement.GetProperty("entries").EnumerateArray().ToList();
+
+            // No debe haber ninguna entrada para el día 3 (miércoles)
+            entries.Should().NotContain(e => e.GetProperty("dayOfWeek").GetInt32() == 3);
+        }
+        finally
+        {
+            // Restaurar los 5 días
+            await client.PutAsync("/api/schools/me",
+                new StringContent(
+                    JsonSerializer.Serialize(new { workingDays = new[] { 1, 2, 3, 4, 5 } }),
+                    Encoding.UTF8, "application/json"));
+        }
+    }
 }

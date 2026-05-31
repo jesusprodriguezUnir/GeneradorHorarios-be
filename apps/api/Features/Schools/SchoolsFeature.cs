@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using HorariosEscolares.Features.Auth;
 using HorariosEscolares.Infrastructure.Persistence;
@@ -8,41 +9,55 @@ namespace HorariosEscolares.Features.Schools;
 // ── DTOs ──────────────────────────────────────────────────────────────────────
 public record SchoolDto(
     Guid Id, string Name, string Slug,
-    string ScheduleType, string MorningStart, string? AfternoonStart, int SlotMinutes,
-    int BreakAfterSlot, int BreakMinutes, int SlotsPerDay, int DaysPerWeek,
+    // Identificación
+    string? CenterCode, string? Locality, string Community,
+    string Stage, int MinCourseLevel, int MaxCourseLevel, string AcademicYear,
+    // Jornada
+    string ScheduleType, string MorningStart, string? AfternoonStart,
+    int SlotMinutes, int BreakAfterSlot, int BreakMinutes,
+    int SlotsPerDay, int AfternoonSlots, int DaysPerWeek,
+    IReadOnlyList<int> WorkingDays,
     IReadOnlyList<SlotDto> ComputedSlots);
 
 public record SlotDto(int Index, string StartTime, string EndTime, bool IsBreak);
 
 public record UpdateSchoolRequest(
     string? Name,
+    // Identificación
+    string? CenterCode,
+    string? Locality,
+    string? Community,
+    string? Stage,
+    int? MinCourseLevel,
+    int? MaxCourseLevel,
+    string? AcademicYear,
+    // Jornada
     string? ScheduleType,
     string? MorningStart,
     int? SlotMinutes,
     int? BreakAfterSlot,
     int? BreakMinutes,
     int? SlotsPerDay,
-    int? DaysPerWeek,
-    string? AfternoonStart);
+    int? AfternoonSlots,
+    string? AfternoonStart,
+    IReadOnlyList<int>? WorkingDays);
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 public static class SlotCalculator
 {
-    /// <summary>Calcula las franjas horarias basándose en la configuración del colegio.</summary>
     public static List<SlotDto> Compute(School s, int totalSlots = 5)
     {
         var slots = new List<SlotDto>();
         var current = s.MorningStart;
-        
-        bool isPartida = s.ScheduleType == "partida" && s.AfternoonStart.HasValue;
-        int morningSlotsLimit = isPartida ? Math.Min(s.BreakAfterSlot + 1, totalSlots) : totalSlots;
+
+        bool isPartida = s.ScheduleType == "partida" && s.AfternoonStart.HasValue && s.AfternoonSlots > 0;
+        int morningSlotsLimit = isPartida ? totalSlots - s.AfternoonSlots : totalSlots;
 
         // Slots de mañana
         for (int i = 0; i < morningSlotsLimit; i++)
         {
             if (i == s.BreakAfterSlot)
             {
-                // Insertar recreo
                 slots.Add(new SlotDto(-1,
                     current.ToString("HH:mm"),
                     current.AddMinutes(s.BreakMinutes).ToString("HH:mm"),
@@ -54,7 +69,7 @@ public static class SlotCalculator
             current = end;
         }
 
-        // Slots de tarde
+        // Slots de tarde (solo jornada partida)
         if (isPartida && morningSlotsLimit < totalSlots)
         {
             var afternoonCurrent = s.AfternoonStart!.Value;
@@ -72,9 +87,28 @@ public static class SlotCalculator
     public static SchoolDto ToDto(School s)
     {
         var slots = Compute(s, s.SlotsPerDay);
-        return new SchoolDto(s.Id, s.Name, s.Slug, s.ScheduleType,
-            s.MorningStart.ToString("HH:mm"), s.AfternoonStart?.ToString("HH:mm"), s.SlotMinutes,
-            s.BreakAfterSlot, s.BreakMinutes, s.SlotsPerDay, s.DaysPerWeek, slots);
+        var workingDays = ParseWorkingDays(s.WorkingDays);
+        return new SchoolDto(
+            s.Id, s.Name, s.Slug,
+            s.CenterCode, s.Locality, s.Community,
+            s.Stage, s.MinCourseLevel, s.MaxCourseLevel, s.AcademicYear,
+            s.ScheduleType,
+            s.MorningStart.ToString("HH:mm"), s.AfternoonStart?.ToString("HH:mm"),
+            s.SlotMinutes, s.BreakAfterSlot, s.BreakMinutes,
+            s.SlotsPerDay, s.AfternoonSlots, s.DaysPerWeek,
+            workingDays, slots);
+    }
+
+    public static IReadOnlyList<int> ParseWorkingDays(string json)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<List<int>>(json) ?? [1, 2, 3, 4, 5];
+        }
+        catch
+        {
+            return [1, 2, 3, 4, 5];
+        }
     }
 }
 
@@ -102,13 +136,38 @@ public static class SchoolEndpoints
             var s = await db.Schools.FirstOrDefaultAsync(x => x.Id == user.SchoolId);
             if (s is null) return Results.NotFound();
 
-            // Validaciones
-            if (req.SlotsPerDay.HasValue && (req.SlotsPerDay.Value < 1 || req.SlotsPerDay.Value > 10))
+            // ── Validaciones de jornada ────────────────────────────────────────
+            var slotsPerDay = req.SlotsPerDay ?? s.SlotsPerDay;
+            if (slotsPerDay < 1 || slotsPerDay > 10)
                 return Results.BadRequest(new { message = "El número de slots por día debe estar entre 1 y 10." });
 
-            if (req.DaysPerWeek.HasValue && (req.DaysPerWeek.Value < 1 || req.DaysPerWeek.Value > 7))
-                return Results.BadRequest(new { message = "El número de días por semana debe estar entre 1 y 7." });
+            var afternoonSlots = req.AfternoonSlots ?? s.AfternoonSlots;
+            if (afternoonSlots < 0 || afternoonSlots >= slotsPerDay)
+                return Results.BadRequest(new { message = "Los slots de tarde deben estar entre 0 y slotsPerDay-1." });
 
+            // ── Validación días lectivos ───────────────────────────────────────
+            IReadOnlyList<int> workingDays = s.WorkingDays != null
+                ? SlotCalculator.ParseWorkingDays(s.WorkingDays)
+                : [1, 2, 3, 4, 5];
+
+            if (req.WorkingDays is not null)
+            {
+                if (req.WorkingDays.Count == 0)
+                    return Results.BadRequest(new { message = "Debe haber al menos un día lectivo." });
+                if (req.WorkingDays.Any(d => d < 1 || d > 7))
+                    return Results.BadRequest(new { message = "Los días lectivos deben estar entre 1 (lunes) y 7 (domingo)." });
+                if (req.WorkingDays.Distinct().Count() != req.WorkingDays.Count)
+                    return Results.BadRequest(new { message = "Los días lectivos no pueden repetirse." });
+                workingDays = req.WorkingDays;
+            }
+
+            // ── Validaciones de identificación ────────────────────────────────
+            var minLevel = req.MinCourseLevel ?? s.MinCourseLevel;
+            var maxLevel = req.MaxCourseLevel ?? s.MaxCourseLevel;
+            if (minLevel < 1 || maxLevel > 12 || minLevel > maxLevel)
+                return Results.BadRequest(new { message = "El rango de cursos no es válido (minCourseLevel ≤ maxCourseLevel, entre 1 y 12)." });
+
+            // ── Parseo de horas ────────────────────────────────────────────────
             var scheduleType = req.ScheduleType ?? s.ScheduleType;
             var morningStart = s.MorningStart;
             if (req.MorningStart is not null)
@@ -128,39 +187,45 @@ public static class SchoolEndpoints
                     return Results.BadRequest(new { message = "El formato de la hora de inicio de tarde no es válido." });
             }
 
+            // ── Validación jornada partida ─────────────────────────────────────
             if (scheduleType == "partida")
             {
                 if (!afternoonStart.HasValue)
                     return Results.BadRequest(new { message = "Para la jornada partida es obligatorio configurar la hora de inicio de la tarde." });
 
-                // Calcular el final de la jornada de mañana para validar que no haya solapamiento
-                var slotsPerDay = req.SlotsPerDay ?? s.SlotsPerDay;
                 var breakAfterSlot = req.BreakAfterSlot ?? s.BreakAfterSlot;
                 var breakMinutes = req.BreakMinutes ?? s.BreakMinutes;
                 var slotMinutes = req.SlotMinutes ?? s.SlotMinutes;
+                int morningSlotsLimit = slotsPerDay - afternoonSlots;
 
-                int morningSlotsLimit = Math.Min(breakAfterSlot + 1, slotsPerDay);
                 var morningDurationMinutes = morningSlotsLimit * slotMinutes;
                 if (breakAfterSlot < morningSlotsLimit)
-                {
                     morningDurationMinutes += breakMinutes;
-                }
-                var morningEndTime = morningStart.AddMinutes(morningDurationMinutes);
 
+                var morningEndTime = morningStart.AddMinutes(morningDurationMinutes);
                 if (afternoonStart.Value <= morningEndTime)
                     return Results.BadRequest(new { message = $"La hora de inicio de tarde ({afternoonStart.Value:HH:mm}) debe ser posterior al final de la jornada de mañana ({morningEndTime:HH:mm})." });
             }
 
-            // Aplicar cambios
-            if (req.Name is not null)           s.Name           = req.Name;
-            s.ScheduleType = scheduleType;
-            if (req.SlotMinutes.HasValue)        s.SlotMinutes    = req.SlotMinutes.Value;
-            if (req.BreakAfterSlot.HasValue)     s.BreakAfterSlot = req.BreakAfterSlot.Value;
-            if (req.BreakMinutes.HasValue)       s.BreakMinutes   = req.BreakMinutes.Value;
-            s.MorningStart = morningStart;
-            s.AfternoonStart = afternoonStart;
-            if (req.SlotsPerDay.HasValue)       s.SlotsPerDay    = req.SlotsPerDay.Value;
-            if (req.DaysPerWeek.HasValue)       s.DaysPerWeek    = req.DaysPerWeek.Value;
+            // ── Aplicar cambios ────────────────────────────────────────────────
+            if (req.Name is not null)             s.Name             = req.Name;
+            if (req.CenterCode is not null)       s.CenterCode       = string.IsNullOrWhiteSpace(req.CenterCode) ? null : req.CenterCode;
+            if (req.Locality is not null)         s.Locality         = string.IsNullOrWhiteSpace(req.Locality) ? null : req.Locality;
+            if (req.Community is not null)        s.Community        = req.Community;
+            if (req.Stage is not null)            s.Stage            = req.Stage;
+            s.MinCourseLevel  = minLevel;
+            s.MaxCourseLevel  = maxLevel;
+            if (req.AcademicYear is not null)     s.AcademicYear     = req.AcademicYear;
+            s.ScheduleType    = scheduleType;
+            if (req.SlotMinutes.HasValue)         s.SlotMinutes      = req.SlotMinutes.Value;
+            if (req.BreakAfterSlot.HasValue)      s.BreakAfterSlot   = req.BreakAfterSlot.Value;
+            if (req.BreakMinutes.HasValue)        s.BreakMinutes     = req.BreakMinutes.Value;
+            s.MorningStart    = morningStart;
+            s.AfternoonStart  = afternoonStart;
+            s.SlotsPerDay     = slotsPerDay;
+            s.AfternoonSlots  = afternoonSlots;
+            s.WorkingDays     = JsonSerializer.Serialize(workingDays.OrderBy(d => d).ToList());
+            s.DaysPerWeek     = workingDays.Count;   // derivado de WorkingDays
 
             await db.SaveChangesAsync();
             return Results.Ok(SlotCalculator.ToDto(s));
