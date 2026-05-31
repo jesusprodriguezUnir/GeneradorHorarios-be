@@ -159,4 +159,36 @@ public class BacktrackingScheduleEngineTests
         progressReports.Should().NotBeEmpty();
         progressReports.Last().Percentage.Should().BeGreaterThan(0);
     }
+
+    [Fact]
+    public async Task GenerateAsync_WithBreakSlot_DoesNotScheduleOnBreak()
+    {
+        var slots = new List<SlotConfig>
+        {
+            new(0, IsBreak: false),
+            new(1, IsBreak: false),
+            new(2, IsBreak: true),
+            new(3, IsBreak: false),
+            new(4, IsBreak: false),
+            new(5, IsBreak: false),
+        };
+
+        var school = new SchoolConfig(6, 5, slots, new List<ClassroomInfo>
+        {
+            new(TestData.RegularClassroomId, "Aula 1", ClassroomType.Regular)
+        });
+
+        var sessions = Enumerable.Range(0, 5)
+            .Select(i => TestData.Session(assignmentId: Guid.NewGuid(), subjectName: $"S{i}"))
+            .ToList();
+
+        var context = TestData.Context(sessions: sessions, school: school);
+
+        var result = await _engine.GenerateAsync(context, CancellationToken.None);
+
+        result.Status.Should().Be(GenerationStatus.Complete);
+        result.TotalAssigned.Should().Be(5);
+        result.AssignedSlots.Should().NotContain(a => a.SlotIndex == 2);
+        result.AssignedSlots.Select(a => a.SlotIndex).Should().OnlyContain(s => s == 0 || s == 1 || s == 3 || s == 4 || s == 5);
+    }
 }

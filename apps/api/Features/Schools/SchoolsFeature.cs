@@ -50,7 +50,7 @@ public static class SlotCalculator
 
     public static SchoolDto ToDto(School s)
     {
-        var slots = Compute(s);
+        var slots = Compute(s, s.SlotsPerDay);
         return new SchoolDto(s.Id, s.Name, s.Slug, s.ScheduleType,
             s.MorningStart.ToString("HH:mm"), s.SlotMinutes,
             s.BreakAfterSlot, s.BreakMinutes, slots);

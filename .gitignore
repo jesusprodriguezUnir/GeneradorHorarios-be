@@ -1,21 +1,32 @@
-
-# .NET (ignora bin/ y obj/ en todos los subproyectos)
+# .NET / C#
 **/bin/
 **/obj/
+**/[Dd]ebug/
+**/[Rr]elease/
+*.dll
+*.pdb
+*.exe
+*.suo
 *.user
+*.userosscache
+*.sln.docstates
+.vs/
 apps/api/appsettings.Development.json
 
-# Node / Angular
-apps/web/node_modules/
+# Node / Angular / Web
+node_modules/
+**/node_modules/
+dist/
+**/dist/
+.angular/
+**/.angular/
 apps/web/dist/
 apps/web/.angular/
 
 # IDEs
 .vscode/
 .idea/
-*.suo
-*.user
 
-# OS
+# OS / Misc
 .DS_Store
 Thumbs.db

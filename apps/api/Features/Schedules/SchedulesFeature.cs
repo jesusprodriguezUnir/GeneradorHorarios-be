@@ -109,14 +109,20 @@ public static class ScheduleEndpoints
                 .Where(c => c.SchoolId == user.SchoolId)
                 .ToListAsync(ct);
 
+            var slots = SlotCalculator.Compute(school, school.SlotsPerDay);
+            int lastLectivoSlotIndex = slots.Where(s => !s.IsBreak).Any()
+                ? slots.Where(s => !s.IsBreak).Max(s => s.Index)
+                : 4;
+
             var hardConstraints = await BuildHardConstraints(db, user.SchoolId, ct);
-            var softConstraints = await BuildSoftConstraints(db, user.SchoolId, ct);
+            var softConstraints = await BuildSoftConstraints(db, user.SchoolId, lastLectivoSlotIndex, ct);
 
             var context = new GenerationContext
             {
                 School = new SchoolConfig(
                     school.SlotsPerDay,
                     school.DaysPerWeek,
+                    slots.Select(s => new SlotConfig(s.Index, s.IsBreak)).ToList(),
                     classrooms.Select(c => new ClassroomInfo(c.Id, c.Name, ParseClassroomType(c.ClassroomType))).ToList()
                 ),
                 Sessions = sessions,
@@ -404,7 +410,7 @@ public static class ScheduleEndpoints
         return result;
     }
 
-    private static async Task<List<ISoftConstraint>> BuildSoftConstraints(AppDbContext db, Guid schoolId, CancellationToken ct)
+    private static async Task<List<ISoftConstraint>> BuildSoftConstraints(AppDbContext db, Guid schoolId, int lastLectivoSlotIndex, CancellationToken ct)
     {
         // Obtener asignaciones de Lengua/Matemáticas para el soft constraint de intensivas
         var intensiveIds = await db.Assignments.AsNoTracking()
@@ -420,7 +426,7 @@ public static class ScheduleEndpoints
 
         return new List<ISoftConstraint>
         {
-            new NoIntensiveSubjectLastSlot(4, intensiveIds),   // slot 4 = último (índice 0-based)
+            new NoIntensiveSubjectLastSlot(lastLectivoSlotIndex, intensiveIds),
             new DistributeSubjectAcrossDays(),
             new TeacherConsecutiveLoadConstraint(3),
         };

@@ -16,16 +16,23 @@ public static class TestData
     public static Guid RegularClassroomId { get; } = Guid.Parse("00000000-0000-0000-0002-000000000001");
     public static Guid GymClassroomId { get; } = Guid.Parse("00000000-0000-0000-0002-000000000007");
 
-    public static SchoolConfig DefaultSchool(int slotsPerDay = 5, int daysPerWeek = 5) => new(
-        slotsPerDay,
-        daysPerWeek,
-        new List<ClassroomInfo>
-        {
-            new(RegularClassroomId, "Aula 1A", ClassroomType.Regular),
-            new(Guid.Parse("00000000-0000-0000-0002-000000000002"), "Aula 1B", ClassroomType.Regular),
-            new(GymClassroomId, "Gimnasio", ClassroomType.Gym),
-            new(Guid.Parse("00000000-0000-0000-0002-000000000008"), "Aula Música", ClassroomType.Music),
-        });
+    public static SchoolConfig DefaultSchool(int slotsPerDay = 5, int daysPerWeek = 5)
+    {
+        var slots = Enumerable.Range(0, slotsPerDay)
+            .Select(i => new SlotConfig(i, IsBreak: false))
+            .ToList();
+        return new SchoolConfig(
+            slotsPerDay,
+            daysPerWeek,
+            slots,
+            new List<ClassroomInfo>
+            {
+                new(RegularClassroomId, "Aula 1A", ClassroomType.Regular),
+                new(Guid.Parse("00000000-0000-0000-0002-000000000002"), "Aula 1B", ClassroomType.Regular),
+                new(GymClassroomId, "Gimnasio", ClassroomType.Gym),
+                new(Guid.Parse("00000000-0000-0000-0002-000000000008"), "Aula Música", ClassroomType.Music),
+            });
+    }
 
     public static SessionToAssign Session(
         Guid? assignmentId = null,

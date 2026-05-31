@@ -105,8 +105,11 @@ public sealed class BacktrackingScheduleEngine : IScheduleEngine
 
         for (int day = 1; day <= context.School.DaysPerWeek; day++)
         {
-            for (int slot = 0; slot < context.School.SlotsPerDay; slot++)
+            foreach (var slotConfig in context.School.Slots)
             {
+                if (slotConfig.IsBreak) continue;
+                int slot = slotConfig.Index;
+
                 if (state.IsTeacherBusy(session.TeacherId, day, slot)) continue;
 
                 var availableClassroom = state.FindAvailableClassroom(
@@ -208,9 +211,12 @@ public sealed class AssignmentState
 
 // ── Tipos auxiliares ──────────────────────────────────────────────────────────
 
+public record SlotConfig(int Index, bool IsBreak);
+
 public record SchoolConfig(
     int SlotsPerDay,
     int DaysPerWeek,
+    IReadOnlyList<SlotConfig> Slots,
     IReadOnlyList<ClassroomInfo> Classrooms);
 
 public record ClassroomInfo(Guid Id, string Name, ClassroomType Type);

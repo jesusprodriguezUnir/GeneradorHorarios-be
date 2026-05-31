@@ -35,20 +35,20 @@ Cada vez que realicemos una acción, editaremos este archivo actualizando el est
   - [x] Verificar que `totalAssigned == totalRequired` y que cada entry tiene un `ClassroomId` válido.
   - [x] Ejecutar compilación y tests: `dotnet build` + `dotnet test tests/api/Lectivo.UnitTests` + `dotnet test tests/api/Lectivo.IntegrationTests`.
 
-### [/] Día 2 · Recreos como constraint del motor + `SlotsPerDay` real
+### [x] Día 2 · Recreos como constraint del motor + `SlotsPerDay` real
 *Problema: Las clases se solapan sobre el recreo; el recreo solo se calcula en el frontend/pintado.*
-- [/] **Unificar modelo de slots (`SlotCalculator.Compute`)**:
-  - [/] Modificar o reutilizar la lógica de `SlotCalculator.Compute` para que el motor entienda qué índices de slots son lectivos y cuáles son recreos (`BreakAfterSlot`).
-- [/] **Actualizar generación de candidatos (`GetCandidateSlots`)**:
-  - [/] Impedir que `GetCandidateSlots` proponga slots correspondientes al recreo como asignables.
-  - [/] Hacer que `SlotsPerDay` provenga dinámicamente de la configuración del centro de extremo a extremo.
-- [/] **Quitar hardcodes de último slot (`NoIntensiveSubjectLastSlot` / `SchedulesFeature.cs:414`)**:
-  - [/] Reemplazar "slot 4 = último" por un cálculo dinámico del último índice lectivo basado en la configuración del centro.
-- [ ] **Verificación**:
-  - [ ] Crear test con centro de 6 slots/día y recreo tras el 2º slot, asegurando que ninguna asignatura cae en el slot de recreo y el "último tramo" se determina bien.
-  - [ ] Ejecutar tests: `dotnet test`.
+- [x] **Unificar modelo de slots (`SlotCalculator.Compute`)**:
+  - [x] Modificar o reutilizar la lógica de `SlotCalculator.Compute` para que el motor entienda qué índices de slots son lectivos y cuáles son recreos (`BreakAfterSlot`).
+- [x] **Actualizar generación de candidatos (`GetCandidateSlots`)**:
+  - [x] Impedir que `GetCandidateSlots` proponga slots correspondientes al recreo como asignables (El motor omite slots donde `IsBreak == true`).
+  - [x] Hacer que `SlotsPerDay` provenga dinámicamente de la configuración del centro de extremo a extremo.
+- [x] **Quitar hardcodes de último slot (`NoIntensiveSubjectLastSlot` / `SchedulesFeature.cs:414`)**:
+  - [x] Reemplazar "slot 4 = último" por un cálculo dinámico del último índice lectivo basado en la configuración del centro.
+- [x] **Verificación**:
+  - [x] Crear test con centro de 6 slots/día y recreo tras el 2º slot, asegurando que ninguna asignatura cae en el slot de recreo y el "último tramo" se determina bien.
+  - [x] Ejecutar tests: `dotnet test` (43 tests unitarios y 14 tests de integración exitosos en verde).
 
-### [ ] Día 3 · Constraints de colegio real I — Especialistas y horas de profesor
+### [/] Día 3 · Constraints de colegio real I — especialistas y horas de profesor
 *Problema: Atributos inactivos en el modelo; profesores generalistas impartiendo especialidades sin control.*
 - [ ] **Implementar `RequiresSpecialistConstraint` (Dura)**:
   - [ ] Reutilizar `SubjectAllocation.RequiresSpecialist` y `Teacher.Specialties` (JSON).
