@@ -103,22 +103,22 @@ Cada vez que realicemos una acción, editaremos este archivo actualizando el est
 - [ ] **Verificación**:
   - [ ] Test de aislamiento entre centros: verificar que el usuario de un centro no puede editar datos de otro.
 
-### [ ] Día 7 · Limpieza de deuda de dominio backend
-- [ ] **Resolver bifurcación en `Schedule.cs` / `SchedulesFeature.cs:144`**:
-  - [ ] Eliminar la bifurcación (ambos devuelven `"generated"`). Definir una máquina de estados rica con un enum claro en `Schedule` o integrar la entidad al 100%.
-- [ ] **Corregir `GroupLabel` provisional (`SchedulesFeature.cs:367`)**:
-  - [ ] Eliminar `GuidToString()[^4..]` y usar el `DisplayName` / etiqueta real del grupo de alumnos.
-- [ ] **Optimizaciones e índices**:
-  - [ ] Añadir índices por `SchoolId` en las tablas principales mediante migración EF Core para evitar table scans.
-  - [ ] Autorizar el hub SignalR (`JoinSchoolGroup` no debe aceptar cualquier GUID sin comprobación del token del centro).
-- [ ] **Verificación**:
-  - [ ] Ejecutar toda la suite de tests: `dotnet test` (Unit + Integration).
+### [x] Día 7 · Limpieza de deuda de dominio backend
+- [x] **Resolver bifurcación en `Schedule.cs` / `SchedulesFeature.cs:144`**:
+  - [x] Eliminar la bifurcación (ambos devuelven `"generated"`). Definir una máquina de estados rica con un enum claro en `Schedule` o integrar la entidad al 100%.
+- [x] **Corregir `GroupLabel` provisional (`SchedulesFeature.cs:367`)**:
+  - [x] Eliminar `GuidToString()[^4..]` y usar el `DisplayName` / etiqueta real del grupo de alumnos.
+- [x] **Optimizaciones e índices**:
+  - [x] Añadir índices por `SchoolId` en las tablas principales mediante migración EF Core para evitar table scans.
+  - [x] Autorizar el hub SignalR (`JoinSchoolGroup` no debe aceptar cualquier GUID sin comprobación del token del centro).
+- [x] **Verificación**:
+  - [x] Ejecutar toda la suite de tests: `dotnet test` (Unit + Integration).
 
 ---
 
 ## 🎨 FASE 3 — Frontend profesional (Días 8–12)
 
-### [ ] Día 8 · Adoptar PrimeNG + sistema de feedback global
+### [/] Día 8 · Adoptar PrimeNG + sistema de feedback global
 - [ ] **Implementar servicio Toast de PrimeNG**:
   - [ ] Activar PrimeNG y el remapeo de tokens en `app.config.ts:31`.
   - [ ] Declarar `p-toast` de forma global en la shell de la aplicación.

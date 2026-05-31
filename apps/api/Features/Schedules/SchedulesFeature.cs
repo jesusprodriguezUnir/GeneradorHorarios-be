@@ -19,10 +19,28 @@ namespace HorariosEscolares.Features.Schedules;
 public sealed class GenerationProgressHub : Hub
 {
     public async Task JoinSchoolGroup(string schoolId)
-        => await Groups.AddToGroupAsync(Context.ConnectionId, schoolId);
+    {
+        var httpContext = Context.GetHttpContext();
+        if (httpContext is null) throw new HubException("No autorizado.");
+
+        var user = httpContext.GetCurrentUserOrFail();
+        if (user.SchoolId.ToString() != schoolId)
+            throw new HubException("No autorizado para este colegio.");
+
+        await Groups.AddToGroupAsync(Context.ConnectionId, schoolId);
+    }
 
     public async Task LeaveSchoolGroup(string schoolId)
-        => await Groups.RemoveFromGroupAsync(Context.ConnectionId, schoolId);
+    {
+        var httpContext = Context.GetHttpContext();
+        if (httpContext is null) throw new HubException("No autorizado.");
+
+        var user = httpContext.GetCurrentUserOrFail();
+        if (user.SchoolId.ToString() != schoolId)
+            throw new HubException("No autorizado para este colegio.");
+
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, schoolId);
+    }
 }
 
 // ── DTOs ──────────────────────────────────────────────────────────────────────
@@ -193,7 +211,7 @@ public static class ScheduleEndpoints
             var schedule = new ScheduleRecord
             {
                 SchoolId = user.SchoolId, AcademicYear = req.AcademicYear,
-                Status = result.Status == GenerationStatus.Complete ? "generated" : "generated",
+                Status = "generated",
                 GeneratedAt = DateTime.UtcNow, GenerationSeconds = result.ElapsedSeconds,
                 TotalConflicts = result.Conflicts.Count(c => c.Severity == ConflictSeverity.Error),
                 CreatedBy = user.UserId,
@@ -401,6 +419,9 @@ public static class ScheduleEndpoints
         var classrooms = await db.Classrooms.AsNoTracking()
             .Where(c => c.SchoolId == schoolId)
             .ToDictionaryAsync(c => c.ClassroomType + "_" + c.Id, c => c.Id, ct);
+        var groups = await db.CourseGroups.AsNoTracking()
+            .Where(g => g.SchoolId == schoolId)
+            .ToDictionaryAsync(g => g.Id, ct);
 
         var sessions = new List<SessionToAssign>();
         foreach (var a in assignments)
@@ -422,6 +443,7 @@ public static class ScheduleEndpoints
                 specialties = new List<string>();
             }
             int maxWeeklyHours = teacher.MaxWeeklyHours;
+            var groupLabel = groups.TryGetValue(a.GroupId, out var grp) ? grp.DisplayName : "Grupo";
 
             // Generar una sesión por cada hora semanal
             for (int i = 0; i < a.WeeklyHours; i++)
@@ -432,7 +454,7 @@ public static class ScheduleEndpoints
                     TeacherId: a.TeacherId,
                     AllocationId: a.AllocationId,
                     SubjectName: alloc.SubjectName,
-                    GroupLabel: a.GroupId.ToString()[^4..], // último fragmento del GUID como label provisional
+                    GroupLabel: groupLabel,
                     RequiredClassroomId: null,
                     RequiredClassroomType: classroomType,
                     MaxConsecutiveSlots: alloc.MaxConsecutiveSlots,

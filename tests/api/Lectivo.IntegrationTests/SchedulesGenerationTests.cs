@@ -45,6 +45,7 @@ public class SchedulesGenerationTests
             .WithUrl("http://localhost/hubs/generation", options =>
             {
                 options.HttpMessageHandlerFactory = _ => _factory.Server.CreateHandler();
+                options.Headers.Add("X-User-Email", "elena.castro@ceip-miguel-hernandez.es");
             })
             .Build();
 

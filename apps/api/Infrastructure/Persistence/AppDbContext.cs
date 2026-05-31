@@ -60,6 +60,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         mb.Entity<Classroom>(e =>
         {
             e.HasKey(x => x.Id);
+            e.HasIndex(x => x.SchoolId);
             e.Property(x => x.Name).HasMaxLength(100).IsRequired();
             e.Property(x => x.ClassroomType).HasMaxLength(20).HasDefaultValue("regular");
         });
@@ -96,6 +97,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         mb.Entity<Assignment>(e =>
         {
             e.HasKey(x => x.Id);
+            e.HasIndex(x => x.SchoolId);
             e.HasIndex(x => new { x.TeacherId, x.GroupId, x.AllocationId }).IsUnique();
         });
 
@@ -103,6 +105,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         mb.Entity<TeacherConstraint>(e =>
         {
             e.HasKey(x => x.Id);
+            e.HasIndex(x => x.SchoolId);
             e.Property(x => x.ConstraintType).HasMaxLength(20).IsRequired();
             e.Property(x => x.Reason).HasMaxLength(300);
         });
@@ -112,6 +115,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         {
             e.ToTable("Schedules");
             e.HasKey(x => x.Id);
+            e.HasIndex(x => x.SchoolId);
             e.Property(x => x.AcademicYear).HasMaxLength(20).IsRequired();
             e.Property(x => x.Status).HasMaxLength(20).HasDefaultValue("draft");
         });
@@ -120,6 +124,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         mb.Entity<ScheduleEntry>(e =>
         {
             e.HasKey(x => x.Id);
+            e.HasIndex(x => x.SchoolId);
         });
 
         // ── ScheduleConflictRecord ───────────────────────────────────────────
