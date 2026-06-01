@@ -130,10 +130,11 @@ public static class SlotCalculator
     /// Calcula la hora de fin de jornada a partir de una entrada de mañana y los
     /// parámetros globales del colegio (slots, duración, recreo).
     /// </summary>
-    public static TimeOnly ComputeEndTime(School s, TimeOnly morningStart)
+    public static TimeOnly ComputeEndTime(School s, TimeOnly morningStart, TimeOnly? afternoonStart = null)
     {
         var current = morningStart;
-        bool isPartida = s.ScheduleType == "partida" && s.AfternoonStart.HasValue && s.AfternoonSlots > 0;
+        var finalAfternoonStart = afternoonStart ?? s.AfternoonStart;
+        bool isPartida = s.ScheduleType == "partida" && finalAfternoonStart.HasValue && s.AfternoonSlots > 0;
         int morningSlots = isPartida ? s.SlotsPerDay - s.AfternoonSlots : s.SlotsPerDay;
 
         // Avanzar slot a slot incluyendo el recreo si cae dentro de la mañana
@@ -147,7 +148,7 @@ public static class SlotCalculator
         if (isPartida)
         {
             // En jornada partida la salida es al final de la tarde
-            var afternoonCurrent = s.AfternoonStart!.Value;
+            var afternoonCurrent = finalAfternoonStart!.Value;
             for (int i = morningSlots; i < s.SlotsPerDay; i++)
                 afternoonCurrent = afternoonCurrent.AddMinutes(s.SlotMinutes);
             return afternoonCurrent;
@@ -397,7 +398,7 @@ public static class SchoolEndpoints
             }
 
             // ── Validación: la salida debe coincidir con la calculada ─────────
-            var calculatedEnd = SlotCalculator.ComputeEndTime(school, morningStart);
+            var calculatedEnd = SlotCalculator.ComputeEndTime(school, morningStart, afternoonStart);
             // Tolerancia de ±1 minuto para no penalizar redondeos de la UI
             var diffMinutes = Math.Abs((endTime - calculatedEnd).TotalMinutes);
             if (diffMinutes > 1)

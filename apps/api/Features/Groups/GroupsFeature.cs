@@ -9,7 +9,7 @@ public record GroupDto(Guid Id, int CourseLevel, string GroupLabel, string Displ
     int StudentCount, Guid? TutorId, string? TutorName, Guid? HomeClassroomId);
 
 public record CreateGroupRequest(int CourseLevel, string GroupLabel, int StudentCount, Guid? TutorId, Guid? HomeClassroomId);
-public record UpdateGroupRequest(int? StudentCount, Guid? TutorId, Guid? HomeClassroomId);
+public record UpdateGroupRequest(int? CourseLevel, string? GroupLabel, int? StudentCount, Guid? TutorId, Guid? HomeClassroomId);
 
 public static class GroupEndpoints
 {
@@ -50,9 +50,11 @@ public static class GroupEndpoints
             if (!user.IsAdmin) return Results.Forbid();
             var gr = await db.CourseGroups.FirstOrDefaultAsync(x => x.Id == id && x.SchoolId == user.SchoolId);
             if (gr is null) return Results.NotFound();
+            if (req.CourseLevel.HasValue) gr.CourseLevel = req.CourseLevel.Value;
+            if (req.GroupLabel is not null) gr.GroupLabel = req.GroupLabel;
             if (req.StudentCount.HasValue) gr.StudentCount = req.StudentCount.Value;
-            if (req.TutorId.HasValue) gr.TutorId = req.TutorId;
-            if (req.HomeClassroomId.HasValue) gr.HomeClassroomId = req.HomeClassroomId;
+            gr.TutorId = req.TutorId;
+            gr.HomeClassroomId = req.HomeClassroomId;
             await db.SaveChangesAsync();
             return Results.Ok(ToDto(gr, []));
         });
