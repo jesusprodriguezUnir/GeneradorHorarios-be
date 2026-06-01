@@ -16,6 +16,25 @@ public interface IScheduleEngine
 
 // ── Modelos de entrada/salida ─────────────────────────────────────────────────
 
+/// <summary>
+/// Pesos de las soft constraints (1-10). Valores por defecto coinciden con los
+/// pesos originales hardcodeados. Permite que cada colegio personalice la
+/// importancia relativa de cada criterio pedagógico.
+/// </summary>
+public record SoftConstraintWeights
+{
+    /// <summary>Penaliza materias intensivas (Mates, Lengua) en el último tramo horario.</summary>
+    public int NoIntensiveSubjectLastSlot { get; init; } = 7;
+    /// <summary>Penaliza acumular muchas sesiones de la misma asignatura en el mismo día.</summary>
+    public int DistributeSubjectAcrossDays { get; init; } = 5;
+    /// <summary>Penaliza más de N sesiones consecutivas para un mismo profesor.</summary>
+    public int TeacherConsecutiveLoad { get; init; } = 6;
+    /// <summary>Penaliza huecos intermedios en el horario diario del docente.</summary>
+    public int TeacherGaps { get; init; } = 4;
+    /// <summary>Penaliza dividir bloques indivisibles en días distintos o no consecutivos.</summary>
+    public int ConsecutiveBlockPreference { get; init; } = 5;
+}
+
 public record GenerationContext
 {
     public required SchoolConfig School { get; init; }
@@ -23,6 +42,8 @@ public record GenerationContext
     public required IReadOnlyList<IHardConstraint> HardConstraints { get; init; }
     public required IReadOnlyList<ISoftConstraint> SoftConstraints { get; init; }
     public int TimeoutSeconds { get; init; } = 30;
+    /// <summary>Pesos de las soft constraints; si no se especifica se usan los defaults pedagógicos.</summary>
+    public SoftConstraintWeights Weights { get; init; } = new();
 }
 
 /// <summary>Una sesión = una hora de una asignatura para un grupo.</summary>
@@ -50,6 +71,12 @@ public record ScheduleResult
     public int ElapsedSeconds { get; init; }
     public int TotalAssigned => AssignedSlots.Count;
     public int TotalRequired { get; init; }
+    /// <summary>
+    /// Coste global calculado por <see cref="BacktrackingScheduleEngine.ComputeScheduleCost"/>.
+    /// Es la suma de penalizaciones soft sobre el horario completo. Menor es mejor.
+    /// Cero para resultados Failed (sin slots asignados).
+    /// </summary>
+    public int TotalCost { get; init; }
 }
 
 public record AssignedSlot(

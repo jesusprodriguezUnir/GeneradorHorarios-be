@@ -130,43 +130,14 @@ public static class ScheduleEndpoints
                 .Where(c => c.SchoolId == user.SchoolId)
                 .ToListAsync(ct);
 
-            // ── Validaciones previas a la generación ─────────────────────────
-            foreach (var session in sessions)
-            {
-                if (session.RequiresSpecialist)
-                {
-                    var specialties = session.TeacherSpecialties;
-                    var key = session.SubjectKey.ToLower();
-                    bool hasSpecialty = false;
-
-                    if (key == "ing")
-                        hasSpecialty = specialties.Any(s => s.Contains("Inglés", StringComparison.OrdinalIgnoreCase));
-                    else if (key == "ef")
-                        hasSpecialty = specialties.Any(s => s.Contains("Física", StringComparison.OrdinalIgnoreCase) || s.Contains("Deporte", StringComparison.OrdinalIgnoreCase));
-                    else if (key == "mus")
-                        hasSpecialty = specialties.Any(s => s.Contains("Música", StringComparison.OrdinalIgnoreCase));
-                    else
-                        hasSpecialty = specialties.Any(s => s.Contains("Generalista", StringComparison.OrdinalIgnoreCase));
-
-                    if (!hasSpecialty)
-                    {
-                        var teacherName = await db.Teachers
-                            .Where(t => t.Id == session.TeacherId)
-                            .Select(t => t.FullName)
-                            .FirstOrDefaultAsync(ct) ?? "Profesor";
-                        return Results.BadRequest(new { message = $"Conflicto de asignación: El profesor {teacherName} no tiene la especialidad requerida para impartir {session.SubjectName}." });
-                    }
-                }
-
-                if (session.RequiredClassroomType.HasValue)
-                {
-                    bool hasClassroom = classrooms.Any(c => ParseClassroomType(c.ClassroomType) == session.RequiredClassroomType.Value);
-                    if (!hasClassroom)
-                    {
-                        return Results.BadRequest(new { message = $"Falta configuración de espacio: El centro no tiene ninguna aula de tipo '{session.RequiredClassroomType}' configurada para impartir {session.SubjectName}." });
-                    }
-                }
-            }
+            // Cargar slots de no-disponibilidad (compartido por HardConstraints y ViabilityAnalyzer)
+            var unavailableSlots = await db.TeacherConstraints.AsNoTracking()
+                .Where(c => c.SchoolId == user.SchoolId && c.ConstraintType == "unavailable")
+                .Select(c => new { c.TeacherId, Day = c.DayOfWeek, Slot = c.SlotIndex })
+                .ToListAsync(ct);
+            var unavailableSet = unavailableSlots
+                .Select(c => (c.TeacherId, c.Day, c.Slot))
+                .ToHashSet();
 
             // ── Validación normativa (Decreto 61/2022) — no bloqueante ────────
             // Se ejecuta antes de generar para adjuntar incidencias legales al resultado.
@@ -185,8 +156,9 @@ public static class ScheduleEndpoints
                 ? slots.Where(s => !s.IsBreak).Max(s => s.Index)
                 : 4;
 
-            var hardConstraints = await BuildHardConstraints(db, user.SchoolId, ct);
-            var softConstraints = await BuildSoftConstraints(db, user.SchoolId, lastLectivoSlotIndex, ct);
+            var weights = new SoftConstraintWeights(); // defaults pedagógicos; en v2+ se leerán de BD por colegio
+            var hardConstraints = BuildHardConstraints(unavailableSlots.Select(c => (c.TeacherId, c.Day, c.Slot)).ToList());
+            var softConstraints = await BuildSoftConstraints(db, user.SchoolId, lastLectivoSlotIndex, weights, ct);
 
             var workingDays = SlotCalculator.ParseWorkingDays(school.WorkingDays);
             var context = new GenerationContext
@@ -202,7 +174,59 @@ public static class ScheduleEndpoints
                 HardConstraints = hardConstraints,
                 SoftConstraints = softConstraints,
                 TimeoutSeconds = req.TimeoutSeconds,
+                Weights = weights,
             };
+
+            // ── Pre-flight: análisis de viabilidad (rápido, sin ejecutar el motor) ──
+            var viabilityErrors = ScheduleViabilityAnalyzer.Analyze(context.School, sessions, unavailableSet);
+            if (viabilityErrors.Any())
+            {
+                // Configuración irresoluble: persistir el intento como 'failed' y devolver
+                // los conflictos sin ejecutar el backtracking (evita timeout innecesario).
+                var failedSchedule = new ScheduleRecord
+                {
+                    SchoolId = user.SchoolId, AcademicYear = req.AcademicYear,
+                    Status = "failed",
+                    GeneratedAt = DateTime.UtcNow, GenerationSeconds = 0,
+                    TotalConflicts = viabilityErrors.Count,
+                    CreatedBy = user.UserId,
+                };
+                db.Schedules.Add(failedSchedule);
+
+                foreach (var conflict in viabilityErrors)
+                {
+                    db.ScheduleConflicts.Add(new ScheduleConflictRecord
+                    {
+                        ScheduleId = failedSchedule.Id,
+                        ConflictType = conflict.Type.ToString().ToLower(),
+                        Severity = conflict.Severity.ToString().ToLower(),
+                        Description = conflict.Description,
+                        Suggestions = JsonSerializer.Serialize(conflict.Suggestions),
+                        GroupId = conflict.GroupId, TeacherId = conflict.TeacherId,
+                        DayOfWeek = conflict.DayOfWeek, SlotIndex = conflict.SlotIndex,
+                    });
+                }
+                await db.SaveChangesAsync(ct);
+
+                return Results.UnprocessableEntity(new
+                {
+                    scheduleId = failedSchedule.Id,
+                    status = "failed",
+                    totalAssigned = 0,
+                    totalRequired = sessions.Count,
+                    elapsedSeconds = 0,
+                    totalConflicts = viabilityErrors.Count,
+                    conflicts = viabilityErrors.Select(c => new
+                    {
+                        type = c.Type.ToString().ToLower(),
+                        severity = c.Severity.ToString().ToLower(),
+                        description = c.Description,
+                        suggestions = c.Suggestions,
+                        teacherId = c.TeacherId,
+                        groupId = c.GroupId,
+                    }),
+                });
+            }
 
             // ── Progreso via SignalR ───────────────────────────────────────────
             var progress = new Progress<GenerationProgress>(async p =>
@@ -369,6 +393,7 @@ public static class ScheduleEndpoints
                 totalRequired = result.TotalRequired,
                 elapsedSeconds = result.ElapsedSeconds,
                 totalConflicts = schedule.TotalConflicts,
+                totalCost = result.TotalCost,
             });
         });
 
@@ -561,17 +586,9 @@ public static class ScheduleEndpoints
         return sessions;
     }
 
-    private static async Task<List<IHardConstraint>> BuildHardConstraints(AppDbContext db, Guid schoolId, CancellationToken ct)
+    private static List<IHardConstraint> BuildHardConstraints(
+        IReadOnlyList<(Guid TeacherId, int Day, int Slot)> unavailableSlots)
     {
-        var constraints = await db.TeacherConstraints.AsNoTracking()
-            .Where(c => c.SchoolId == schoolId && c.ConstraintType == "unavailable")
-            .ToListAsync(ct);
-
-        // Agrupar en un único TeacherAvailabilityConstraint con todos los slots no disponibles
-        var unavailableSlots = constraints
-            .Select(c => (c.TeacherId, Day: c.DayOfWeek, Slot: c.SlotIndex))
-            .ToList();
-
         var result = new List<IHardConstraint>
         {
             new TeacherNotDoubleBooked(),
@@ -586,7 +603,9 @@ public static class ScheduleEndpoints
         return result;
     }
 
-    private static async Task<List<ISoftConstraint>> BuildSoftConstraints(AppDbContext db, Guid schoolId, int lastLectivoSlotIndex, CancellationToken ct)
+    private static async Task<List<ISoftConstraint>> BuildSoftConstraints(
+        AppDbContext db, Guid schoolId, int lastLectivoSlotIndex,
+        SoftConstraintWeights weights, CancellationToken ct)
     {
         // Obtener asignaciones de Lengua/Matemáticas para el soft constraint de intensivas
         var intensiveIds = await db.Assignments.AsNoTracking()
@@ -602,11 +621,11 @@ public static class ScheduleEndpoints
 
         return new List<ISoftConstraint>
         {
-            new NoIntensiveSubjectLastSlot(lastLectivoSlotIndex, intensiveIds),
-            new DistributeSubjectAcrossDays(),
-            new TeacherConsecutiveLoadConstraint(3),
-            new TeacherGapsConstraint(),
-            new ConsecutiveBlockPreferenceConstraint(),
+            new NoIntensiveSubjectLastSlot(lastLectivoSlotIndex, intensiveIds, weights.NoIntensiveSubjectLastSlot),
+            new DistributeSubjectAcrossDays(weights.DistributeSubjectAcrossDays),
+            new TeacherConsecutiveLoadConstraint(3, weights.TeacherConsecutiveLoad),
+            new TeacherGapsConstraint(weights.TeacherGaps),
+            new ConsecutiveBlockPreferenceConstraint(weights.ConsecutiveBlockPreference),
         };
     }
 

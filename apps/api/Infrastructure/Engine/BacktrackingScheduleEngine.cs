@@ -1,3 +1,4 @@
+using HorariosEscolares.Domain.Constraints;
 using HorariosEscolares.Domain.Entities;
 using HorariosEscolares.Domain.Services;
 
@@ -45,6 +46,7 @@ public sealed class BacktrackingScheduleEngine : IScheduleEngine
 
         var elapsed = (int)(DateTime.UtcNow - startTime).TotalSeconds;
         var conflicts = BuildConflictExplanations(sessions, result, context);
+        var totalCost = ComputeScheduleCost(result, sessions, context.SoftConstraints);
 
         return new ScheduleResult
         {
@@ -54,7 +56,8 @@ public sealed class BacktrackingScheduleEngine : IScheduleEngine
             AssignedSlots = result,
             Conflicts = conflicts.OrderBy(c => c.Type).ThenBy(c => c.Severity).ToList(),
             ElapsedSeconds = elapsed,
-            TotalRequired = sessions.Count
+            TotalRequired = sessions.Count,
+            TotalCost = totalCost,
         };
     }
 
@@ -169,6 +172,48 @@ public sealed class BacktrackingScheduleEngine : IScheduleEngine
         return [.. candidates
             .OrderBy(c => c.Penalty)
             .Select(c => (c.Day, c.Slot, c.ClassroomId))];
+    }
+
+    // ── Función objetivo global: coste total del horario ─────────────────────
+
+    /// <summary>
+    /// Calcula el coste global del horario sumando las penalizaciones soft sobre
+    /// todos los slots asignados. Reproduce la evaluación incremental del motor:
+    /// evalúa la penalización de cada slot en el estado parcial anterior a
+    /// asignarlo, igual que hace <see cref="GetCandidateSlots"/>.
+    /// Menor valor = mejor calidad pedagógica. 0 = sin penalizaciones.
+    /// </summary>
+    public static int ComputeScheduleCost(
+        IReadOnlyList<AssignedSlot> schedule,
+        IReadOnlyList<SessionToAssign> sessions,
+        IReadOnlyList<ISoftConstraint> softConstraints)
+    {
+        if (schedule.Count == 0 || softConstraints.Count == 0) return 0;
+
+        // Índice rápido para reconstruir ProposedEntry desde AssignedSlot
+        var sessionIndex = sessions.ToDictionary(s => s.AssignmentId);
+
+        var state = new AssignmentState(
+            // SchoolConfig no interviene en los soft constraints actuales; usamos
+            // un config mínimo para inicializar el estado vacío correctamente.
+            new SchoolConfig(0, 0, [], [], []));
+
+        int totalCost = 0;
+
+        foreach (var slot in schedule)
+        {
+            if (!sessionIndex.TryGetValue(slot.AssignmentId, out var session))
+                continue;
+
+            var entry = new ProposedEntry(session, slot.DayOfWeek, slot.SlotIndex, slot.ClassroomId);
+
+            // Evalúa penalización ANTES de asignar (coherente con GetCandidateSlots)
+            totalCost += softConstraints.Sum(c => c.Penalty(entry, state));
+
+            state.Assign(session, slot.DayOfWeek, slot.SlotIndex, slot.ClassroomId);
+        }
+
+        return totalCost;
     }
 
     // ── Generación de explicaciones de conflictos ─────────────────────────────

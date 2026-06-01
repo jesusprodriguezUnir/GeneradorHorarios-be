@@ -112,12 +112,13 @@ public sealed class NoIntensiveSubjectLastSlot : ISoftConstraint
     private readonly HashSet<Guid> _intensiveAllocationIds;
 
     public string Name => "Asignatura intensiva no en último tramo";
-    public int Weight => 7;
+    public int Weight { get; }
 
-    public NoIntensiveSubjectLastSlot(int lastSlotIndex, IEnumerable<Guid> intensiveIds)
+    public NoIntensiveSubjectLastSlot(int lastSlotIndex, IEnumerable<Guid> intensiveIds, int weight = 7)
     {
         _lastSlotIndex = lastSlotIndex;
         _intensiveAllocationIds = [.. intensiveIds];
+        Weight = weight;
     }
 
     public int Penalty(ProposedEntry entry, AssignmentState state)
@@ -131,7 +132,9 @@ public sealed class NoIntensiveSubjectLastSlot : ISoftConstraint
 public sealed class DistributeSubjectAcrossDays : ISoftConstraint
 {
     public string Name => "Distribuir asignatura entre días";
-    public int Weight => 5;
+    public int Weight { get; }
+
+    public DistributeSubjectAcrossDays(int weight = 5) => Weight = weight;
 
     public int Penalty(ProposedEntry entry, AssignmentState state)
     {
@@ -155,10 +158,13 @@ public sealed class TeacherConsecutiveLoadConstraint : ISoftConstraint
     private readonly int _maxPreferred;
 
     public string Name => "Carga consecutiva del profesor";
-    public int Weight => 6;
+    public int Weight { get; }
 
-    public TeacherConsecutiveLoadConstraint(int maxPreferred = 3)
-        => _maxPreferred = maxPreferred;
+    public TeacherConsecutiveLoadConstraint(int maxPreferred = 3, int weight = 6)
+    {
+        _maxPreferred = maxPreferred;
+        Weight = weight;
+    }
 
     public int Penalty(ProposedEntry entry, AssignmentState state)
     {
@@ -207,7 +213,9 @@ public sealed class MaxWeeklyHoursConstraint : IHardConstraint
 public sealed class TeacherGapsConstraint : ISoftConstraint
 {
     public string Name => "Evitar huecos profesor";
-    public int Weight => 4;
+    public int Weight { get; }
+
+    public TeacherGapsConstraint(int weight = 4) => Weight = weight;
 
     public int Penalty(ProposedEntry entry, AssignmentState state)
     {
@@ -240,7 +248,9 @@ public sealed class TeacherGapsConstraint : ISoftConstraint
 public sealed class ConsecutiveBlockPreferenceConstraint : ISoftConstraint
 {
     public string Name => "Preferencia de bloques consecutivos";
-    public int Weight => 5;
+    public int Weight { get; }
+
+    public ConsecutiveBlockPreferenceConstraint(int weight = 5) => Weight = weight;
 
     public int Penalty(ProposedEntry entry, AssignmentState state)
     {

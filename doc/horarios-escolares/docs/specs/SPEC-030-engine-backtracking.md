@@ -5,6 +5,7 @@
 **Fase:** 3 — Motor de generación  
 **Estimación:** 5 días  
 **Depende de:** SPEC-003, SPEC-025, SPEC-026  
+**Evolución algorítmica:** [ADR-004](../adr/ADR-004-motor-benchmark-evolucion.md) — benchmark competitivo (Penalara/Horarium) y roadmap hacia arquitectura two-phase  
 
 ---
 

@@ -86,3 +86,51 @@ GeneradorHorarios/
 - User: `sa`
 - Password: `Lectivo_Dev_2024!`
 - Database: `LectivoDb`
+
+## Conexión local y overrides
+
+Si quieres apuntar la API a tu base de datos local, tienes varias opciones:
+
+- Editar `apps/api/appsettings.Local.json` o `apps/api/appsettings.Development.json` cambiando la clave `ConnectionStrings:Default` al connection string deseado.
+
+	Ejemplo (SQL Server con usuario `sa`):
+
+	```powershell
+	Server=localhost,1433;Database=LectivoDb;User Id=sa;Password=TuPassword!;TrustServerCertificate=True;
+	```
+
+	Ejemplo (LocalDB / Integrated Security):
+
+	```powershell
+	Server=(localdb)\MSSQLLocalDB;Database=LectivoDb;Integrated Security=true;TrustServerCertificate=True;
+	```
+
+- Sobrescribir mediante variable de entorno (útil para CI / VS Code):
+
+	PowerShell:
+
+	```powershell
+	$env:ConnectionStrings__Default = "Server=localhost,1433;Database=LectivoDb;User Id=sa;Password=TuPassword!;TrustServerCertificate=True;"
+	dotnet run --project apps/api
+	```
+
+	También puedes editar `apps/api/Properties/launchSettings.json` y cambiar `ConnectionStrings__Default` para el perfil de lanzamiento.
+
+- Aplicar migraciones y sembrar datos:
+
+	```powershell
+	cd apps/api
+	dotnet ef database update
+	# o usar los scripts incluidos
+	..\scripts\reset-db.ps1
+	..\scripts\seed-dataset.ps1
+	```
+
+- Arrancar la API:
+
+	```powershell
+	cd apps/api
+	dotnet run
+	```
+
+Si algo falla al arrancar, copia aquí el error y lo reviso. También puedo intentar arrancar la API ahora y reportarte la salida.

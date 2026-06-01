@@ -332,4 +332,72 @@ public class ConstraintsTests
 
         constraint.Penalty(entry, _state).Should().Be(0);
     }
+
+    // ── Pesos configurables ───────────────────────────────────────────────────
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(5)]
+    [InlineData(10)]
+    public void NoIntensiveSubjectLastSlot_Weight_ReflectsInjectedValue(int weight)
+    {
+        var allocationId = TestData.Allocation1Id;
+        var constraint = new NoIntensiveSubjectLastSlot(lastSlotIndex: 4, [allocationId], weight);
+
+        constraint.Weight.Should().Be(weight);
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(5)]
+    [InlineData(10)]
+    public void DistributeSubjectAcrossDays_Weight_ReflectsInjectedValue(int weight)
+    {
+        var constraint = new DistributeSubjectAcrossDays(weight);
+        constraint.Weight.Should().Be(weight);
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(6)]
+    [InlineData(10)]
+    public void TeacherConsecutiveLoadConstraint_Weight_ReflectsInjectedValue(int weight)
+    {
+        var constraint = new TeacherConsecutiveLoadConstraint(maxPreferred: 3, weight: weight);
+        constraint.Weight.Should().Be(weight);
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(4)]
+    [InlineData(10)]
+    public void TeacherGapsConstraint_Weight_ReflectsInjectedValue(int weight)
+    {
+        var constraint = new TeacherGapsConstraint(weight);
+        constraint.Weight.Should().Be(weight);
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(5)]
+    [InlineData(10)]
+    public void ConsecutiveBlockPreferenceConstraint_Weight_ReflectsInjectedValue(int weight)
+    {
+        var constraint = new ConsecutiveBlockPreferenceConstraint(weight);
+        constraint.Weight.Should().Be(weight);
+    }
+
+    [Fact]
+    public void NoIntensiveSubjectLastSlot_PenaltyScalesWithWeight()
+    {
+        var allocationId = TestData.Allocation1Id;
+        var session = TestData.Session(allocationId: allocationId);
+        var entry = new ProposedEntry(session, 1, 4, TestData.RegularClassroomId); // slot 4 = último
+
+        var constraintLow  = new NoIntensiveSubjectLastSlot(4, [allocationId], weight: 2);
+        var constraintHigh = new NoIntensiveSubjectLastSlot(4, [allocationId], weight: 8);
+
+        constraintLow.Penalty(entry, _state).Should().Be(2 * 10);
+        constraintHigh.Penalty(entry, _state).Should().Be(8 * 10);
+    }
 }
