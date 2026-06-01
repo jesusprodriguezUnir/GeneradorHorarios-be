@@ -113,6 +113,7 @@ public class CourseGroup
     public int StudentCount { get; set; } = 25;
     public Guid? TutorId { get; set; }
     public Guid? HomeClassroomId { get; set; }
+    public string SubjectHours { get; set; } = "{}";  // JSON dictionary SubjectKey -> Hours
 
     // computed — ignorada por EF
     public string DisplayName => $"{CourseLevel}º{GroupLabel}";

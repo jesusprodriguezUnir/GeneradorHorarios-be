@@ -6,10 +6,10 @@ using HorariosEscolares.Infrastructure.Persistence.Entities;
 namespace HorariosEscolares.Features.Groups;
 
 public record GroupDto(Guid Id, int CourseLevel, string GroupLabel, string DisplayName,
-    int StudentCount, Guid? TutorId, string? TutorName, Guid? HomeClassroomId);
+    int StudentCount, Guid? TutorId, string? TutorName, Guid? HomeClassroomId, Dictionary<string, int> SubjectHours);
 
-public record CreateGroupRequest(int CourseLevel, string GroupLabel, int StudentCount, Guid? TutorId, Guid? HomeClassroomId);
-public record UpdateGroupRequest(int? CourseLevel, string? GroupLabel, int? StudentCount, Guid? TutorId, Guid? HomeClassroomId);
+public record CreateGroupRequest(int CourseLevel, string GroupLabel, int StudentCount, Guid? TutorId, Guid? HomeClassroomId, Dictionary<string, int>? SubjectHours);
+public record UpdateGroupRequest(int? CourseLevel, string? GroupLabel, int? StudentCount, Guid? TutorId, Guid? HomeClassroomId, Dictionary<string, int>? SubjectHours);
 
 public static class GroupEndpoints
 {
@@ -38,6 +38,7 @@ public static class GroupEndpoints
             {
                 SchoolId = user.SchoolId, CourseLevel = req.CourseLevel, GroupLabel = req.GroupLabel,
                 StudentCount = req.StudentCount, TutorId = req.TutorId, HomeClassroomId = req.HomeClassroomId,
+                SubjectHours = req.SubjectHours is not null ? System.Text.Json.JsonSerializer.Serialize(req.SubjectHours) : "{}",
             };
             db.CourseGroups.Add(gr);
             await db.SaveChangesAsync();
@@ -55,6 +56,7 @@ public static class GroupEndpoints
             if (req.StudentCount.HasValue) gr.StudentCount = req.StudentCount.Value;
             gr.TutorId = req.TutorId;
             gr.HomeClassroomId = req.HomeClassroomId;
+            if (req.SubjectHours is not null) gr.SubjectHours = System.Text.Json.JsonSerializer.Serialize(req.SubjectHours);
             await db.SaveChangesAsync();
             return Results.Ok(ToDto(gr, []));
         });
@@ -74,7 +76,12 @@ public static class GroupEndpoints
     }
 
     private static GroupDto ToDto(CourseGroup gr, Dictionary<Guid, string> tutorNames)
-        => new(gr.Id, gr.CourseLevel, gr.GroupLabel, gr.DisplayName, gr.StudentCount,
+    {
+        Dictionary<string, int> subjectHours;
+        try { subjectHours = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, int>>(gr.SubjectHours) ?? new(); }
+        catch { subjectHours = new(); }
+        return new(gr.Id, gr.CourseLevel, gr.GroupLabel, gr.DisplayName, gr.StudentCount,
             gr.TutorId, gr.TutorId.HasValue && tutorNames.TryGetValue(gr.TutorId.Value, out var n) ? n : null,
-            gr.HomeClassroomId);
+            gr.HomeClassroomId, subjectHours);
+    }
 }

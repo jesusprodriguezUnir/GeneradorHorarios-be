@@ -13,6 +13,18 @@ public record SubjectDto(
 
 public record UpdateSubjectHoursRequest(int WeeklyHoursDefault);
 
+public record CreateSubjectRequest(
+    string SubjectName, string SubjectShort, string SubjectKey,
+    int WeeklyHoursMin, int WeeklyHoursMax, int WeeklyHoursDefault,
+    bool RequiresSpecialist, string? RequiredClassroomType,
+    int MaxConsecutiveSlots, bool SplittableAcrossDays);
+
+public record UpdateSubjectRequest(
+    string? SubjectName, string? SubjectShort, string? SubjectKey,
+    int? WeeklyHoursMin, int? WeeklyHoursMax, int? WeeklyHoursDefault,
+    bool? RequiresSpecialist, string? RequiredClassroomType,
+    int? MaxConsecutiveSlots, bool? SplittableAcrossDays);
+
 public static class SubjectEndpoints
 {
     public static IEndpointRouteBuilder MapSubjectEndpoints(this IEndpointRouteBuilder app)
@@ -148,6 +160,98 @@ public static class SubjectEndpoints
                 a.WeeklyHoursMin, a.WeeklyHoursMax, a.WeeklyHoursDefault,
                 a.RequiresSpecialist, a.RequiredClassroomType,
                 a.MaxConsecutiveSlots, a.SplittableAcrossDays, a.IsOfficial));
+        });
+
+        // POST /api/subjects — crear una nueva asignatura en el currículo personalizado
+        g.MapPost("/", async (HttpContext ctx, AppDbContext db, CreateSubjectRequest req) =>
+        {
+            var user = ctx.GetCurrentUserOrFail();
+            if (!user.IsAdmin) return Results.Forbid();
+
+            // Buscar la plantilla personalizada del centro
+            var customTemplate = await db.CurriculumTemplates
+                .FirstOrDefaultAsync(t => t.SchoolId == user.SchoolId && !t.IsOfficial);
+            if (customTemplate is null)
+                return Results.BadRequest(new { message = "Debes personalizar (clonar) el currículo LOMLOE antes de añadir asignaturas." });
+
+            var s = new SubjectAllocation
+            {
+                TemplateId = customTemplate.Id,
+                SubjectName = req.SubjectName,
+                SubjectShort = req.SubjectShort,
+                SubjectKey = req.SubjectKey.ToLower().Trim(),
+                WeeklyHoursMin = req.WeeklyHoursMin,
+                WeeklyHoursMax = req.WeeklyHoursMax,
+                WeeklyHoursDefault = req.WeeklyHoursDefault,
+                RequiresSpecialist = req.RequiresSpecialist,
+                RequiredClassroomType = req.RequiredClassroomType,
+                MaxConsecutiveSlots = req.MaxConsecutiveSlots,
+                SplittableAcrossDays = req.SplittableAcrossDays,
+                IsOfficial = false
+            };
+
+            db.SubjectAllocations.Add(s);
+            await db.SaveChangesAsync();
+
+            return Results.Created($"/api/subjects/{s.Id}", new SubjectDto(
+                s.Id, s.SubjectName, s.SubjectShort, s.SubjectKey,
+                s.WeeklyHoursMin, s.WeeklyHoursMax, s.WeeklyHoursDefault,
+                s.RequiresSpecialist, s.RequiredClassroomType,
+                s.MaxConsecutiveSlots, s.SplittableAcrossDays, s.IsOfficial));
+        });
+
+        // PUT /api/subjects/{id} — editar al completo una asignatura personalizada
+        g.MapPut("/{id:guid}", async (Guid id, HttpContext ctx, AppDbContext db, UpdateSubjectRequest req) =>
+        {
+            var user = ctx.GetCurrentUserOrFail();
+            if (!user.IsAdmin) return Results.Forbid();
+
+            var a = await db.SubjectAllocations.FirstOrDefaultAsync(x => x.Id == id);
+            if (a is null) return Results.NotFound();
+
+            var template = await db.CurriculumTemplates.AsNoTracking()
+                .FirstOrDefaultAsync(t => t.Id == a.TemplateId);
+            if (template is null || template.IsOfficial || template.SchoolId != user.SchoolId)
+                return Results.Forbid();
+
+            if (req.SubjectName is not null) a.SubjectName = req.SubjectName;
+            if (req.SubjectShort is not null) a.SubjectShort = req.SubjectShort;
+            if (req.SubjectKey is not null) a.SubjectKey = req.SubjectKey.ToLower().Trim();
+            if (req.WeeklyHoursMin.HasValue) a.WeeklyHoursMin = req.WeeklyHoursMin.Value;
+            if (req.WeeklyHoursMax.HasValue) a.WeeklyHoursMax = req.WeeklyHoursMax.Value;
+            if (req.WeeklyHoursDefault.HasValue) a.WeeklyHoursDefault = req.WeeklyHoursDefault.Value;
+            if (req.RequiresSpecialist.HasValue) a.RequiresSpecialist = req.RequiresSpecialist.Value;
+            a.RequiredClassroomType = req.RequiredClassroomType; // puede ser nulo
+            if (req.MaxConsecutiveSlots.HasValue) a.MaxConsecutiveSlots = req.MaxConsecutiveSlots.Value;
+            if (req.SplittableAcrossDays.HasValue) a.SplittableAcrossDays = req.SplittableAcrossDays.Value;
+
+            await db.SaveChangesAsync();
+
+            return Results.Ok(new SubjectDto(
+                a.Id, a.SubjectName, a.SubjectShort, a.SubjectKey,
+                a.WeeklyHoursMin, a.WeeklyHoursMax, a.WeeklyHoursDefault,
+                a.RequiresSpecialist, a.RequiredClassroomType,
+                a.MaxConsecutiveSlots, a.SplittableAcrossDays, a.IsOfficial));
+        });
+
+        // DELETE /api/subjects/{id} — eliminar una asignatura personalizada
+        g.MapDelete("/{id:guid}", async (Guid id, HttpContext ctx, AppDbContext db) =>
+        {
+            var user = ctx.GetCurrentUserOrFail();
+            if (!user.IsAdmin) return Results.Forbid();
+
+            var a = await db.SubjectAllocations.FirstOrDefaultAsync(x => x.Id == id);
+            if (a is null) return Results.NotFound();
+
+            var template = await db.CurriculumTemplates.AsNoTracking()
+                .FirstOrDefaultAsync(t => t.Id == a.TemplateId);
+            if (template is null || template.IsOfficial || template.SchoolId != user.SchoolId)
+                return Results.Forbid();
+
+            db.SubjectAllocations.Remove(a);
+            await db.SaveChangesAsync();
+
+            return Results.NoContent();
         });
 
         return app;

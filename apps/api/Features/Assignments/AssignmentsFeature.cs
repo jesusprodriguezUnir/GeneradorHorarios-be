@@ -46,16 +46,33 @@ public static class AssignmentEndpoints
                 .ToDictionaryAsync(a => a.Id);
 
             // Agrupar por asignatura para calcular completitud
-            var groups = await db.CourseGroups.AsNoTracking()
+            var courseGroups = await db.CourseGroups.AsNoTracking()
                 .Where(g => g.SchoolId == user.SchoolId)
-                .CountAsync();
+                .ToListAsync();
 
             var summary = assignments
                 .GroupBy(a => a.AllocationId)
                 .Select(grp =>
                 {
                     var alloc = allocations.GetValueOrDefault(grp.Key);
-                    var required = (alloc?.WeeklyHoursDefault ?? 0) * groups;
+                    var required = 0;
+                    if (alloc != null)
+                    {
+                        foreach (var cg in courseGroups)
+                        {
+                            Dictionary<string, int>? groupHours = null;
+                            try { groupHours = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, int>>(cg.SubjectHours); } catch {}
+                            groupHours ??= new();
+                            if (groupHours.TryGetValue(alloc.SubjectKey, out var h))
+                            {
+                                required += h;
+                            }
+                            else
+                            {
+                                required += alloc.WeeklyHoursDefault;
+                            }
+                        }
+                    }
                     var assigned = grp.Sum(a => a.WeeklyHours);
                     return new AssignmentSummaryDto(
                         alloc?.SubjectName ?? "?",
