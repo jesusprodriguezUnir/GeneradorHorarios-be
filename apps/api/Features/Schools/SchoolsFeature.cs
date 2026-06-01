@@ -1,5 +1,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using HorariosEscolares.Domain.Entities;
+using HorariosEscolares.Domain.Normative;
 using HorariosEscolares.Features.Auth;
 using HorariosEscolares.Infrastructure.Persistence;
 using HorariosEscolares.Infrastructure.Persistence.Entities;
@@ -20,6 +22,19 @@ public record SchoolDto(
     IReadOnlyList<SlotDto> ComputedSlots);
 
 public record SlotDto(int Index, string StartTime, string EndTime, bool IsBreak);
+
+/// <summary>DTO de respuesta del endpoint GET /api/schools/me/normative-check.</summary>
+public record NormativeCheckDto(
+    bool IsCompliant,
+    int ErrorCount,
+    int WarningCount,
+    IReadOnlyList<NormativeIssueDto> Issues);
+
+public record NormativeIssueDto(
+    string Severity,
+    string Description,
+    IReadOnlyList<string> Suggestions,
+    Guid? GroupId);
 
 public record UpdateSchoolRequest(
     string? Name,
@@ -125,6 +140,42 @@ public static class SchoolEndpoints
             var user = ctx.GetCurrentUserOrFail();
             var s = await db.Schools.AsNoTracking().FirstOrDefaultAsync(x => x.Id == user.SchoolId);
             return s is null ? Results.NotFound() : Results.Ok(SlotCalculator.ToDto(s));
+        });
+
+        // GET /api/schools/me/normative-check — validación normativa (Decreto 61/2022 Madrid)
+        g.MapGet("/me/normative-check", async (
+            HttpContext ctx, AppDbContext db, INormativeValidator validator) =>
+        {
+            var user = ctx.GetCurrentUserOrFail();
+            var school = await db.Schools.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == user.SchoolId);
+            if (school is null) return Results.NotFound();
+
+            // Cargar todas las asignaciones del colegio con su SubjectAllocation
+            var assignments = await db.Assignments.AsNoTracking()
+                .Where(a => a.SchoolId == user.SchoolId)
+                .ToListAsync();
+            var allocations = await db.SubjectAllocations.AsNoTracking()
+                .ToDictionaryAsync(a => a.Id);
+
+            var assignmentData = assignments
+                .Where(a => allocations.ContainsKey(a.AllocationId))
+                .Select(a => (a, allocations[a.AllocationId]))
+                .ToList();
+
+            var issues = await validator.ValidateAsync(school, assignmentData);
+
+            var dto = new NormativeCheckDto(
+                IsCompliant  : !issues.Any(i => i.Severity == ConflictSeverity.Error),
+                ErrorCount   : issues.Count(i => i.Severity == ConflictSeverity.Error),
+                WarningCount : issues.Count(i => i.Severity == ConflictSeverity.Warning),
+                Issues       : issues.Select(i => new NormativeIssueDto(
+                    Severity    : i.Severity.ToString().ToLower(),
+                    Description : i.Description,
+                    Suggestions : i.Suggestions,
+                    GroupId     : i.GroupId)).ToList());
+
+            return Results.Ok(dto);
         });
 
         // PUT /api/schools/me — solo admin

@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 using HorariosEscolares.Domain.Constraints;
 using HorariosEscolares.Domain.Entities;
+using HorariosEscolares.Domain.Normative;
 using HorariosEscolares.Domain.Services;
 using HorariosEscolares.Features.Auth;
 using HorariosEscolares.Features.Schools;
@@ -108,6 +109,7 @@ public static class ScheduleEndpoints
         g.MapPost("/generate", async (
             HttpContext ctx, AppDbContext db,
             IScheduleEngine engine,
+            INormativeValidator normativeValidator,
             IHubContext<GenerationProgressHub> hub,
             GenerateRequest req,
             CancellationToken ct) =>
@@ -165,6 +167,18 @@ public static class ScheduleEndpoints
                 }
             }
 
+            // ── Validación normativa (Decreto 61/2022) — no bloqueante ────────
+            // Se ejecuta antes de generar para adjuntar incidencias legales al resultado.
+            var normativeAllocs = await db.SubjectAllocations.AsNoTracking()
+                .ToDictionaryAsync(a => a.Id, ct);
+            var normativeAssignments = await db.Assignments.AsNoTracking()
+                .Where(a => a.SchoolId == user.SchoolId).ToListAsync(ct);
+            var normativeData = normativeAssignments
+                .Where(a => normativeAllocs.ContainsKey(a.AllocationId))
+                .Select(a => (a, normativeAllocs[a.AllocationId]))
+                .ToList();
+            var normativeIssues = await normativeValidator.ValidateAsync(school, normativeData, ct);
+
             var slots = SlotCalculator.Compute(school, school.SlotsPerDay);
             int lastLectivoSlotIndex = slots.Where(s => !s.IsBreak).Any()
                 ? slots.Where(s => !s.IsBreak).Max(s => s.Index)
@@ -215,7 +229,9 @@ public static class ScheduleEndpoints
                 SchoolId = user.SchoolId, AcademicYear = req.AcademicYear,
                 Status = "generated",
                 GeneratedAt = DateTime.UtcNow, GenerationSeconds = result.ElapsedSeconds,
-                TotalConflicts = result.Conflicts.Count(c => c.Severity == ConflictSeverity.Error),
+                // Incluye conflictos del motor + incidencias normativas de tipo Error
+                TotalConflicts = result.Conflicts.Count(c => c.Severity == ConflictSeverity.Error)
+                               + normativeIssues.Count(c => c.Severity == ConflictSeverity.Error),
                 CreatedBy = user.UserId,
             };
             db.Schedules.Add(schedule);
@@ -254,7 +270,12 @@ public static class ScheduleEndpoints
                 });
             }
 
-            foreach (var conflict in result.Conflicts)
+            // Combinar conflictos del motor + incidencias normativas
+            var allConflicts = result.Conflicts
+                .Concat(normativeIssues)
+                .ToList();
+
+            foreach (var conflict in allConflicts)
             {
                 db.ScheduleConflicts.Add(new ScheduleConflictRecord
                 {

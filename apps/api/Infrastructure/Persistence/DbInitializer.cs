@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using HorariosEscolares.Domain.Normative;
 using HorariosEscolares.Infrastructure.Persistence.Entities;
 
 namespace HorariosEscolares.Infrastructure.Persistence;
@@ -6,258 +7,435 @@ namespace HorariosEscolares.Infrastructure.Persistence;
 /// <summary>
 /// Aplica migraciones pendientes y siembra datos iniciales en la base de datos.
 /// Se ejecuta en el arranque de la aplicación.
+///
+/// Configuración (sección "Seed" en appsettings.Development.json):
+///   - Levels:          1-6 cursos de primaria  (default 6)
+///   - LinesPerLevel:   grupos por nivel (A,B,C…) (default 3)
+///   - Modality:        "estandar" | "bilingue"  (default "estandar")
+///   - ScheduleType:    "continua" | "partida"   (default "continua")
 /// </summary>
 public static class DbInitializer
 {
-    public static async Task InitializeAsync(AppDbContext db)
-    {
-        // Aplicar migraciones pendientes automáticamente
-        await db.Database.MigrateAsync();
+    // ── IDs fijos para las entidades compartidas entre ejecuciones ───────────────
+    // Solo schoolId, templateId y usuarios necesitan ser estables (se usan en login
+    // y como referencia externa). El resto se genera dinámicamente.
+    private static readonly Guid SchoolId    = Guid.Parse("00000000-0000-0000-0000-000000000001");
+    private static readonly Guid TemplateId  = Guid.Parse("00000000-0000-0000-0000-000000000002");
+    private static readonly Guid AdminUserId = Guid.Parse("00000000-0000-0000-0000-000000000010");
+    private static readonly Guid ProfUserId  = Guid.Parse("00000000-0000-0000-0000-000000000011");
 
-        // Sembrar solo si la BD está vacía
+    // ── Nombres cortos de asignaturas (para la columna SubjectShort) ─────────────
+    private static readonly Dictionary<string, string> SubjectShortNames = new()
+    {
+        ["len"] = "Lengua",
+        ["mat"] = "Mates",
+        ["cie"] = "Naturales",
+        ["ing"] = "Inglés",
+        ["ef"]  = "E. Física",
+        ["mus"] = "Música",
+        ["art"] = "Plástica",
+        ["rel"] = "Religión",
+        ["tut"] = "Libre",
+    };
+
+    // ── Color keys para tutores (ciclan) ─────────────────────────────────────────
+    private static readonly string[] TutorColorKeys = ["len", "mat", "cie", "art", "tut", "rel"];
+
+    // ── Entrada pública: arranque de la aplicación ───────────────────────────────
+
+    /// <summary>
+    /// Aplica migraciones y siembra datos si la BD está vacía.
+    /// </summary>
+    public static async Task InitializeAsync(AppDbContext db, SeedOptions? options = null)
+    {
+        await db.Database.MigrateAsync();
         if (await db.Schools.AnyAsync()) return;
 
-        // ── IDs fijos para poder referenciar entre entidades ────────────────
-        var schoolId    = Guid.Parse("00000000-0000-0000-0000-000000000001");
-        var templateId  = Guid.Parse("00000000-0000-0000-0000-000000000002");
-        var adminUserId = Guid.Parse("00000000-0000-0000-0000-000000000010");
-        var profUserId  = Guid.Parse("00000000-0000-0000-0000-000000000011");
+        await SeedAsync(db, options ?? new SeedOptions());
+    }
 
-        // ── Profesores IDs ───────────────────────────────────────────────────
-        var t1 = Guid.Parse("00000000-0000-0000-0001-000000000001"); // Laura Fernández
-        var t2 = Guid.Parse("00000000-0000-0000-0001-000000000002"); // Carlos Ruiz
-        var t3 = Guid.Parse("00000000-0000-0000-0001-000000000003"); // María Gómez
-        var t4 = Guid.Parse("00000000-0000-0000-0001-000000000004"); // David Soler
-        var t5 = Guid.Parse("00000000-0000-0000-0001-000000000005"); // Ana Martín
-        var t6 = Guid.Parse("00000000-0000-0000-0001-000000000006"); // Javier Pardo
-        var t7 = Guid.Parse("00000000-0000-0000-0001-000000000007"); // Lucía Navarro
-        var t8 = Guid.Parse("00000000-0000-0000-0001-000000000008"); // Pablo Vidal
+    // ── Reseed para endpoint dev ──────────────────────────────────────────────────
 
-        // ── Aulas IDs ────────────────────────────────────────────────────────
-        var r1a = Guid.Parse("00000000-0000-0000-0002-000000000001");
-        var r1b = Guid.Parse("00000000-0000-0000-0002-000000000002");
-        var r3a = Guid.Parse("00000000-0000-0000-0002-000000000003");
-        var r3b = Guid.Parse("00000000-0000-0000-0002-000000000004");
-        var r5a = Guid.Parse("00000000-0000-0000-0002-000000000005");
-        var r5b = Guid.Parse("00000000-0000-0000-0002-000000000006");
-        var gim = Guid.Parse("00000000-0000-0000-0002-000000000007");
-        var mus = Guid.Parse("00000000-0000-0000-0002-000000000008");
-        var pla = Guid.Parse("00000000-0000-0000-0002-000000000009");
-        var inf = Guid.Parse("00000000-0000-0000-0002-000000000010");
+    /// <summary>
+    /// Elimina todos los datos del colegio demo y vuelve a sembrar con las nuevas opciones.
+    /// Solo para uso en Development (llamado desde POST /api/dev/reseed).
+    /// </summary>
+    public static async Task ReseedAsync(AppDbContext db, SeedOptions options)
+    {
+        // Eliminar en orden FK-safe (dependientes antes que principales)
+        await db.ScheduleConflicts.ExecuteDeleteAsync();
+        await db.ScheduleEntries.ExecuteDeleteAsync();
+        await db.Schedules.ExecuteDeleteAsync();
+        await db.Assignments.ExecuteDeleteAsync();
+        await db.TeacherConstraints.ExecuteDeleteAsync();
+        await db.AppUsers.ExecuteDeleteAsync();
+        await db.CourseGroups.ExecuteDeleteAsync();
+        await db.Teachers.ExecuteDeleteAsync();
+        await db.Classrooms.ExecuteDeleteAsync();
+        await db.SubjectAllocations.ExecuteDeleteAsync();
+        await db.CurriculumTemplates.ExecuteDeleteAsync();
+        await db.Schools.ExecuteDeleteAsync();
 
-        // ── Grupos IDs ───────────────────────────────────────────────────────
-        var g1a = Guid.Parse("00000000-0000-0000-0003-000000000001");
-        var g1b = Guid.Parse("00000000-0000-0000-0003-000000000002");
-        var g3a = Guid.Parse("00000000-0000-0000-0003-000000000003");
-        var g3b = Guid.Parse("00000000-0000-0000-0003-000000000004");
-        var g5a = Guid.Parse("00000000-0000-0000-0003-000000000005");
-        var g5b = Guid.Parse("00000000-0000-0000-0003-000000000006");
+        await SeedAsync(db, options);
+    }
 
-        // ── Asignaturas IDs (SubjectAllocation) ──────────────────────────────
-        var sLen = Guid.Parse("00000000-0000-0000-0004-000000000001"); // Lengua
-        var sMat = Guid.Parse("00000000-0000-0000-0004-000000000002"); // Matemáticas
-        var sCon = Guid.Parse("00000000-0000-0000-0004-000000000003"); // Conocimiento Medio
-        var sIng = Guid.Parse("00000000-0000-0000-0004-000000000004"); // Inglés
-        var sEf  = Guid.Parse("00000000-0000-0000-0004-000000000005"); // Ed. Física
-        var sMus = Guid.Parse("00000000-0000-0000-0004-000000000006"); // Música
-        var sPla = Guid.Parse("00000000-0000-0000-0004-000000000007"); // Plástica
-        var sRel = Guid.Parse("00000000-0000-0000-0004-000000000008"); // Religión/Valores
-        var sL2  = Guid.Parse("00000000-0000-0000-0004-000000000009"); // 2ª Lengua
-        var sLib = Guid.Parse("00000000-0000-0000-0004-000000000010"); // Libre configuración
+    // ── Lógica de siembra ─────────────────────────────────────────────────────────
 
-        // ════════════════════════════════════════════════════════════════════
-        // Colegio demo
-        // ════════════════════════════════════════════════════════════════════
+    private static async Task SeedAsync(AppDbContext db, SeedOptions opts)
+    {
+        var isBilingue = opts.Modality.Equals("bilingue", StringComparison.OrdinalIgnoreCase);
+        var isPartida  = opts.ScheduleType.Equals("partida", StringComparison.OrdinalIgnoreCase);
+        var totalGroups = opts.Levels * opts.LinesPerLevel;
+
+        // ── 1. Colegio ──────────────────────────────────────────────────────────
         db.Schools.Add(new School
         {
-            Id             = schoolId,
+            Id             = SchoolId,
             Name           = "CEIP Miguel Hernández",
             Slug           = "ceip-miguel-hernandez",
-            // Identificación
             CenterCode     = "28013291",
             Locality       = "Madrid",
             Community      = "madrid",
             Stage          = "primaria",
             MinCourseLevel = 1,
-            MaxCourseLevel = 6,
+            MaxCourseLevel = opts.Levels,
             AcademicYear   = "2025/2026",
-            // Jornada
-            ScheduleType   = "continua",
+            // ── Jornada ────────────────────────────────────────────────────────
+            // Jornada continua:  9:00-10:00, 10:00-11:00, RECREO 11:00-11:30,
+            //                    11:30-12:30, 12:30-13:30, 13:30-14:30 (5 lectivos)
+            // Jornada partida:   9:00-10:00, 10:00-11:00, RECREO 11:00-11:30,
+            //                    11:30-12:30 (3 mañana) + 15:00-16:00, 16:00-17:00 (2 tarde)
+            ScheduleType   = opts.ScheduleType,
             MorningStart   = new TimeOnly(9, 0),
+            AfternoonStart = isPartida ? new TimeOnly(15, 0) : null,
             SlotMinutes    = 60,
             BreakAfterSlot = 2,
-            BreakMinutes   = 30,
+            BreakMinutes   = LomloeMadrid.MinDailyBreakMinutes, // 30 min — mínimo legal
             SlotsPerDay    = 5,
-            AfternoonSlots = 0,
+            AfternoonSlots = isPartida ? 2 : 0,
             DaysPerWeek    = 5,
             WorkingDays    = "[1,2,3,4,5]",
         });
 
-        // ── Usuarios demo ────────────────────────────────────────────────────
+        // ── 2. Usuarios demo ────────────────────────────────────────────────────
+        // Laura Fernández se crea junto con los profesores (ver abajo) y su ID se
+        // enlaza al usuario teacher. Elena Castro es la jefatura (sin TeacherId).
         db.AppUsers.Add(new AppUser
         {
-            Id       = adminUserId,
+            Id       = AdminUserId,
             Email    = "elena.castro@ceip-miguel-hernandez.es",
             FullName = "Elena Castro",
-            SchoolId = schoolId,
+            SchoolId = SchoolId,
             Role     = "school_admin",
         });
-        db.AppUsers.Add(new AppUser
-        {
-            Id        = profUserId,
-            Email     = "laura.fernandez@ceip-miguel-hernandez.es",
-            FullName  = "Laura Fernández",
-            SchoolId  = schoolId,
-            Role      = "teacher",
-            TeacherId = t1,
-        });
 
-        // ── Plantilla LOMLOE Madrid 2024 ─────────────────────────────────────
+        // ── 3. Plantilla curricular — Decreto 61/2022 de Madrid ─────────────────
         db.CurriculumTemplates.Add(new CurriculumTemplate
         {
-            Id         = templateId,
-            Name       = "LOMLOE Madrid 2024 — Primaria",
+            Id         = TemplateId,
+            Name       = $"LOMLOE Madrid — Decreto 61/2022 (Primaria{(isBilingue ? ", sección bilingüe" : "")})",
             Region     = "madrid",
             Stage      = "primaria",
             IsOfficial = true,
         });
 
-        db.SubjectAllocations.AddRange([
-            new() { Id = sLen, TemplateId = templateId, SubjectName = "Lengua Castellana y Literatura",
-                    SubjectShort = "Lengua",    SubjectKey = "len",
-                    WeeklyHoursMin = 4, WeeklyHoursMax = 6, WeeklyHoursDefault = 5 },
-            new() { Id = sMat, TemplateId = templateId, SubjectName = "Matemáticas",
-                    SubjectShort = "Mates",     SubjectKey = "mat",
-                    WeeklyHoursMin = 4, WeeklyHoursMax = 6, WeeklyHoursDefault = 5 },
-            new() { Id = sCon, TemplateId = templateId, SubjectName = "Conocimiento del Medio",
-                    SubjectShort = "Naturales", SubjectKey = "cie",
-                    WeeklyHoursMin = 3, WeeklyHoursMax = 4, WeeklyHoursDefault = 3 },
-            new() { Id = sIng, TemplateId = templateId, SubjectName = "Inglés",
-                    SubjectShort = "Inglés",    SubjectKey = "ing",
-                    WeeklyHoursMin = 3, WeeklyHoursMax = 5, WeeklyHoursDefault = 4,
-                    RequiresSpecialist = true },
-            new() { Id = sEf,  TemplateId = templateId, SubjectName = "Educación Física",
-                    SubjectShort = "E. Física", SubjectKey = "ef",
-                    WeeklyHoursMin = 2, WeeklyHoursMax = 3, WeeklyHoursDefault = 3,
-                    RequiresSpecialist = true, RequiredClassroomType = "gym",
-                    MaxConsecutiveSlots = 1 },
-            new() { Id = sMus, TemplateId = templateId, SubjectName = "Música",
-                    SubjectShort = "Música",    SubjectKey = "mus",
-                    WeeklyHoursMin = 1, WeeklyHoursMax = 2, WeeklyHoursDefault = 1,
-                    RequiresSpecialist = true, RequiredClassroomType = "music",
-                    MaxConsecutiveSlots = 1, SplittableAcrossDays = false },
-            new() { Id = sPla, TemplateId = templateId, SubjectName = "Plástica y Educación Visual",
-                    SubjectShort = "Plástica",  SubjectKey = "art",
-                    WeeklyHoursMin = 1, WeeklyHoursMax = 2, WeeklyHoursDefault = 2 },
-            new() { Id = sRel, TemplateId = templateId, SubjectName = "Religión / Valores Sociales y Cívicos",
-                    SubjectShort = "Religión",  SubjectKey = "rel",
-                    WeeklyHoursMin = 1, WeeklyHoursMax = 2, WeeklyHoursDefault = 1,
-                    MaxConsecutiveSlots = 1, SplittableAcrossDays = false },
-            new() { Id = sL2,  TemplateId = templateId, SubjectName = "Segunda Lengua Extranjera",
-                    SubjectShort = "2ª Lengua", SubjectKey = "ing",
-                    WeeklyHoursMin = 1, WeeklyHoursMax = 2, WeeklyHoursDefault = 1,
-                    RequiresSpecialist = true, MaxConsecutiveSlots = 1 },
-            new() { Id = sLib, TemplateId = templateId, SubjectName = "Libre Configuración del Centro",
-                    SubjectShort = "Libre",     SubjectKey = "tut",
-                    WeeklyHoursMin = 0, WeeklyHoursMax = 2, WeeklyHoursDefault = 1 },
-        ]);
+        // ── 4. Asignaturas (SubjectAllocations) desde LomloeMadrid ──────────────
+        var subjectNorms = LomloeMadrid.GetSubjects(opts.Modality);
+        var allocations = subjectNorms.Select(n => new SubjectAllocation
+        {
+            Id                   = Guid.NewGuid(),
+            TemplateId           = TemplateId,
+            SubjectName          = n.SubjectName,
+            SubjectShort         = SubjectShortNames.GetValueOrDefault(n.SubjectKey, n.SubjectKey),
+            SubjectKey           = n.SubjectKey,
+            WeeklyHoursMin       = n.MinH,
+            WeeklyHoursMax       = n.MaxH,
+            WeeklyHoursDefault   = n.DefaultH,
+            RequiresSpecialist   = n.RequiresSpecialist,
+            RequiredClassroomType = n.RequiredClassroomType,
+            MaxConsecutiveSlots  = n.MaxConsecutiveSlots,
+            SplittableAcrossDays = n.Splittable,
+        }).ToList();
+        db.SubjectAllocations.AddRange(allocations);
 
-        // ── Aulas ────────────────────────────────────────────────────────────
-        db.Classrooms.AddRange([
-            new() { Id = r1a, SchoolId = schoolId, Name = "Aula 1ºA",  ClassroomType = "regular",  Capacity = 28 },
-            new() { Id = r1b, SchoolId = schoolId, Name = "Aula 1ºB",  ClassroomType = "regular",  Capacity = 28 },
-            new() { Id = r3a, SchoolId = schoolId, Name = "Aula 3ºA",  ClassroomType = "regular",  Capacity = 28 },
-            new() { Id = r3b, SchoolId = schoolId, Name = "Aula 3ºB",  ClassroomType = "regular",  Capacity = 28 },
-            new() { Id = r5a, SchoolId = schoolId, Name = "Aula 5ºA",  ClassroomType = "regular",  Capacity = 30 },
-            new() { Id = r5b, SchoolId = schoolId, Name = "Aula 5ºB",  ClassroomType = "regular",  Capacity = 30 },
-            new() { Id = gim, SchoolId = schoolId, Name = "Gimnasio",  ClassroomType = "gym",       Capacity = 50 },
-            new() { Id = mus, SchoolId = schoolId, Name = "Aula de Música",     ClassroomType = "music", Capacity = 26 },
-            new() { Id = pla, SchoolId = schoolId, Name = "Aula de Plástica",   ClassroomType = "regular", Capacity = 26 },
-            new() { Id = inf, SchoolId = schoolId, Name = "Aula de Informática",ClassroomType = "it",     Capacity = 26 },
-        ]);
+        // Acceso rápido por SubjectKey para construir asignaciones
+        var allocByKey = allocations.ToDictionary(a => a.SubjectKey);
 
-        // ── Profesores ───────────────────────────────────────────────────────
-        db.Teachers.AddRange([
-            new() { Id = t1, SchoolId = schoolId, FullName = "Laura Fernández",
-                    Email = "laura.fernandez@ceip-miguel-hernandez.es",
-                    UserId = profUserId, TeacherType = "definitivo", MaxWeeklyHours = 25,
-                    Specialties = "[\"Generalista\",\"Matemáticas\"]", ColorKey = "mat" },
-            new() { Id = t2, SchoolId = schoolId, FullName = "Carlos Ruiz",
-                    Email = "carlos.ruiz@ceip-miguel-hernandez.es",
-                    TeacherType = "definitivo", MaxWeeklyHours = 25,
-                    Specialties = "[\"Generalista\",\"C. Naturales\"]", ColorKey = "cie" },
-            new() { Id = t3, SchoolId = schoolId, FullName = "María Gómez",
-                    Email = "maria.gomez@ceip-miguel-hernandez.es",
-                    TeacherType = "definitivo", MaxWeeklyHours = 25,
-                    Specialties = "[\"Ed. Infantil/Primaria\"]", ColorKey = "len" },
-            new() { Id = t4, SchoolId = schoolId, FullName = "David Soler",
-                    Email = "david.soler@ceip-miguel-hernandez.es",
-                    TeacherType = "especialista", MaxWeeklyHours = 25,
-                    Specialties = "[\"Inglés (habilitación)\"]", ColorKey = "ing" },
-            new() { Id = t5, SchoolId = schoolId, FullName = "Ana Martín",
-                    Email = "ana.martin@ceip-miguel-hernandez.es",
-                    TeacherType = "definitivo", MaxWeeklyHours = 25,
-                    Specialties = "[\"Generalista\"]", ColorKey = "len" },
-            new() { Id = t6, SchoolId = schoolId, FullName = "Javier Pardo",
-                    Email = "javier.pardo@ceip-miguel-hernandez.es",
-                    TeacherType = "especialista", MaxWeeklyHours = 25,
-                    Specialties = "[\"Educación Física\"]", ColorKey = "ef" },
-            new() { Id = t7, SchoolId = schoolId, FullName = "Lucía Navarro",
-                    Email = "lucia.navarro@ceip-miguel-hernandez.es",
-                    TeacherType = "definitivo", MaxWeeklyHours = 25,
-                    Specialties = "[\"Generalista\",\"Música\"]", ColorKey = "mus" },
-            new() { Id = t8, SchoolId = schoolId, FullName = "Pablo Vidal",
-                    Email = "pablo.vidal@ceip-miguel-hernandez.es",
-                    TeacherType = "especialista", MaxWeeklyHours = 20,
-                    Specialties = "[\"Religión\"]", ColorKey = "rel" },
-        ]);
+        // ── 5. Aulas ─────────────────────────────────────────────────────────────
+        //
+        // Capacidad de aulas especiales para 18 grupos (totalGroups):
+        //   EF:     totalGroups × 3 h/semana = hasta 54 sesiones/semana
+        //           3 gyms × 25 slots/semana = 75 capacidad → suficiente
+        //   Música: totalGroups × 1 h/semana ≤ 25 slots/semana → 1 aula basta
+        //   TIC:    opcional, para libre configuración
+        var classrooms = new List<Classroom>();
+        char[] lineLabels = ['A', 'B', 'C', 'D', 'E'];
 
-        // ── Grupos ───────────────────────────────────────────────────────────
-        db.CourseGroups.AddRange([
-            new() { Id = g1a, SchoolId = schoolId, CourseLevel = 1, GroupLabel = "A", StudentCount = 24, TutorId = t3, HomeClassroomId = r1a },
-            new() { Id = g1b, SchoolId = schoolId, CourseLevel = 1, GroupLabel = "B", StudentCount = 23, TutorId = t7, HomeClassroomId = r1b },
-            new() { Id = g3a, SchoolId = schoolId, CourseLevel = 3, GroupLabel = "A", StudentCount = 25, TutorId = t1, HomeClassroomId = r3a },
-            new() { Id = g3b, SchoolId = schoolId, CourseLevel = 3, GroupLabel = "B", StudentCount = 26, TutorId = t5, HomeClassroomId = r3b },
-            new() { Id = g5a, SchoolId = schoolId, CourseLevel = 5, GroupLabel = "A", StudentCount = 27, TutorId = t2, HomeClassroomId = r5a },
-            new() { Id = g5b, SchoolId = schoolId, CourseLevel = 5, GroupLabel = "B", StudentCount = 25, TutorId = null, HomeClassroomId = r5b },
-        ]);
+        // Aulas regulares: una por grupo
+        for (int level = 1; level <= opts.Levels; level++)
+        {
+            for (int li = 0; li < opts.LinesPerLevel; li++)
+            {
+                classrooms.Add(new Classroom
+                {
+                    Id            = Guid.NewGuid(),
+                    SchoolId      = SchoolId,
+                    Name          = $"Aula {level}º{lineLabels[li]}",
+                    ClassroomType = "regular",
+                    Capacity      = 28,
+                });
+            }
+        }
 
-        // ── Asignaciones profesor → asignatura → grupo ────────────────────────
-        // Ejemplo representativo para 3ºA y 3ºB (suficiente para generar horario demo)
+        // Gimnasios (3): suficiente para todos los grupos a la vez
+        var gymRooms = new[]
+        {
+            new Classroom { Id = Guid.NewGuid(), SchoolId = SchoolId, Name = "Gimnasio",            ClassroomType = "gym", Capacity = 60 },
+            new Classroom { Id = Guid.NewGuid(), SchoolId = SchoolId, Name = "Pista Polideportiva", ClassroomType = "gym", Capacity = 80 },
+            new Classroom { Id = Guid.NewGuid(), SchoolId = SchoolId, Name = "Patio Cubierto",      ClassroomType = "gym", Capacity = 60 },
+        };
+        classrooms.AddRange(gymRooms);
+
+        // Aula de Música (1 es suficiente: ≤18 sesiones/semana < 25 slots disponibles)
+        var musicRoom = new Classroom { Id = Guid.NewGuid(), SchoolId = SchoolId, Name = "Aula de Música", ClassroomType = "music", Capacity = 30 };
+        classrooms.Add(musicRoom);
+
+        // Aula de Informática
+        classrooms.Add(new Classroom { Id = Guid.NewGuid(), SchoolId = SchoolId, Name = "Aula de Informática", ClassroomType = "it", Capacity = 26 });
+
+        db.Classrooms.AddRange(classrooms);
+
+        // Mapa de aulas regulares por posición (índice grupo → aula)
+        var regularClassrooms = classrooms.Where(c => c.ClassroomType == "regular").ToList();
+
+        // ── 6. Profesores ─────────────────────────────────────────────────────────
+        //
+        // Diseño de plantilla docente para un colegio de primaria de 3 líneas (LOMLOE):
+        //   - 1 tutor generalista por grupo: enseña Lengua+Mates+Cono+Plástica (15 h/semana)
+        //   - Especialistas de Inglés: distribución round-robin entre grupos
+        //       estándar: 3 profesores × 6 grupos × 4 h = 24 h/profe (max 25)
+        //       bilingüe: 5 profesores ×  distribución   ≤ 20 h/profe
+        //   - Especialistas de EF: 3 profesores × 6 grupos × 3 h = 18 h/profe
+        //   - Especialista de Música: 1 profesor × 18 grupos × 1 h = 18 h
+        //   - Especialista de Religión: 1 profesor × 18 grupos × 1 h = 18 h
+
+        // 6a. Tutores generalistas (nombre por nivel+línea)
+        var tutorNames = new[]
+        {
+            // Nivel 1
+            ("Ana García",         "ana.garcia"),
+            ("Beatriz López",      "beatriz.lopez"),
+            ("Carlos Martínez",    "carlos.martinez"),
+            // Nivel 2
+            ("Diana Rodríguez",    "diana.rodriguez"),
+            ("Eduardo Sánchez",    "eduardo.sanchez"),
+            ("Fernanda Torres",    "fernanda.torres"),
+            // Nivel 3
+            ("Guillermo Jiménez",  "guillermo.jimenez"),
+            ("Helena Moreno",      "helena.moreno"),
+            ("Ignacio Díaz",       "ignacio.diaz"),
+            // Nivel 4
+            ("Julia Pérez",        "julia.perez"),
+            ("Kevin Romero",       "kevin.romero"),
+            ("Lorena Álvarez",     "lorena.alvarez"),
+            // Nivel 5
+            ("Manuel Navarro",     "manuel.navarro"),
+            ("Neus Serrano",       "neus.serrano"),
+            ("Óscar Molina",       "oscar.molina"),
+            // Nivel 6
+            ("Rafael Herrero",     "rafael.herrero"),
+            ("Sara Vidal",         "sara.vidal"),
+            ("Tomás Peña",         "tomas.pena"),
+        };
+
+        var tutors = new List<Teacher>();
+        for (int i = 0; i < Math.Min(totalGroups, tutorNames.Length); i++)
+        {
+            var (name, emailUser) = tutorNames[i];
+            tutors.Add(new Teacher
+            {
+                Id             = Guid.NewGuid(),
+                SchoolId       = SchoolId,
+                FullName       = name,
+                Email          = $"{emailUser}@ceip-miguel-hernandez.es",
+                TeacherType    = "definitivo",
+                MaxWeeklyHours = 25,
+                Specialties    = "[\"Generalista\"]",
+                ColorKey       = TutorColorKeys[i % TutorColorKeys.Length],
+            });
+        }
+        db.Teachers.AddRange(tutors);
+
+        // 6b. Especialistas de Inglés
+        //   Siempre creamos 5 profesores; los no utilizados (sin asignaciones) son inertes.
+        //   Estándar: activos 0,1,2 (6+6+6 grupos × 4h = 24h cada uno)
+        //   Bilingüe: activos 0-4 (4+4+4+3+3 grupos × 5h = 20+20+20+15+15h)
+        var ingNames = new[]
+        {
+            ("Laura Fernández",  "laura.fernandez"),   // [0] — vinculada al usuario teacher
+            ("David Soler",      "david.soler"),
+            ("Sandra Blanco",    "sandra.blanco"),
+            ("Alberto Rubio",    "alberto.rubio"),
+            ("Marta Iglesias",   "marta.iglesias"),
+        };
+        var ingTeachers = ingNames.Select((t, _) => new Teacher
+        {
+            Id             = Guid.NewGuid(),
+            SchoolId       = SchoolId,
+            FullName       = t.Item1,
+            Email          = $"{t.Item2}@ceip-miguel-hernandez.es",
+            TeacherType    = "especialista",
+            MaxWeeklyHours = 25,
+            Specialties    = "[\"Inglés (habilitación)\"]",
+            ColorKey       = "ing",
+        }).ToList();
+        db.Teachers.AddRange(ingTeachers);
+
+        // El usuario "teacher" demo se enlaza al primer especialista de Inglés (Laura Fernández)
+        db.AppUsers.Add(new AppUser
+        {
+            Id        = ProfUserId,
+            Email     = "laura.fernandez@ceip-miguel-hernandez.es",
+            FullName  = "Laura Fernández",
+            SchoolId  = SchoolId,
+            Role      = "teacher",
+            TeacherId = ingTeachers[0].Id,
+        });
+
+        // 6c. Especialistas de Educación Física (3)
+        var efNames = new[]
+        {
+            ("Javier Pardo",    "javier.pardo"),
+            ("Patricia Castro", "patricia.castro"),
+            ("Marcos Ruiz",     "marcos.ruiz"),
+        };
+        var efTeachers = efNames.Select(t => new Teacher
+        {
+            Id             = Guid.NewGuid(),
+            SchoolId       = SchoolId,
+            FullName       = t.Item1,
+            Email          = $"{t.Item2}@ceip-miguel-hernandez.es",
+            TeacherType    = "especialista",
+            MaxWeeklyHours = 25,
+            Specialties    = "[\"Educación Física\"]",
+            ColorKey       = "ef",
+        }).ToList();
+        db.Teachers.AddRange(efTeachers);
+
+        // 6d. Especialista de Música (1)
+        var musicTeacher = new Teacher
+        {
+            Id             = Guid.NewGuid(),
+            SchoolId       = SchoolId,
+            FullName       = "Lucía Navarro",
+            Email          = "lucia.navarro@ceip-miguel-hernandez.es",
+            TeacherType    = "definitivo",
+            MaxWeeklyHours = 25,
+            Specialties    = "[\"Generalista\",\"Música\"]",
+            ColorKey       = "mus",
+        };
+        db.Teachers.Add(musicTeacher);
+
+        // 6e. Especialista de Religión (1)
+        var relTeacher = new Teacher
+        {
+            Id             = Guid.NewGuid(),
+            SchoolId       = SchoolId,
+            FullName       = "Pablo Vidal",
+            Email          = "pablo.vidal@ceip-miguel-hernandez.es",
+            TeacherType    = "especialista",
+            MaxWeeklyHours = 20,
+            Specialties    = "[\"Religión\"]",
+            ColorKey       = "rel",
+        };
+        db.Teachers.Add(relTeacher);
+
+        // ── 7. Grupos (CourseGroups) ──────────────────────────────────────────────
+        var groups = new List<CourseGroup>();
+        int groupIdx = 0;
+
+        for (int level = 1; level <= opts.Levels; level++)
+        {
+            for (int li = 0; li < opts.LinesPerLevel; li++)
+            {
+                var tutor     = groupIdx < tutors.Count ? tutors[groupIdx] : null;
+                var classroom = groupIdx < regularClassrooms.Count ? regularClassrooms[groupIdx] : null;
+
+                groups.Add(new CourseGroup
+                {
+                    Id              = Guid.NewGuid(),
+                    SchoolId        = SchoolId,
+                    CourseLevel     = level,
+                    GroupLabel      = lineLabels[li].ToString(),
+                    StudentCount    = 25,
+                    TutorId         = tutor?.Id,
+                    HomeClassroomId = classroom?.Id,
+                });
+                groupIdx++;
+            }
+        }
+        db.CourseGroups.AddRange(groups);
+
+        // ── 8. Asignaciones (profesor → asignatura → grupo) ───────────────────────
+        //
+        // Por cada grupo:
+        //   Tutor     → Lengua (5h), Mates (5h), Cono (3h), Plástica (2h)  = 15 h
+        //   Ing esp   → Inglés (4h estándar / 5h bilingüe)
+        //   EF esp    → Ed. Física (3h)
+        //   Música    → Música (1h)
+        //   Religión  → Religión/Valores (1h)
+        //   Total estándar: 15+4+3+1+1 = 24 h  (1 slot libre/semana → margen para el solver)
+        //   Total bilingüe: 15+5+3+1+1 = 25 h  (capacidad exacta de la rejilla 5×5)
         var assignments = new List<Assignment>();
-        void Add(Guid tId, Guid gId, Guid aId, int hours) =>
-            assignments.Add(new() { SchoolId = schoolId, TeacherId = tId, GroupId = gId, AllocationId = aId, WeeklyHours = hours });
+        void AddAssignment(Guid teacherId, Guid groupId, SubjectAllocation alloc, int hours) =>
+            assignments.Add(new Assignment
+            {
+                Id          = Guid.NewGuid(),
+                SchoolId    = SchoolId,
+                TeacherId   = teacherId,
+                GroupId     = groupId,
+                AllocationId = alloc.Id,
+                WeeklyHours = hours,
+            });
 
-        // 1ºA
-        Add(t3, g1a, sLen, 5); Add(t3, g1a, sMat, 5); Add(t3, g1a, sCon, 3);
-        Add(t4, g1a, sIng, 4); Add(t6, g1a, sEf,  3); Add(t7, g1a, sMus, 1);
-        Add(t3, g1a, sPla, 2); Add(t8, g1a, sRel, 1);
+        // Distribución de especialistas de Inglés según modalidad
+        // Estándar: 3 activos, cada uno cubre 1/3 de los grupos (round-robin módulo 3)
+        // Bilingüe: 5 activos, distribución ~20h máx por profesor (round-robin módulo 5)
+        int ingSlots   = isBilingue ? 5 : 4;   // horas de inglés por grupo
+        int ingMod     = isBilingue ? 5 : 3;   // número de especialistas activos
 
-        // 1ºB
-        Add(t7, g1b, sLen, 5); Add(t7, g1b, sMat, 5); Add(t7, g1b, sCon, 3);
-        Add(t4, g1b, sIng, 4); Add(t6, g1b, sEf,  3); Add(t7, g1b, sMus, 1);
-        Add(t3, g1b, sPla, 2); Add(t8, g1b, sRel, 1);
+        for (int gi = 0; gi < groups.Count; gi++)
+        {
+            var group     = groups[gi];
+            var tutor     = tutors[gi % tutors.Count]; // tutores tienen siempre 1 grupo
 
-        // 3ºA
-        Add(t1, g3a, sLen, 5); Add(t1, g3a, sMat, 5); Add(t2, g3a, sCon, 3);
-        Add(t4, g3a, sIng, 4); Add(t6, g3a, sEf,  3); Add(t7, g3a, sMus, 1);
-        Add(t1, g3a, sPla, 2); Add(t8, g3a, sRel, 1);
+            // Materias del tutor (generalista)
+            if (allocByKey.TryGetValue("len", out var lenAlloc)) AddAssignment(tutor.Id, group.Id, lenAlloc, 5);
+            if (allocByKey.TryGetValue("mat", out var matAlloc)) AddAssignment(tutor.Id, group.Id, matAlloc, 5);
+            if (allocByKey.TryGetValue("cie", out var cieAlloc)) AddAssignment(tutor.Id, group.Id, cieAlloc, 3);
+            if (allocByKey.TryGetValue("art", out var artAlloc)) AddAssignment(tutor.Id, group.Id, artAlloc, 2);
 
-        // 3ºB
-        Add(t5, g3b, sLen, 5); Add(t5, g3b, sMat, 5); Add(t2, g3b, sCon, 3);
-        Add(t4, g3b, sIng, 4); Add(t6, g3b, sEf,  3); Add(t7, g3b, sMus, 1);
-        Add(t5, g3b, sPla, 2); Add(t8, g3b, sRel, 1);
+            // Inglés — round-robin entre especialistas activos
+            if (allocByKey.TryGetValue("ing", out var ingAlloc))
+                AddAssignment(ingTeachers[gi % ingMod].Id, group.Id, ingAlloc, ingSlots);
 
-        // 5ºA
-        Add(t2, g5a, sLen, 5); Add(t2, g5a, sMat, 5); Add(t2, g5a, sCon, 3);
-        Add(t4, g5a, sIng, 4); Add(t6, g5a, sEf,  3); Add(t7, g5a, sMus, 1);
-        Add(t5, g5a, sPla, 2); Add(t8, g5a, sRel, 1);
+            // Educación Física — round-robin entre 3 especialistas
+            if (allocByKey.TryGetValue("ef", out var efAlloc))
+                AddAssignment(efTeachers[gi % efTeachers.Count].Id, group.Id, efAlloc, 3);
 
-        // 5ºB
-        Add(t5, g5b, sLen, 5); Add(t1, g5b, sMat, 5); Add(t2, g5b, sCon, 3);
-        Add(t4, g5b, sIng, 4); Add(t6, g5b, sEf,  3); Add(t7, g5b, sMus, 1);
-        Add(t3, g5b, sPla, 2); Add(t8, g5b, sRel, 1);
+            // Música — único especialista para todos los grupos
+            if (allocByKey.TryGetValue("mus", out var musAlloc))
+                AddAssignment(musicTeacher.Id, group.Id, musAlloc, 1);
 
+            // Religión / Valores — único especialista
+            if (allocByKey.TryGetValue("rel", out var relAlloc))
+                AddAssignment(relTeacher.Id, group.Id, relAlloc, 1);
+
+            // Libre Configuración: NO se asigna en el demo para mantener 1 slot libre por semana
+            // en modalidad estándar, lo que da margen al motor de backtracking.
+            // En bilingüe ya se llega a 25 h (capacidad total), por lo que tampoco se asigna.
+            // El centro puede añadir estas horas manualmente desde la UI de Asignaturas.
+        }
         db.Assignments.AddRange(assignments);
 
         await db.SaveChangesAsync();

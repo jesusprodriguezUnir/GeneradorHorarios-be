@@ -10,7 +10,10 @@ using HorariosEscolares.Features.Classrooms;
 using HorariosEscolares.Features.Subjects;
 using HorariosEscolares.Features.Assignments;
 using HorariosEscolares.Features.Constraints;
+using HorariosEscolares.Features.Dev;
 using HorariosEscolares.Features.Schedules;
+using HorariosEscolares.Domain.Normative;
+using HorariosEscolares.Infrastructure.Normative;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -83,13 +86,20 @@ else
 // Motor de generación de horarios
 builder.Services.AddScoped<IScheduleEngine, BacktrackingScheduleEngine>();
 
+// Validador normativo (Decreto 61/2022 Madrid)
+builder.Services.AddScoped<INormativeValidator, NormativeValidator>();
+
+// Opciones de seed leídas de la configuración (sección "Seed")
+builder.Services.Configure<SeedOptions>(builder.Configuration.GetSection("Seed"));
+
 var app = builder.Build();
 
 // ── Inicialización de BD (migraciones + seed) ─────────────────────────────────
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await DbInitializer.InitializeAsync(db);
+    var db          = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var seedOptions = app.Configuration.GetSection("Seed").Get<SeedOptions>();
+    await DbInitializer.InitializeAsync(db, seedOptions);
 }
 
 // ── Pipeline ──────────────────────────────────────────────────────────────────
@@ -120,6 +130,12 @@ app.MapConstraintEndpoints();
 app.MapScheduleEndpoints();
 
 app.MapHub<GenerationProgressHub>("/hubs/generation");
+
+// ── Endpoints de desarrollo (solo en entorno Development) ─────────────────────
+if (app.Environment.IsDevelopment())
+{
+    app.MapDevEndpoints();
+}
 app.MapHealthChecks("/health");
 
 // Redirect root to swagger en dev
