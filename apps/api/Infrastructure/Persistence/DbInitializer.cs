@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using HorariosEscolares.Domain.Normative;
+using HorariosEscolares.Features.Schools;
 using HorariosEscolares.Infrastructure.Persistence.Entities;
 
 namespace HorariosEscolares.Infrastructure.Persistence;
@@ -116,6 +117,38 @@ public static class DbInitializer
             DaysPerWeek    = 5,
             WorkingDays    = "[1,2,3,4,5]",
         });
+
+        // ── 1b. Ciclos (CycleSchedule) — entrada/salida por ciclo educativo ────────
+        // Ciclo 1 = 1º-2º, Ciclo 2 = 3º-4º, Ciclo 3 = 5º-6º.
+        // En esta demo todos los ciclos comparten la misma entrada (9:00) y la salida
+        // se calcula a partir de los parámetros de jornada del colegio (5 slots × 60 min
+        // + 30 min recreo = 14:30 en jornada continua; 17:00 en partida).
+        // El administrador podrá ajustar cada ciclo desde la pantalla de Configuración.
+        var schoolForSeed = new School
+        {
+            Name           = "temp",    // solo para el cálculo de ComputeEndTime
+            Slug           = "temp",
+            MorningStart   = new TimeOnly(9, 0),
+            ScheduleType   = opts.ScheduleType,
+            AfternoonStart = isPartida ? new TimeOnly(15, 0) : null,
+            SlotMinutes    = 60,
+            BreakAfterSlot = 2,
+            BreakMinutes   = LomloeMadrid.MinDailyBreakMinutes,
+            SlotsPerDay    = 5,
+            AfternoonSlots = isPartida ? 2 : 0,
+        };
+        for (int c = 1; c <= 3; c++)
+        {
+            var cycleEnd = SlotCalculator.ComputeEndTime(schoolForSeed, new TimeOnly(9, 0));
+            db.CycleSchedules.Add(new CycleSchedule
+            {
+                SchoolId       = SchoolId,
+                Cycle          = c,
+                MorningStart   = new TimeOnly(9, 0),
+                EndTime        = cycleEnd,
+                AfternoonStart = isPartida ? new TimeOnly(15, 0) : null,
+            });
+        }
 
         // ── 2. Usuarios demo ────────────────────────────────────────────────────
         // Laura Fernández se crea junto con los profesores (ver abajo) y su ID se

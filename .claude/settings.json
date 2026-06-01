@@ -1,7 +1,36 @@
 {
   "permissions": {
     "allow": [
-      "Bash(dotnet test *)"
+      "Bash(dotnet test *)",
+      "Bash(docker compose *)",
+      "Bash(curl -s -X POST http://localhost:5000/api/dev/reseed -H 'Content-Type: application/json' -H 'X-User-Email: elena.castro@ceip-miguel-hernandez.es' -d '{\"Levels\":6,\"LinesPerLevel\":3,\"Modality\":\"estandar\",\"ScheduleType\":\"continua\"}')",
+      "Bash(curl -s -v -X POST http://localhost:5000/api/dev/reseed -H 'Content-Type: application/json' -H 'X-User-Email: elena.castro@ceip-miguel-hernandez.es' -d '{\"Levels\":6,\"LinesPerLevel\":3,\"Modality\":\"estandar\",\"ScheduleType\":\"continua\"}')",
+      "Bash(Get-Process -Id 44936 -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object Id, ProcessName, StartTime)",
+      "Bash(kill -9 44936)",
+      "PowerShell(Get-NetTCPConnection -LocalPort 5000 -ErrorAction SilentlyContinue)",
+      "PowerShell(Stop-Process -Id 44936 -Force -ErrorAction SilentlyContinue)",
+      "PowerShell(Stop-Process -Id 44936 -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; $conn = Get-NetTCPConnection -LocalPort 5000 -ErrorAction SilentlyContinue; if \\($conn\\) { \"Puerto 5000 aun ocupado por PID: \" + $conn.OwningProcess } else { \"Puerto 5000 libre\" })",
+      "Bash(dotnet run *)",
+      "Bash(echo \"PID del proceso: $!\")",
+      "Bash(curl -s http://localhost:5000/api/schools/me -H \"X-User-Email: elena.castro@ceip-miguel-hernandez.es\")",
+      "Bash(Read \"C:\\\\Users\\\\jesus\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--Personal-GeneradorHorarios\\\\649f79ae-9afb-4929-9841-fec506ccc82a\\\\tasks\\\\bcxjv1fn6.output\")",
+      "PowerShell($proc = Start-Process -FilePath \"dotnet\" -ArgumentList \"run\", \"--project\", \"apps\\\\api\\\\api.csproj\", \"--no-build\" -WorkingDirectory \"d:\\\\Personal\\\\GeneradorHorarios\" -PassThru -WindowStyle Hidden; Start-Sleep -Seconds 12; $proc.Id)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(f\\\\\"Colegio: {d['name']} | SlotsPerDay: {d['slotsPerDay']} | ScheduleType: {d['scheduleType']}\\\\\"\\)\")",
+      "Bash(curl -s -w '\\\\nHTTP_STATUS:%{http_code}' -X POST http://localhost:5000/api/dev/reseed -H 'Content-Type: application/json' -H 'X-User-Email: elena.castro@ceip-miguel-hernandez.es' -d '{\"Levels\":6,\"LinesPerLevel\":3,\"Modality\":\"estandar\",\"ScheduleType\":\"continua\"}')",
+      "PowerShell(Stop-Process -Id 19656 -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 2; $conn = Get-NetTCPConnection -LocalPort 5000 -ErrorAction SilentlyContinue; if \\($conn\\) { \"Puerto 5000 aun en uso: PID \" + $conn.OwningProcess } else { \"Puerto 5000 libre — OK para build\" })",
+      "PowerShell(Stop-Process -Id 39808 -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 3; $conn = Get-NetTCPConnection -LocalPort 5000 -ErrorAction SilentlyContinue; if \\($conn\\) { \"Puerto 5000 aun en uso: PID \" + \\($conn | Select-Object -Unique OwningProcess\\).OwningProcess } else { \"Puerto 5000 libre — OK\" })",
+      "PowerShell($proc = Start-Process -FilePath \"dotnet\" -ArgumentList \"run\", \"--project\", \"apps\\\\api\\\\api.csproj\", \"--no-build\" -WorkingDirectory \"d:\\\\Personal\\\\GeneradorHorarios\" -PassThru -WindowStyle Hidden; Start-Sleep -Seconds 10; $conn = Get-NetTCPConnection -LocalPort 5000 -ErrorAction SilentlyContinue; if \\($conn\\) { \"API en puerto 5000, PID: \" + \\($conn | Select-Object -First 1\\).OwningProcess } else { \"API no arrancó todavía\" })",
+      "Bash(curl -s \"http://localhost:5000/api/groups?page=1&pageSize=5\" -H \"X-User-Email: elena.castro@ceip-miguel-hernandez.es\")",
+      "Bash(curl -s \"http://localhost:5000/api/teachers?page=1&pageSize=5\" -H \"X-User-Email: elena.castro@ceip-miguel-hernandez.es\")",
+      "PowerShell($conn = Get-NetTCPConnection -LocalPort 5000 -ErrorAction SilentlyContinue; if \\($conn\\) { Stop-Process -Id \\($conn | Select-Object -First 1\\).OwningProcess -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 3 }; $conn2 = Get-NetTCPConnection -LocalPort 5000 -ErrorAction SilentlyContinue; if \\($conn2\\) { \"Puerto 5000 aun ocupado\" } else { \"Puerto 5000 libre\" })",
+      "PowerShell($proc = Start-Process -FilePath \"dotnet\" -ArgumentList \"run\", \"--project\", \"apps\\\\api\\\\api.csproj\", \"--no-build\", \"--launch-profile\", \"http\" -WorkingDirectory \"d:\\\\Personal\\\\GeneradorHorarios\" -PassThru -WindowStyle Hidden; Start-Sleep -Seconds 15; $conn = Get-NetTCPConnection -LocalPort 5000 -ErrorAction SilentlyContinue; if \\($conn\\) { \"API arrancada, PID: \" + \\($conn | Select-Object -First 1\\).OwningProcess } else { \"API no arrancó aun — esperando mas...\" })",
+      "Bash(curl -s -w '\\\\nHTTP_STATUS:%{http_code}' http://localhost:5000/api/schools/me -H 'X-User-Email: elena.castro@ceip-miguel-hernandez.es')",
+      "Bash(curl -s http://localhost:5000/api/groups -H 'X-User-Email: elena.castro@ceip-miguel-hernandez.es')",
+      "Bash(curl -s http://localhost:5000/api/schools/me/normative-check -H 'X-User-Email: elena.castro@ceip-miguel-hernandez.es')",
+      "Bash(dotnet ef *)",
+      "Bash(dotnet build *)",
+      "Bash(npm run *)"
     ]
   }
 }

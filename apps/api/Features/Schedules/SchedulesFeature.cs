@@ -58,7 +58,8 @@ public record ScheduleGridDto(
     Guid ScheduleId, string Status, string AcademicYear,
     IReadOnlyList<ScheduleGridEntry> Entries,
     IReadOnlyList<ConflictDto> Conflicts,
-    IReadOnlyList<SlotInfo> Slots);
+    IReadOnlyList<SlotInfo> Slots,
+    IReadOnlyDictionary<int, IReadOnlyList<SlotInfo>> SlotsByCycle);
 
 public record ScheduleGridEntry(
     Guid Id, int DayOfWeek, int SlotIndex,
@@ -224,42 +225,109 @@ public static class ScheduleEndpoints
             var result = await engine.GenerateAsync(context, ct, progress);
 
             // ── Persistir horario ─────────────────────────────────────────────
+            // Pre-cargar datos para resolver aulas y detectar cobertura/horas
+            var homeClassroomMap = await db.CourseGroups.AsNoTracking()
+                .Where(g => g.SchoolId == user.SchoolId && g.HomeClassroomId.HasValue)
+                .ToDictionaryAsync(g => g.Id, g => g.HomeClassroomId!.Value, ct);
+            var defaultClassroomId = await db.Classrooms.AsNoTracking()
+                .Where(c => c.SchoolId == user.SchoolId && c.ClassroomType == "regular")
+                .Select(c => c.Id)
+                .FirstOrDefaultAsync(ct);
+            var validClassroomIds = (await db.Classrooms.AsNoTracking()
+                .Where(c => c.SchoolId == user.SchoolId)
+                .Select(c => c.Id)
+                .ToListAsync(ct)).ToHashSet();
+            var allGroups = await db.CourseGroups.AsNoTracking()
+                .Where(g => g.SchoolId == user.SchoolId)
+                .ToDictionaryAsync(g => g.Id, ct);
+            var teacherAssignedWeeklyHoursExpected = await db.Assignments.AsNoTracking()
+                .Where(a => a.SchoolId == user.SchoolId)
+                .GroupBy(a => a.TeacherId)
+                .Select(g => new { TeacherId = g.Key, ExpectedHours = g.Sum(a => a.WeeklyHours) })
+                .ToDictionaryAsync(x => x.TeacherId, x => x.ExpectedHours, ct);
+            var teacherNames = await db.Teachers.AsNoTracking()
+                .Where(t => t.SchoolId == user.SchoolId)
+                .ToDictionaryAsync(t => t.Id, t => t.FullName, ct);
+
+            // ── Cobertura: detectar huecos vacíos por grupo ───────────────────
+            var workingDaysList = SlotCalculator.ParseWorkingDays(school.WorkingDays);
+            var lectivoSlotIndices = slots.Where(s => !s.IsBreak).Select(s => s.Index).ToHashSet();
+
+            // Conjunto de (groupId, day, slotIndex) ya asignados
+            var assignedSet = result.AssignedSlots
+                .Select(s => (s.GroupId, s.DayOfWeek, s.SlotIndex))
+                .ToHashSet();
+
+            var coverageConflicts = new List<ConflictExplanation>();
+            foreach (var (groupId, group) in allGroups)
+            {
+                foreach (var day in workingDaysList)
+                {
+                    foreach (var slotIdx in lectivoSlotIndices)
+                    {
+                        if (!assignedSet.Contains((groupId, day, slotIdx)))
+                        {
+                            coverageConflicts.Add(new ConflictExplanation
+                            {
+                                Type = ConflictType.Coverage,
+                                Severity = ConflictSeverity.Warning,
+                                Description = $"Hueco sin cubrir para {group.DisplayName} el {DayName(day)} en la hora {slotIdx + 1}.",
+                                Suggestions = ["Revisa las asignaciones del grupo o amplía sus horas lectivas."],
+                                GroupId = groupId,
+                                DayOfWeek = day,
+                                SlotIndex = slotIdx,
+                            });
+                        }
+                    }
+                }
+            }
+
+            // ── Horas de profesor: avisar si no se cubrieron todas ────────────
+            var teacherActualHours = result.AssignedSlots
+                .GroupBy(s => s.TeacherId)
+                .ToDictionary(g => g.Key, g => g.Count());
+
+            var teacherHoursConflicts = new List<ConflictExplanation>();
+            foreach (var (teacherId, expectedHours) in teacherAssignedWeeklyHoursExpected)
+            {
+                var actual = teacherActualHours.GetValueOrDefault(teacherId, 0);
+                if (actual < expectedHours)
+                {
+                    var name = teacherNames.GetValueOrDefault(teacherId, "Profesor");
+                    teacherHoursConflicts.Add(new ConflictExplanation
+                    {
+                        Type = ConflictType.Teacher,
+                        Severity = ConflictSeverity.Warning,
+                        Description = $"{name} tiene {actual} horas asignadas de {expectedHours} configuradas.",
+                        Suggestions = ["Comprueba que no haya conflictos de disponibilidad o aulas especiales sin cubrir."],
+                        TeacherId = teacherId,
+                    });
+                }
+            }
+
             var schedule = new ScheduleRecord
             {
                 SchoolId = user.SchoolId, AcademicYear = req.AcademicYear,
                 Status = "generated",
                 GeneratedAt = DateTime.UtcNow, GenerationSeconds = result.ElapsedSeconds,
-                // Incluye conflictos del motor + incidencias normativas de tipo Error
+                // Incluye conflictos del motor + normativas de Error + cobertura + horas
                 TotalConflicts = result.Conflicts.Count(c => c.Severity == ConflictSeverity.Error)
-                               + normativeIssues.Count(c => c.Severity == ConflictSeverity.Error),
+                               + normativeIssues.Count(c => c.Severity == ConflictSeverity.Error)
+                               + coverageConflicts.Count
+                               + teacherHoursConflicts.Count,
                 CreatedBy = user.UserId,
             };
             db.Schedules.Add(schedule);
 
-            // Mapear aulas: asignar la home classroom del grupo o una genérica
-            var classroomMap = await db.CourseGroups.AsNoTracking()
-                .Where(g => g.SchoolId == user.SchoolId && g.HomeClassroomId.HasValue)
-                .ToDictionaryAsync(g => g.Id, g => g.HomeClassroomId!.Value, ct);
-            var defaultClassroom = await db.Classrooms.AsNoTracking()
-                .Where(c => c.SchoolId == user.SchoolId && c.ClassroomType == "regular")
-                .Select(c => c.Id)
-                .FirstOrDefaultAsync(ct);
-
-            var allocationMap = await db.Assignments.AsNoTracking()
-                .Where(a => a.SchoolId == user.SchoolId)
-                .ToDictionaryAsync(a => a.Id, ct);
-
             foreach (var slot in result.AssignedSlots)
             {
-                // Resolver classroom
-                var classroomId = classroomMap.GetValueOrDefault(slot.GroupId, defaultClassroom);
-                // Intentar usar la de la assignment
-                var asgn = allocationMap.GetValueOrDefault(slot.AssignmentId);
-                if (asgn is not null)
-                {
-                    var homeClassroom = classroomMap.GetValueOrDefault(asgn.GroupId, defaultClassroom);
-                    classroomId = homeClassroom;
-                }
+                // ── Fix de aula: usar la elegida por el motor si es válida,
+                //    caer al aula base del grupo / genérica solo como respaldo.
+                Guid classroomId;
+                if (slot.ClassroomId != Guid.Empty && validClassroomIds.Contains(slot.ClassroomId))
+                    classroomId = slot.ClassroomId;
+                else
+                    classroomId = homeClassroomMap.GetValueOrDefault(slot.GroupId, defaultClassroomId);
 
                 db.ScheduleEntries.Add(new DbScheduleEntry
                 {
@@ -270,9 +338,11 @@ public static class ScheduleEndpoints
                 });
             }
 
-            // Combinar conflictos del motor + incidencias normativas
+            // Combinar conflictos del motor + incidencias normativas + cobertura + horas
             var allConflicts = result.Conflicts
                 .Concat(normativeIssues)
+                .Concat(coverageConflicts)
+                .Concat(teacherHoursConflicts)
                 .ToList();
 
             foreach (var conflict in allConflicts)
@@ -565,8 +635,22 @@ public static class ScheduleEndpoints
             .Where(c => c.SchoolId == schedule.SchoolId).ToDictionaryAsync(c => c.Id);
         var school = await db.Schools.AsNoTracking()
             .FirstOrDefaultAsync(s => s.Id == schedule.SchoolId);
+        var cycles = school is not null
+            ? await db.CycleSchedules.AsNoTracking()
+                .Where(c => c.SchoolId == schedule.SchoolId).ToListAsync()
+            : [];
 
         var slots = school is not null ? SlotCalculator.Compute(school) : [];
+
+        // Slots por ciclo (ciclo 1..3 → franja con horas reales del ciclo)
+        var slotsByCycle = cycles
+            .OrderBy(c => c.Cycle)
+            .ToDictionary(
+                c => c.Cycle,
+                c => (IReadOnlyList<SlotInfo>)SlotCalculator
+                    .Compute(school!, school!.SlotsPerDay, c.MorningStart, c.AfternoonStart)
+                    .Select(s => new SlotInfo(s.Index, s.StartTime, s.EndTime, s.IsBreak))
+                    .ToList());
 
         var gridEntries = entries.Select(e =>
         {
@@ -595,6 +679,13 @@ public static class ScheduleEndpoints
         return new ScheduleGridDto(
             schedule.Id, schedule.Status, schedule.AcademicYear,
             gridEntries, conflictDtos,
-            slots.Select(s => new SlotInfo(s.Index, s.StartTime, s.EndTime, s.IsBreak)).ToList());
+            slots.Select(s => new SlotInfo(s.Index, s.StartTime, s.EndTime, s.IsBreak)).ToList(),
+            slotsByCycle);
     }
+
+    private static string DayName(int day) => day switch
+    {
+        1 => "lunes", 2 => "martes", 3 => "miércoles",
+        4 => "jueves", 5 => "viernes", 6 => "sábado", _ => "domingo"
+    };
 }

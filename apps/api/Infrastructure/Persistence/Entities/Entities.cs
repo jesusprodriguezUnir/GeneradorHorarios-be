@@ -172,6 +172,31 @@ public class ScheduleEntry
     public bool IsManualOverride { get; set; } = false;
 }
 
+// ── CycleSchedule ─────────────────────────────────────────────────────────────
+/// <summary>
+/// Configuración de jornada (entrada/salida) para un ciclo educativo del colegio.
+/// Ciclo 1 = 1º-2º, Ciclo 2 = 3º-4º, Ciclo 3 = 5º-6º.
+/// Los parámetros globales de jornada (SlotMinutes, BreakAfterSlot, SlotsPerDay…)
+/// siguen siendo comunes a todo el colegio en la entidad School.
+/// </summary>
+public class CycleSchedule
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public required Guid SchoolId { get; set; }
+
+    /// <summary>Número de ciclo: 1, 2 o 3.</summary>
+    public required int Cycle { get; set; }
+
+    /// <summary>Hora de entrada de mañana para este ciclo.</summary>
+    public TimeOnly MorningStart { get; set; } = new(9, 0);
+
+    /// <summary>Hora de salida (fin de jornada) para este ciclo.</summary>
+    public TimeOnly EndTime { get; set; } = new(14, 0);
+
+    /// <summary>Hora de inicio de tarde (solo jornada partida).</summary>
+    public TimeOnly? AfternoonStart { get; set; }
+}
+
 // ── ScheduleConflictRecord ────────────────────────────────────────────────────
 public class ScheduleConflictRecord
 {

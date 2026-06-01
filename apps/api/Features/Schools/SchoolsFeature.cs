@@ -19,9 +19,24 @@ public record SchoolDto(
     int SlotMinutes, int BreakAfterSlot, int BreakMinutes,
     int SlotsPerDay, int AfternoonSlots, int DaysPerWeek,
     IReadOnlyList<int> WorkingDays,
-    IReadOnlyList<SlotDto> ComputedSlots);
+    IReadOnlyList<SlotDto> ComputedSlots,
+    // Ciclos
+    IReadOnlyList<CycleScheduleDto> Cycles);
 
 public record SlotDto(int Index, string StartTime, string EndTime, bool IsBreak);
+
+/// <summary>Configuración de jornada (entrada/salida) de un ciclo educativo.</summary>
+public record CycleScheduleDto(
+    int Cycle,
+    string MorningStart,
+    string EndTime,
+    string? AfternoonStart,
+    IReadOnlyList<SlotDto> ComputedSlots);
+
+public record UpdateCycleScheduleRequest(
+    string MorningStart,
+    string EndTime,
+    string? AfternoonStart);
 
 /// <summary>DTO de respuesta del endpoint GET /api/schools/me/normative-check.</summary>
 public record NormativeCheckDto(
@@ -60,12 +75,20 @@ public record UpdateSchoolRequest(
 // ── Helpers ───────────────────────────────────────────────────────────────────
 public static class SlotCalculator
 {
-    public static List<SlotDto> Compute(School s, int totalSlots = 5)
+    /// <summary>
+    /// Calcula los slots lectivos para un colegio con una hora de entrada concreta.
+    /// Permite pasar la entrada de mañana y tarde de un ciclo en lugar de las del colegio.
+    /// </summary>
+    public static List<SlotDto> Compute(
+        School s,
+        int totalSlots,
+        TimeOnly morningStart,
+        TimeOnly? afternoonStart = null)
     {
         var slots = new List<SlotDto>();
-        var current = s.MorningStart;
+        var current = morningStart;
 
-        bool isPartida = s.ScheduleType == "partida" && s.AfternoonStart.HasValue && s.AfternoonSlots > 0;
+        bool isPartida = s.ScheduleType == "partida" && afternoonStart.HasValue && s.AfternoonSlots > 0;
         int morningSlotsLimit = isPartida ? totalSlots - s.AfternoonSlots : totalSlots;
 
         // Slots de mañana
@@ -87,7 +110,7 @@ public static class SlotCalculator
         // Slots de tarde (solo jornada partida)
         if (isPartida && morningSlotsLimit < totalSlots)
         {
-            var afternoonCurrent = s.AfternoonStart!.Value;
+            var afternoonCurrent = afternoonStart!.Value;
             for (int i = morningSlotsLimit; i < totalSlots; i++)
             {
                 var end = afternoonCurrent.AddMinutes(s.SlotMinutes);
@@ -99,10 +122,49 @@ public static class SlotCalculator
         return slots;
     }
 
-    public static SchoolDto ToDto(School s)
+    /// <summary>Sobrecarga de compatibilidad: usa los campos de entrada del propio colegio.</summary>
+    public static List<SlotDto> Compute(School s, int totalSlots = 5)
+        => Compute(s, totalSlots, s.MorningStart, s.AfternoonStart);
+
+    /// <summary>
+    /// Calcula la hora de fin de jornada a partir de una entrada de mañana y los
+    /// parámetros globales del colegio (slots, duración, recreo).
+    /// </summary>
+    public static TimeOnly ComputeEndTime(School s, TimeOnly morningStart)
+    {
+        var current = morningStart;
+        bool isPartida = s.ScheduleType == "partida" && s.AfternoonStart.HasValue && s.AfternoonSlots > 0;
+        int morningSlots = isPartida ? s.SlotsPerDay - s.AfternoonSlots : s.SlotsPerDay;
+
+        // Avanzar slot a slot incluyendo el recreo si cae dentro de la mañana
+        for (int i = 0; i < morningSlots; i++)
+        {
+            if (i == s.BreakAfterSlot)
+                current = current.AddMinutes(s.BreakMinutes);
+            current = current.AddMinutes(s.SlotMinutes);
+        }
+
+        if (isPartida)
+        {
+            // En jornada partida la salida es al final de la tarde
+            var afternoonCurrent = s.AfternoonStart!.Value;
+            for (int i = morningSlots; i < s.SlotsPerDay; i++)
+                afternoonCurrent = afternoonCurrent.AddMinutes(s.SlotMinutes);
+            return afternoonCurrent;
+        }
+
+        return current;
+    }
+
+    public static SchoolDto ToDto(School s, IEnumerable<CycleSchedule> cycles)
     {
         var slots = Compute(s, s.SlotsPerDay);
         var workingDays = ParseWorkingDays(s.WorkingDays);
+        var cycleDtos = cycles
+            .OrderBy(c => c.Cycle)
+            .Select(c => ToCycleDto(s, c))
+            .ToList();
+
         return new SchoolDto(
             s.Id, s.Name, s.Slug,
             s.CenterCode, s.Locality, s.Community,
@@ -111,7 +173,23 @@ public static class SlotCalculator
             s.MorningStart.ToString("HH:mm"), s.AfternoonStart?.ToString("HH:mm"),
             s.SlotMinutes, s.BreakAfterSlot, s.BreakMinutes,
             s.SlotsPerDay, s.AfternoonSlots, s.DaysPerWeek,
-            workingDays, slots);
+            workingDays, slots,
+            cycleDtos);
+    }
+
+    /// <summary>Sobrecarga sin ciclos para contextos donde no se han cargado (compat).</summary>
+    public static SchoolDto ToDto(School s)
+        => ToDto(s, []);
+
+    public static CycleScheduleDto ToCycleDto(School s, CycleSchedule c)
+    {
+        var slots = Compute(s, s.SlotsPerDay, c.MorningStart, c.AfternoonStart);
+        return new CycleScheduleDto(
+            c.Cycle,
+            c.MorningStart.ToString("HH:mm"),
+            c.EndTime.ToString("HH:mm"),
+            c.AfternoonStart?.ToString("HH:mm"),
+            slots);
     }
 
     public static IReadOnlyList<int> ParseWorkingDays(string json)
@@ -139,7 +217,10 @@ public static class SchoolEndpoints
         {
             var user = ctx.GetCurrentUserOrFail();
             var s = await db.Schools.AsNoTracking().FirstOrDefaultAsync(x => x.Id == user.SchoolId);
-            return s is null ? Results.NotFound() : Results.Ok(SlotCalculator.ToDto(s));
+            if (s is null) return Results.NotFound();
+            var cycles = await db.CycleSchedules.AsNoTracking()
+                .Where(c => c.SchoolId == user.SchoolId).ToListAsync();
+            return Results.Ok(SlotCalculator.ToDto(s, cycles));
         });
 
         // GET /api/schools/me/normative-check — validación normativa (Decreto 61/2022 Madrid)
@@ -279,7 +360,75 @@ public static class SchoolEndpoints
             s.DaysPerWeek     = workingDays.Count;   // derivado de WorkingDays
 
             await db.SaveChangesAsync();
-            return Results.Ok(SlotCalculator.ToDto(s));
+
+            var cycles = await db.CycleSchedules.AsNoTracking()
+                .Where(c => c.SchoolId == user.SchoolId).ToListAsync();
+            return Results.Ok(SlotCalculator.ToDto(s, cycles));
+        });
+
+        // PUT /api/schools/me/cycles/{cycle} — actualiza la jornada de un ciclo (solo admin)
+        g.MapPut("/me/cycles/{cycle:int}", async (
+            int cycle,
+            HttpContext ctx,
+            AppDbContext db,
+            UpdateCycleScheduleRequest req) =>
+        {
+            var user = ctx.GetCurrentUserOrFail();
+            if (!user.IsAdmin) return Results.Forbid();
+            if (cycle < 1 || cycle > 3)
+                return Results.BadRequest(new { message = "El ciclo debe ser 1, 2 o 3." });
+
+            var school = await db.Schools.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == user.SchoolId);
+            if (school is null) return Results.NotFound();
+
+            // ── Parseo de horas ────────────────────────────────────────────────
+            if (!TimeOnly.TryParse(req.MorningStart, out var morningStart))
+                return Results.BadRequest(new { message = "Formato de hora de entrada no válido." });
+            if (!TimeOnly.TryParse(req.EndTime, out var endTime))
+                return Results.BadRequest(new { message = "Formato de hora de salida no válido." });
+
+            TimeOnly? afternoonStart = null;
+            if (req.AfternoonStart is not null)
+            {
+                if (!TimeOnly.TryParse(req.AfternoonStart, out var parsedAfternoon))
+                    return Results.BadRequest(new { message = "Formato de hora de inicio de tarde no válido." });
+                afternoonStart = parsedAfternoon;
+            }
+
+            // ── Validación: la salida debe coincidir con la calculada ─────────
+            var calculatedEnd = SlotCalculator.ComputeEndTime(school, morningStart);
+            // Tolerancia de ±1 minuto para no penalizar redondeos de la UI
+            var diffMinutes = Math.Abs((endTime - calculatedEnd).TotalMinutes);
+            if (diffMinutes > 1)
+                return Results.BadRequest(new
+                {
+                    message = $"La hora de salida ({endTime:HH:mm}) no coincide con la calculada " +
+                              $"a partir de la entrada y los parámetros de jornada del centro ({calculatedEnd:HH:mm}). " +
+                              $"Ajusta la entrada o los parámetros de jornada global."
+                });
+
+            // ── Upsert ────────────────────────────────────────────────────────
+            var existing = await db.CycleSchedules
+                .FirstOrDefaultAsync(c => c.SchoolId == user.SchoolId && c.Cycle == cycle);
+
+            if (existing is null)
+            {
+                existing = new CycleSchedule
+                {
+                    SchoolId = user.SchoolId,
+                    Cycle = cycle,
+                };
+                db.CycleSchedules.Add(existing);
+            }
+
+            existing.MorningStart   = morningStart;
+            existing.EndTime        = endTime;
+            existing.AfternoonStart = afternoonStart;
+
+            await db.SaveChangesAsync();
+
+            return Results.Ok(SlotCalculator.ToCycleDto(school, existing));
         });
 
         return app;

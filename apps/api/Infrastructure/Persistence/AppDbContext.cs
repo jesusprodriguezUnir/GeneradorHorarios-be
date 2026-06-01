@@ -17,6 +17,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<ScheduleRecord> Schedules => Set<ScheduleRecord>();
     public DbSet<ScheduleEntry> ScheduleEntries => Set<ScheduleEntry>();
     public DbSet<ScheduleConflictRecord> ScheduleConflicts => Set<ScheduleConflictRecord>();
+    public DbSet<CycleSchedule> CycleSchedules => Set<CycleSchedule>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -144,6 +145,16 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.Severity).HasMaxLength(20).IsRequired();
             e.Property(x => x.Description).HasMaxLength(500).IsRequired();
             e.Property(x => x.Suggestions).HasMaxLength(2000).HasDefaultValue("[]");
+        });
+
+        // ── CycleSchedule ────────────────────────────────────────────────────
+        mb.Entity<CycleSchedule>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.SchoolId, x.Cycle }).IsUnique();
+            e.Property(x => x.MorningStart).HasColumnType("time");
+            e.Property(x => x.EndTime).HasColumnType("time");
+            e.Property(x => x.AfternoonStart).HasColumnType("time");
         });
     }
 }

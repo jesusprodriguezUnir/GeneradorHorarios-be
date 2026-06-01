@@ -4,6 +4,7 @@ using HorariosEscolares.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace HorariosEscolares.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260601102337_AddCycleSchedules")]
+    partial class AddCycleSchedules
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -21,35 +24,6 @@ namespace HorariosEscolares.Infrastructure.Persistence.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
-
-            modelBuilder.Entity("HorariosEscolares.Infrastructure.Persistence.Entities.CycleSchedule", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<TimeOnly?>("AfternoonStart")
-                        .HasColumnType("time");
-
-                    b.Property<int>("Cycle")
-                        .HasColumnType("int");
-
-                    b.Property<TimeOnly>("EndTime")
-                        .HasColumnType("time");
-
-                    b.Property<TimeOnly>("MorningStart")
-                        .HasColumnType("time");
-
-                    b.Property<Guid>("SchoolId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SchoolId", "Cycle")
-                        .IsUnique();
-
-                    b.ToTable("CycleSchedules");
-                });
 
             modelBuilder.Entity("HorariosEscolares.Infrastructure.Persistence.Entities.AppUser", b =>
                 {

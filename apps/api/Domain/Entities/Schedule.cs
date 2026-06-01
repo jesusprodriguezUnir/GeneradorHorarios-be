@@ -87,5 +87,5 @@ public record ScheduleConflict(
     int? SlotIndex = null);
 
 public enum ScheduleStatus { Draft, Generated, Published, Archived }
-public enum ConflictType { Teacher, Classroom, Normative, Soft }
+public enum ConflictType { Teacher, Classroom, Normative, Soft, Coverage }
 public enum ConflictSeverity { Error, Warning }
