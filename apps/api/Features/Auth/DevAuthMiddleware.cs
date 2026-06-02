@@ -19,9 +19,20 @@ public sealed class DevAuthMiddleware(RequestDelegate next)
 
     public async Task InvokeAsync(HttpContext ctx, AppDbContext db)
     {
-        // Leer email del header (enviado por el frontend en modo dev)
-        var email = ctx.Request.Headers["X-User-Email"].FirstOrDefault();
+        // X-User-Id: resolución directa por GUID (tests de integración)
+        var userIdHeader = ctx.Request.Headers["X-User-Id"].FirstOrDefault();
+        if (!string.IsNullOrWhiteSpace(userIdHeader) && Guid.TryParse(userIdHeader, out var directId))
+        {
+            var userById = await db.AppUsers.AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == directId);
+            if (userById is not null)
+                ctx.Items["CurrentUser"] = new CurrentUser(userById.Id, userById.SchoolId, userById.Role);
+            await next(ctx);
+            return;
+        }
 
+        // X-User-Email: resolución por email demo hardcodeado
+        var email = ctx.Request.Headers["X-User-Email"].FirstOrDefault();
         if (!string.IsNullOrWhiteSpace(email) &&
             DemoEmails.TryGetValue(email, out var userId))
         {

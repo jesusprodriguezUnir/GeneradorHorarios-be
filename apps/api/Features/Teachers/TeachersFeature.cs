@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using HorariosEscolares.Features.Auth;
 using HorariosEscolares.Infrastructure.Persistence;
 using HorariosEscolares.Infrastructure.Persistence.Entities;
@@ -60,7 +60,7 @@ public static class TeacherEndpoints
         g.MapPost("/", async (HttpContext ctx, AppDbContext db, CreateTeacherRequest req) =>
         {
             var user = ctx.GetCurrentUserOrFail();
-            if (!user.IsAdmin) return Results.Forbid();
+            if (!user.IsAdmin) return Results.StatusCode(403);
             var t = new Teacher
             {
                 SchoolId = user.SchoolId, FullName = req.FullName, Email = req.Email,
@@ -77,7 +77,7 @@ public static class TeacherEndpoints
         g.MapPut("/{id:guid}", async (Guid id, HttpContext ctx, AppDbContext db, UpdateTeacherRequest req) =>
         {
             var user = ctx.GetCurrentUserOrFail();
-            if (!user.IsAdmin) return Results.Forbid();
+            if (!user.IsAdmin) return Results.StatusCode(403);
             var t = await db.Teachers.FirstOrDefaultAsync(x => x.Id == id && x.SchoolId == user.SchoolId);
             if (t is null) return Results.NotFound();
             if (req.FullName is not null) t.FullName = req.FullName;
@@ -95,7 +95,7 @@ public static class TeacherEndpoints
         g.MapDelete("/{id:guid}", async (Guid id, HttpContext ctx, AppDbContext db) =>
         {
             var user = ctx.GetCurrentUserOrFail();
-            if (!user.IsAdmin) return Results.Forbid();
+            if (!user.IsAdmin) return Results.StatusCode(403);
             var t = await db.Teachers.FirstOrDefaultAsync(x => x.Id == id && x.SchoolId == user.SchoolId);
             if (t is null) return Results.NotFound();
             db.Teachers.Remove(t);

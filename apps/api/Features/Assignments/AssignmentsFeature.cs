@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using HorariosEscolares.Features.Auth;
 using HorariosEscolares.Infrastructure.Persistence;
 using HorariosEscolares.Infrastructure.Persistence.Entities;
@@ -97,7 +97,7 @@ public static class AssignmentEndpoints
         g.MapPost("/", async (HttpContext ctx, AppDbContext db, CreateAssignmentRequest req) =>
         {
             var user = ctx.GetCurrentUserOrFail();
-            if (!user.IsAdmin) return Results.Forbid();
+            if (!user.IsAdmin) return Results.StatusCode(403);
 
             // Verificar que teacher y group pertenecen al colegio
             var teacherOk = await db.Teachers.AnyAsync(t => t.Id == req.TeacherId && t.SchoolId == user.SchoolId);
@@ -119,7 +119,7 @@ public static class AssignmentEndpoints
         g.MapDelete("/{id:guid}", async (Guid id, HttpContext ctx, AppDbContext db) =>
         {
             var user = ctx.GetCurrentUserOrFail();
-            if (!user.IsAdmin) return Results.Forbid();
+            if (!user.IsAdmin) return Results.StatusCode(403);
             var a = await db.Assignments.FirstOrDefaultAsync(x => x.Id == id && x.SchoolId == user.SchoolId);
             if (a is null) return Results.NotFound();
             db.Assignments.Remove(a);

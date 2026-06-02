@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using HorariosEscolares.Features.Auth;
 using HorariosEscolares.Infrastructure.Persistence;
 using HorariosEscolares.Infrastructure.Persistence.Entities;
@@ -66,7 +66,7 @@ public static class SubjectEndpoints
         g.MapPost("/clone-official", async (HttpContext ctx, AppDbContext db) =>
         {
             var user = ctx.GetCurrentUserOrFail();
-            if (!user.IsAdmin) return Results.Forbid();
+            if (!user.IsAdmin) return Results.StatusCode(403);
 
             // Verificar si el colegio ya tiene una plantilla propia
             var exists = await db.CurriculumTemplates.AsNoTracking()
@@ -131,7 +131,7 @@ public static class SubjectEndpoints
         g.MapPut("/{id:guid}/hours", async (Guid id, HttpContext ctx, AppDbContext db, UpdateSubjectHoursRequest req) =>
         {
             var user = ctx.GetCurrentUserOrFail();
-            if (!user.IsAdmin) return Results.Forbid();
+            if (!user.IsAdmin) return Results.StatusCode(403);
 
             var a = await db.SubjectAllocations.FirstOrDefaultAsync(x => x.Id == id);
             if (a is null) return Results.NotFound();
@@ -146,7 +146,7 @@ public static class SubjectEndpoints
                 return Results.BadRequest(new { message = "No se puede modificar la plantilla LOMLOE oficial. Primero debes clonarla para tu centro." });
 
             if (template.SchoolId != user.SchoolId)
-                return Results.Forbid();
+                return Results.StatusCode(403);
 
             if (req.WeeklyHoursDefault < a.WeeklyHoursMin || req.WeeklyHoursDefault > a.WeeklyHoursMax)
                 return Results.BadRequest(new
@@ -166,7 +166,7 @@ public static class SubjectEndpoints
         g.MapPost("/", async (HttpContext ctx, AppDbContext db, CreateSubjectRequest req) =>
         {
             var user = ctx.GetCurrentUserOrFail();
-            if (!user.IsAdmin) return Results.Forbid();
+            if (!user.IsAdmin) return Results.StatusCode(403);
 
             // Buscar la plantilla personalizada del centro
             var customTemplate = await db.CurriculumTemplates
@@ -204,7 +204,7 @@ public static class SubjectEndpoints
         g.MapPut("/{id:guid}", async (Guid id, HttpContext ctx, AppDbContext db, UpdateSubjectRequest req) =>
         {
             var user = ctx.GetCurrentUserOrFail();
-            if (!user.IsAdmin) return Results.Forbid();
+            if (!user.IsAdmin) return Results.StatusCode(403);
 
             var a = await db.SubjectAllocations.FirstOrDefaultAsync(x => x.Id == id);
             if (a is null) return Results.NotFound();
@@ -212,7 +212,7 @@ public static class SubjectEndpoints
             var template = await db.CurriculumTemplates.AsNoTracking()
                 .FirstOrDefaultAsync(t => t.Id == a.TemplateId);
             if (template is null || template.IsOfficial || template.SchoolId != user.SchoolId)
-                return Results.Forbid();
+                return Results.StatusCode(403);
 
             if (req.SubjectName is not null) a.SubjectName = req.SubjectName;
             if (req.SubjectShort is not null) a.SubjectShort = req.SubjectShort;
@@ -238,7 +238,7 @@ public static class SubjectEndpoints
         g.MapDelete("/{id:guid}", async (Guid id, HttpContext ctx, AppDbContext db) =>
         {
             var user = ctx.GetCurrentUserOrFail();
-            if (!user.IsAdmin) return Results.Forbid();
+            if (!user.IsAdmin) return Results.StatusCode(403);
 
             var a = await db.SubjectAllocations.FirstOrDefaultAsync(x => x.Id == id);
             if (a is null) return Results.NotFound();
@@ -246,7 +246,7 @@ public static class SubjectEndpoints
             var template = await db.CurriculumTemplates.AsNoTracking()
                 .FirstOrDefaultAsync(t => t.Id == a.TemplateId);
             if (template is null || template.IsOfficial || template.SchoolId != user.SchoolId)
-                return Results.Forbid();
+                return Results.StatusCode(403);
 
             db.SubjectAllocations.Remove(a);
             await db.SaveChangesAsync();

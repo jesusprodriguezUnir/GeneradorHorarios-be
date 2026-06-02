@@ -190,8 +190,10 @@ public sealed class BacktrackingScheduleEngine : IScheduleEngine
     {
         if (schedule.Count == 0 || softConstraints.Count == 0) return 0;
 
-        // Índice rápido para reconstruir ProposedEntry desde AssignedSlot
-        var sessionIndex = sessions.ToDictionary(s => s.AssignmentId);
+        // Índice rápido: múltiples sesiones comparten AssignmentId (una por hora semanal)
+        var sessionIndex = sessions
+            .GroupBy(s => s.AssignmentId)
+            .ToDictionary(g => g.Key, g => g.First());
 
         var state = new AssignmentState(
             // SchoolConfig no interviene en los soft constraints actuales; usamos

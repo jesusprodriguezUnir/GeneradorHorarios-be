@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using HorariosEscolares.Features.Auth;
 using HorariosEscolares.Infrastructure.Persistence;
 using HorariosEscolares.Infrastructure.Persistence.Entities;
@@ -49,7 +49,7 @@ public static class ConstraintEndpoints
         g.MapPost("/", async (HttpContext ctx, AppDbContext db, CreateConstraintRequest req) =>
         {
             var user = ctx.GetCurrentUserOrFail();
-            if (!user.IsAdmin) return Results.Forbid();
+            if (!user.IsAdmin) return Results.StatusCode(403);
             var c = new TeacherConstraint
             {
                 SchoolId = user.SchoolId, TeacherId = req.TeacherId,
@@ -66,7 +66,7 @@ public static class ConstraintEndpoints
         g.MapDelete("/{id:guid}", async (Guid id, HttpContext ctx, AppDbContext db) =>
         {
             var user = ctx.GetCurrentUserOrFail();
-            if (!user.IsAdmin) return Results.Forbid();
+            if (!user.IsAdmin) return Results.StatusCode(403);
             var c = await db.TeacherConstraints.FirstOrDefaultAsync(x => x.Id == id && x.SchoolId == user.SchoolId);
             if (c is null) return Results.NotFound();
             db.TeacherConstraints.Remove(c);

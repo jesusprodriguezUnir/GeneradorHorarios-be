@@ -296,6 +296,6 @@ public class SchoolConfigTests
         var response = await client.PutAsync("/api/schools/me",
             new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json"));
 
-        response.StatusCode.Should().Be(HttpStatusCode.InternalServerError); // Results.Forbid sin AddAuthentication
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 }

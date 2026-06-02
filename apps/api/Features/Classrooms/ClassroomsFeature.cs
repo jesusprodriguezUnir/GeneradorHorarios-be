@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using HorariosEscolares.Features.Auth;
 using HorariosEscolares.Infrastructure.Persistence;
 using HorariosEscolares.Infrastructure.Persistence.Entities;
@@ -29,7 +29,7 @@ public static class ClassroomEndpoints
         g.MapPost("/", async (HttpContext ctx, AppDbContext db, CreateClassroomRequest req) =>
         {
             var user = ctx.GetCurrentUserOrFail();
-            if (!user.IsAdmin) return Results.Forbid();
+            if (!user.IsAdmin) return Results.StatusCode(403);
             var c = new Classroom
             {
                 SchoolId = user.SchoolId, Name = req.Name, ClassroomType = req.ClassroomType,
@@ -43,7 +43,7 @@ public static class ClassroomEndpoints
         g.MapPut("/{id:guid}", async (Guid id, HttpContext ctx, AppDbContext db, UpdateClassroomRequest req) =>
         {
             var user = ctx.GetCurrentUserOrFail();
-            if (!user.IsAdmin) return Results.Forbid();
+            if (!user.IsAdmin) return Results.StatusCode(403);
             var c = await db.Classrooms.FirstOrDefaultAsync(x => x.Id == id && x.SchoolId == user.SchoolId);
             if (c is null) return Results.NotFound();
             if (req.Name is not null) c.Name = req.Name;
@@ -57,7 +57,7 @@ public static class ClassroomEndpoints
         g.MapDelete("/{id:guid}", async (Guid id, HttpContext ctx, AppDbContext db) =>
         {
             var user = ctx.GetCurrentUserOrFail();
-            if (!user.IsAdmin) return Results.Forbid();
+            if (!user.IsAdmin) return Results.StatusCode(403);
             var c = await db.Classrooms.FirstOrDefaultAsync(x => x.Id == id && x.SchoolId == user.SchoolId);
             if (c is null) return Results.NotFound();
             db.Classrooms.Remove(c);

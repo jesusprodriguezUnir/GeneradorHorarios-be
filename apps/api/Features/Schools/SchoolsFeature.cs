@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using HorariosEscolares.Domain.Entities;
 using HorariosEscolares.Domain.Normative;
@@ -264,7 +264,7 @@ public static class SchoolEndpoints
         g.MapPut("/me", async (HttpContext ctx, AppDbContext db, UpdateSchoolRequest req) =>
         {
             var user = ctx.GetCurrentUserOrFail();
-            if (!user.IsAdmin) return Results.Forbid();
+            if (!user.IsAdmin) return Results.StatusCode(403);
 
             var s = await db.Schools.FirstOrDefaultAsync(x => x.Id == user.SchoolId);
             if (s is null) return Results.NotFound();
@@ -375,7 +375,7 @@ public static class SchoolEndpoints
             UpdateCycleScheduleRequest req) =>
         {
             var user = ctx.GetCurrentUserOrFail();
-            if (!user.IsAdmin) return Results.Forbid();
+            if (!user.IsAdmin) return Results.StatusCode(403);
             if (cycle < 1 || cycle > 3)
                 return Results.BadRequest(new { message = "El ciclo debe ser 1, 2 o 3." });
 

@@ -2,6 +2,9 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using FluentAssertions;
+using HorariosEscolares.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Lectivo.IntegrationTests;
 
@@ -85,21 +88,22 @@ public class SubjectsTests
     [Fact]
     public async Task PutSubjectsHours_ForOfficialTemplate_ReturnsBadRequest()
     {
+        // Obtener un subject de la plantilla oficial directamente desde la BD
+        using var scope = _factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var officialTemplate = await db.CurriculumTemplates.AsNoTracking()
+            .FirstOrDefaultAsync(t => t.IsOfficial);
+        officialTemplate.Should().NotBeNull("debe existir una plantilla LOMLOE oficial en el seed");
+
+        var officialSubject = await db.SubjectAllocations.AsNoTracking()
+            .FirstOrDefaultAsync(a => a.TemplateId == officialTemplate!.Id);
+        officialSubject.Should().NotBeNull("la plantilla oficial debe tener asignaturas");
+
         var client = _factory.CreateAdminClient();
-
-        // Obtener asignaturas oficiales
-        var getResponse = await client.GetAsync("/api/subjects");
-        var getJson = await getResponse.Content.ReadAsStringAsync();
-        using var getDoc = JsonDocument.Parse(getJson);
-        
-        // Buscar una oficial (si existen aún oficiales en la respuesta, o si ya están clonadas,
-        // podemos buscar en la base de datos o usar una oficial fija del DbInitializer: sLen = 00000000-0000-0000-0004-000000000001)
-        var officialSubjectId = Guid.Parse("00000000-0000-0000-0004-000000000001");
-
         var payload = new { weeklyHoursDefault = 6 };
-        var putResponse = await client.MapPut($"/api/subjects/{officialSubjectId}/hours", payload);
+        var putResponse = await client.MapPut($"/api/subjects/{officialSubject!.Id}/hours", payload);
 
-        // Debería fallar porque es oficial y las oficiales son inmutables
+        // Oficial → inmutable, debe devolver 400
         putResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var putJson = await putResponse.Content.ReadAsStringAsync();
         putJson.Should().Contain("No se puede modificar la plantilla LOMLOE oficial");

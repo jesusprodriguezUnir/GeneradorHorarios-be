@@ -37,7 +37,17 @@
       "PowerShell(cd d:\\\\Personal\\\\GeneradorHorarios; $output = dotnet build apps/api/api.csproj -p:UseAppHost=false 2>&1; $output | Where-Object { $_ -match \"error CS|Build succeeded|Error\\\\\\(s\\\\\\)\" })",
       "PowerShell(cd d:\\\\Personal\\\\GeneradorHorarios; $output = dotnet build apps/api/api.csproj -p:UseAppHost=false 2>&1; $errors = $output | Where-Object { $_ -match \"error CS\" }; $summary = $output | Select-Object -Last 5; \"=== Errores CS ===\"; $errors; \"=== Resumen ===\"; $summary)",
       "PowerShell(cd d:\\\\Personal\\\\GeneradorHorarios; $output = dotnet build apps/api/api.csproj -o tmp_check_build 2>&1; $errors = $output | Where-Object { $_ -match \"error CS\" }; $summary = $output[-5..-1]; \"=== Errores CS ===\"; if \\($errors\\) { $errors } else { \"\\(ninguno\\)\" }; \"=== Resumen ===\"; $summary)",
-      "Bash(ng build *)"
+      "Bash(ng build *)",
+      "Bash(git checkout *)",
+      "Bash(cd /d/Personal/GeneradorHorarios && find apps/api -name \"*.cs\" | head -20)",
+      "Read(//d/d/Personal/GeneradorHorarios/apps/**)",
+      "Bash(git stash *)",
+      "Bash(xargs head -50)",
+      "Bash(cd /d/Personal/GeneradorHorarios && find apps/api -path \"*Migrations*\" -name \"*.cs\" | sort | tail -3)",
+      "Bash(xargs head -60)",
+      "Bash(Stop-Process -Name \"HorariosEscolares.Api\" -Force -ErrorAction SilentlyContinue)",
+      "PowerShell(Stop-Process -Id 48256 -Force)",
+      "Bash(xargs grep -n \"ToDictionary\\\\|Dictionary\\\\|GroupBy\")"
     ],
     "additionalDirectories": [
       "d:\\tmp\\lectivo_test_build"

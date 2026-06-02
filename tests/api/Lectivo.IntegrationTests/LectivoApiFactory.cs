@@ -38,4 +38,11 @@ public class LectivoApiFactory : WebApplicationFactory<Program>
         client.DefaultRequestHeaders.Add("X-User-Email", "laura.fernandez@ceip-miguel-hernandez.es");
         return client;
     }
+
+    public HttpClient CreateClientForUserId(Guid userId)
+    {
+        var client = CreateClient();
+        client.DefaultRequestHeaders.Add("X-User-Id", userId.ToString());
+        return client;
+    }
 }

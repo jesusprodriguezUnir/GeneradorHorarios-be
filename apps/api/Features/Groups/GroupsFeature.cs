@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using HorariosEscolares.Features.Auth;
 using HorariosEscolares.Infrastructure.Persistence;
 using HorariosEscolares.Infrastructure.Persistence.Entities;
@@ -34,7 +34,7 @@ public static class GroupEndpoints
         g.MapPost("/", async (HttpContext ctx, AppDbContext db, CreateGroupRequest req) =>
         {
             var user = ctx.GetCurrentUserOrFail();
-            if (!user.IsAdmin) return Results.Forbid();
+            if (!user.IsAdmin) return Results.StatusCode(403);
             var gr = new CourseGroup
             {
                 SchoolId = user.SchoolId, CourseLevel = req.CourseLevel, GroupLabel = req.GroupLabel,
@@ -57,7 +57,7 @@ public static class GroupEndpoints
         g.MapPut("/{id:guid}", async (Guid id, HttpContext ctx, AppDbContext db, UpdateGroupRequest req) =>
         {
             var user = ctx.GetCurrentUserOrFail();
-            if (!user.IsAdmin) return Results.Forbid();
+            if (!user.IsAdmin) return Results.StatusCode(403);
             var gr = await db.CourseGroups
                 .Include(x => x.SubjectHoursList)
                 .FirstOrDefaultAsync(x => x.Id == id && x.SchoolId == user.SchoolId);
@@ -86,7 +86,7 @@ public static class GroupEndpoints
         g.MapDelete("/{id:guid}", async (Guid id, HttpContext ctx, AppDbContext db) =>
         {
             var user = ctx.GetCurrentUserOrFail();
-            if (!user.IsAdmin) return Results.Forbid();
+            if (!user.IsAdmin) return Results.StatusCode(403);
             var gr = await db.CourseGroups.FirstOrDefaultAsync(x => x.Id == id && x.SchoolId == user.SchoolId);
             if (gr is null) return Results.NotFound();
             db.CourseGroups.Remove(gr);

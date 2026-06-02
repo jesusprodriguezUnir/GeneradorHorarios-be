@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.SignalR;
+﻿using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 using HorariosEscolares.Domain.Constraints;
@@ -95,7 +95,7 @@ public static class ScheduleEndpoints
         g.MapGet("/", async (HttpContext ctx, AppDbContext db) =>
         {
             var user = ctx.GetCurrentUserOrFail();
-            if (!user.IsAdmin) return Results.Forbid();
+            if (!user.IsAdmin) return Results.StatusCode(403);
 
             var list = await db.Schedules.AsNoTracking()
                 .Where(s => s.SchoolId == user.SchoolId)
@@ -116,7 +116,7 @@ public static class ScheduleEndpoints
             CancellationToken ct) =>
         {
             var user = ctx.GetCurrentUserOrFail();
-            if (!user.IsAdmin) return Results.Forbid();
+            if (!user.IsAdmin) return Results.StatusCode(403);
 
             var school = await db.Schools.AsNoTracking().FirstOrDefaultAsync(s => s.Id == user.SchoolId, ct);
             if (school is null) return Results.NotFound(new { message = "Colegio no encontrado." });
@@ -407,7 +407,7 @@ public static class ScheduleEndpoints
 
             // Verificar que teacher puede ver solo published
             if (user.IsTeacher && schedule.Status != "published")
-                return Results.Forbid();
+                return Results.StatusCode(403);
 
             return Results.Ok(await BuildGridDto(db, schedule));
         });
@@ -416,7 +416,7 @@ public static class ScheduleEndpoints
         g.MapGet("/me", async (HttpContext ctx, AppDbContext db) =>
         {
             var user = ctx.GetCurrentUserOrFail();
-            if (!user.IsTeacher) return Results.Forbid();
+            if (!user.IsTeacher) return Results.StatusCode(403);
 
             var teacher = await db.Teachers.AsNoTracking()
                 .FirstOrDefaultAsync(t => t.UserId == user.UserId);
@@ -472,7 +472,7 @@ public static class ScheduleEndpoints
         g.MapPost("/{id:guid}/publish", async (Guid id, HttpContext ctx, AppDbContext db) =>
         {
             var user = ctx.GetCurrentUserOrFail();
-            if (!user.IsAdmin) return Results.Forbid();
+            if (!user.IsAdmin) return Results.StatusCode(403);
 
             var schedule = await db.Schedules
                 .FirstOrDefaultAsync(s => s.Id == id && s.SchoolId == user.SchoolId);
@@ -500,7 +500,7 @@ public static class ScheduleEndpoints
             HttpContext ctx, AppDbContext db, UpdateEntryRequest req) =>
         {
             var user = ctx.GetCurrentUserOrFail();
-            if (!user.IsAdmin) return Results.Forbid();
+            if (!user.IsAdmin) return Results.StatusCode(403);
 
             var schedule = await db.Schedules
                 .FirstOrDefaultAsync(s => s.Id == scheduleId && s.SchoolId == user.SchoolId);
