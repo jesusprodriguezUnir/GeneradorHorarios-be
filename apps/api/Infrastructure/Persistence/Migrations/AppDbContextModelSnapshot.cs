@@ -54,7 +54,7 @@ namespace HorariosEscolares.Infrastructure.Persistence.Migrations
                     b.HasIndex("Email")
                         .IsUnique();
 
-                    b.ToTable("AppUsers");
+                    b.ToTable("AppUsers", (string)null);
                 });
 
             modelBuilder.Entity("HorariosEscolares.Infrastructure.Persistence.Entities.Assignment", b =>
@@ -85,7 +85,7 @@ namespace HorariosEscolares.Infrastructure.Persistence.Migrations
                     b.HasIndex("TeacherId", "GroupId", "AllocationId")
                         .IsUnique();
 
-                    b.ToTable("Assignments");
+                    b.ToTable("Assignments", (string)null);
                 });
 
             modelBuilder.Entity("HorariosEscolares.Infrastructure.Persistence.Entities.Classroom", b =>
@@ -119,7 +119,7 @@ namespace HorariosEscolares.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("SchoolId");
 
-                    b.ToTable("Classrooms");
+                    b.ToTable("Classrooms", (string)null);
                 });
 
             modelBuilder.Entity("HorariosEscolares.Infrastructure.Persistence.Entities.CourseGroup", b =>
@@ -157,7 +157,7 @@ namespace HorariosEscolares.Infrastructure.Persistence.Migrations
                     b.HasIndex("SchoolId", "CourseLevel", "GroupLabel")
                         .IsUnique();
 
-                    b.ToTable("CourseGroups");
+                    b.ToTable("CourseGroups", (string)null);
                 });
 
             modelBuilder.Entity("HorariosEscolares.Infrastructure.Persistence.Entities.CurriculumTemplate", b =>
@@ -193,7 +193,7 @@ namespace HorariosEscolares.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("CurriculumTemplates");
+                    b.ToTable("CurriculumTemplates", (string)null);
                 });
 
             modelBuilder.Entity("HorariosEscolares.Infrastructure.Persistence.Entities.CycleSchedule", b =>
@@ -222,7 +222,7 @@ namespace HorariosEscolares.Infrastructure.Persistence.Migrations
                     b.HasIndex("SchoolId", "Cycle")
                         .IsUnique();
 
-                    b.ToTable("CycleSchedules");
+                    b.ToTable("CycleSchedules", (string)null);
                 });
 
             modelBuilder.Entity("HorariosEscolares.Infrastructure.Persistence.Entities.ScheduleConflictRecord", b =>
@@ -310,7 +310,7 @@ namespace HorariosEscolares.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("SchoolId");
 
-                    b.ToTable("ScheduleEntries");
+                    b.ToTable("ScheduleEntries", (string)null);
                 });
 
             modelBuilder.Entity("HorariosEscolares.Infrastructure.Persistence.Entities.ScheduleRecord", b =>
@@ -456,7 +456,7 @@ namespace HorariosEscolares.Infrastructure.Persistence.Migrations
                     b.HasIndex("Slug")
                         .IsUnique();
 
-                    b.ToTable("Schools");
+                    b.ToTable("Schools", (string)null);
                 });
 
             modelBuilder.Entity("HorariosEscolares.Infrastructure.Persistence.Entities.SubjectAllocation", b =>
@@ -510,7 +510,7 @@ namespace HorariosEscolares.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("SubjectAllocations");
+                    b.ToTable("SubjectAllocations", (string)null);
                 });
 
             modelBuilder.Entity("HorariosEscolares.Infrastructure.Persistence.Entities.Teacher", b =>
@@ -567,7 +567,7 @@ namespace HorariosEscolares.Infrastructure.Persistence.Migrations
                     b.HasIndex("SchoolId", "Email")
                         .IsUnique();
 
-                    b.ToTable("Teachers");
+                    b.ToTable("Teachers", (string)null);
                 });
 
             modelBuilder.Entity("HorariosEscolares.Infrastructure.Persistence.Entities.TeacherConstraint", b =>
@@ -604,7 +604,7 @@ namespace HorariosEscolares.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("SchoolId");
 
-                    b.ToTable("TeacherConstraints");
+                    b.ToTable("TeacherConstraints", (string)null);
                 });
 #pragma warning restore 612, 618
         }
