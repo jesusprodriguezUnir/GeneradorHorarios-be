@@ -36,7 +36,8 @@
       "PowerShell(cd d:\\\\Personal\\\\GeneradorHorarios; dotnet build apps/api/api.csproj -p:UseAppHost=false 2>&1 | Out-String | Select-String -Pattern \"error CS\" -AllMatches | ForEach-Object { $_.Matches } | Select-Object -First 10 | ForEach-Object { $_.Value })",
       "PowerShell(cd d:\\\\Personal\\\\GeneradorHorarios; $output = dotnet build apps/api/api.csproj -p:UseAppHost=false 2>&1; $output | Where-Object { $_ -match \"error CS|Build succeeded|Error\\\\\\(s\\\\\\)\" })",
       "PowerShell(cd d:\\\\Personal\\\\GeneradorHorarios; $output = dotnet build apps/api/api.csproj -p:UseAppHost=false 2>&1; $errors = $output | Where-Object { $_ -match \"error CS\" }; $summary = $output | Select-Object -Last 5; \"=== Errores CS ===\"; $errors; \"=== Resumen ===\"; $summary)",
-      "PowerShell(cd d:\\\\Personal\\\\GeneradorHorarios; $output = dotnet build apps/api/api.csproj -o tmp_check_build 2>&1; $errors = $output | Where-Object { $_ -match \"error CS\" }; $summary = $output[-5..-1]; \"=== Errores CS ===\"; if \\($errors\\) { $errors } else { \"\\(ninguno\\)\" }; \"=== Resumen ===\"; $summary)"
+      "PowerShell(cd d:\\\\Personal\\\\GeneradorHorarios; $output = dotnet build apps/api/api.csproj -o tmp_check_build 2>&1; $errors = $output | Where-Object { $_ -match \"error CS\" }; $summary = $output[-5..-1]; \"=== Errores CS ===\"; if \\($errors\\) { $errors } else { \"\\(ninguno\\)\" }; \"=== Resumen ===\"; $summary)",
+      "Bash(ng build *)"
     ],
     "additionalDirectories": [
       "d:\\tmp\\lectivo_test_build"

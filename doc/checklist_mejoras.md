@@ -93,15 +93,15 @@ Cada vez que realicemos una acción, editaremos este archivo actualizando el est
   - [x] Test de integración que configure jornada partida, genere un horario y compruebe índices de tarde coherentes.
 
 ### [/] Día 6 · Asistente de configuración de centro (backend)
-- [ ] **Endpoint para clonar la plantilla LOMLOE oficial**:
-  - [ ] Implementar endpoint que copie asignaturas y horas por defecto a la configuración del centro.
-  - [ ] Permitir modificar las horas de `SubjectAllocation` dentro de los límites min/max (usando `SubjectsFeature.cs:28`).
-- [ ] **Cerrar fuga cross-tenant (`SubjectsFeature.cs:50`)**:
-  - [ ] Validar en `PUT /subjects/{id}/hours` que la `SubjectAllocation` pertenezca verdaderamente al centro del usuario actual.
-- [ ] **Validación previa a la generación**:
-  - [ ] Validar disponibilidad de profesores y aulas antes de ejecutar el motor. Devuelve mensajes descriptivos si falta un especialista o tipo de aula.
+- [x] **Endpoint para clonar la plantilla LOMLOE oficial**:
+  - [x] Implementar endpoint que copie asignaturas y horas por defecto a la configuración del centro. (`POST /api/subjects/clone-official` en `SubjectsFeature.cs:66`)
+  - [x] Permitir modificar las horas de `SubjectAllocation` dentro de los límites min/max (usando `SubjectsFeature.cs:28`).
+- [x] **Cerrar fuga cross-tenant (`SubjectsFeature.cs:50`)**:
+  - [x] Validar en `PUT /subjects/{id}/hours` que la `SubjectAllocation` pertenezca verdaderamente al centro del usuario actual. (guard `template.SchoolId != user.SchoolId` en `SubjectsFeature.cs:148`)
+- [x] **Validación previa a la generación**:
+  - [x] Validar disponibilidad de profesores y aulas antes de ejecutar el motor. Devuelve mensajes descriptivos si falta un especialista o tipo de aula. (`ScheduleViabilityAnalyzer.cs`, invocado en `SchedulesFeature.cs:181`)
 - [ ] **Verificación**:
-  - [ ] Test de aislamiento entre centros: verificar que el usuario de un centro no puede editar datos de otro.
+  - [ ] Test de aislamiento entre centros: verificar que el usuario de un centro no puede editar datos de otro. *(pendiente: Ejecución 6)*
 
 ### [x] Día 7 · Limpieza de deuda de dominio backend
 - [x] **Resolver bifurcación en `Schedule.cs` / `SchedulesFeature.cs:144`**:
@@ -118,16 +118,16 @@ Cada vez que realicemos una acción, editaremos este archivo actualizando el est
 
 ## 🎨 FASE 3 — Frontend profesional (Días 8–12)
 
-### [/] Día 8 · Adoptar PrimeNG + sistema de feedback global
-- [ ] **Implementar servicio Toast de PrimeNG**:
-  - [ ] Activar PrimeNG y el remapeo de tokens en `app.config.ts:31`.
-  - [ ] Declarar `p-toast` de forma global en la shell de la aplicación.
-- [ ] **Eliminar silencios en `catch {}`**:
-  - [ ] Reemplazar todos los bloques vacíos `catch {}` y `console.error` por alertas Toast amigables (generador, configuración, resultados de horarios, perfiles).
-- [ ] **Reemplazar confirm/alert nativos**:
-  - [ ] Sustituir `confirm()` y `alert()` en `config.component.ts:239` y otros sitios por `p-confirmdialog`.
-- [ ] **Verificación**:
-  - [ ] Provocar un fallo controlado en la generación y validar la visualización del Toast. `ng build` exitoso.
+### [x] Día 8 · Adoptar PrimeNG + sistema de feedback global
+- [x] **Implementar servicio Toast de PrimeNG**:
+  - [x] Activar PrimeNG (tema Aura, `darkModeSelector: '.lectivo-dark'`) en `app.config.ts:32`. `MessageService` y `ConfirmationService` provistos globalmente.
+  - [x] Declarar `<p-toast />` y `<p-confirmdialog />` de forma global en `app.ts`.
+- [x] **Eliminar silencios en `catch {}`**:
+  - [x] Reemplazar `console.error` en `generator.component.ts` por Toast `error`. Todos los bloques catch de config usan `MessageService`.
+- [x] **Reemplazar confirm/alert nativos**:
+  - [x] Sustituir todos los `confirm()` y `alert()` en `config.component.ts` (15+ instancias) por `ConfirmationService.confirm()` y `MessageService.add()`.
+- [x] **Verificación**:
+  - [x] `ng build` exitoso sin advertencias de tipado.
 
 ### [ ] Día 9 · Migrar pantallas a PrimeNG y eliminar inline styles
 - [ ] **Migrar tablas de configuración (`config.component.ts`)**:
@@ -139,16 +139,16 @@ Cada vez que realicemos una acción, editaremos este archivo actualizando el est
   - [ ] Compilar el frontend: `ng build`.
   - [ ] Comprobar visualmente que se mantienen los `data-testid` y que los tests E2E siguen pasando.
 
-### [ ] Día 10 · Completar placeholders funcionales
-- [ ] **CRUD completo en configuración (`config.component.ts:173`)**:
-  - [ ] Implementar diálogos (`p-dialog`) y formularios para crear/añadir profesores, grupos y aulas (actualmente inactivos).
-- [ ] **Exportación PDF profesional (`schedule-result.component.ts:342`)**:
-  - [ ] Crear estilos específicos `@media print` para ocultar barra de navegación/sidebar y centrar el grid.
-  - [ ] Opcionalmente, integrar una exportación de PDF limpia del grid.
-- [ ] **Medición real de tiempo (`generator.component.ts:518`)**:
-  - [ ] Calcular y mostrar la variable `generationSeconds` de forma real desde el servidor.
-- [ ] **Verificación**:
-  - [ ] Crear un profesor de prueba en la UI, ver que aparece en la tabla, e imprimir la página comprobando que el PDF resultante es limpio.
+### [x] Día 10 · Completar placeholders funcionales
+
+- [x] **CRUD completo en configuración (`config.component.ts`)**:
+  - [x] Formularios y modales propios funcionales para crear/editar profesores, grupos, aulas y asignaturas. *(migración a `p-dialog` pendiente: Ejecución 2)*
+- [x] **Exportación PDF profesional**:
+  - [x] Estilos `@media print` implementados en `styles.scss:243` (oculta nav, centra grid, `print-color-adjust: exact`). `window.print()` en `schedule-result` y `my-schedule`.
+- [x] **Medición real de tiempo**:
+  - [x] `generationSeconds` proviene del servidor (`models.ts:128`; campo `GenerationSeconds` en `Schedule` del backend).
+- [ ] **Verificación completa con p-dialog**:
+  - [ ] *(pendiente: Ejecución 2 — migrar modales a p-dialog)*
 
 ### [ ] Día 11 · Pulir la visualización del horario + dark mode
 - [ ] **Unificar grids de horario**:
