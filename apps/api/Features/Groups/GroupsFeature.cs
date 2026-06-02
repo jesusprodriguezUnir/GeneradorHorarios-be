@@ -21,6 +21,7 @@ public static class GroupEndpoints
         {
             var user = ctx.GetCurrentUserOrFail();
             var groups = await db.CourseGroups.AsNoTracking()
+                .Include(x => x.SubjectHoursList)
                 .Where(x => x.SchoolId == user.SchoolId)
                 .OrderBy(x => x.CourseLevel).ThenBy(x => x.GroupLabel)
                 .ToListAsync();
@@ -38,8 +39,16 @@ public static class GroupEndpoints
             {
                 SchoolId = user.SchoolId, CourseLevel = req.CourseLevel, GroupLabel = req.GroupLabel,
                 StudentCount = req.StudentCount, TutorId = req.TutorId, HomeClassroomId = req.HomeClassroomId,
-                SubjectHours = req.SubjectHours is not null ? System.Text.Json.JsonSerializer.Serialize(req.SubjectHours) : "{}",
             };
+            if (req.SubjectHours is not null)
+            {
+                gr.SubjectHoursList = req.SubjectHours.Select(kv => new GroupSubjectHour
+                {
+                    GroupId = gr.Id,
+                    SubjectKey = kv.Key.ToLower().Trim(),
+                    Hours = kv.Value
+                }).ToList();
+            }
             db.CourseGroups.Add(gr);
             await db.SaveChangesAsync();
             return Results.Created($"/api/groups/{gr.Id}", ToDto(gr, []));
@@ -49,14 +58,27 @@ public static class GroupEndpoints
         {
             var user = ctx.GetCurrentUserOrFail();
             if (!user.IsAdmin) return Results.Forbid();
-            var gr = await db.CourseGroups.FirstOrDefaultAsync(x => x.Id == id && x.SchoolId == user.SchoolId);
+            var gr = await db.CourseGroups
+                .Include(x => x.SubjectHoursList)
+                .FirstOrDefaultAsync(x => x.Id == id && x.SchoolId == user.SchoolId);
             if (gr is null) return Results.NotFound();
             if (req.CourseLevel.HasValue) gr.CourseLevel = req.CourseLevel.Value;
             if (req.GroupLabel is not null) gr.GroupLabel = req.GroupLabel;
             if (req.StudentCount.HasValue) gr.StudentCount = req.StudentCount.Value;
             gr.TutorId = req.TutorId;
             gr.HomeClassroomId = req.HomeClassroomId;
-            if (req.SubjectHours is not null) gr.SubjectHours = System.Text.Json.JsonSerializer.Serialize(req.SubjectHours);
+            if (req.SubjectHours is not null)
+            {
+                // Limpiar horas anteriores
+                db.GroupSubjectHours.RemoveRange(gr.SubjectHoursList);
+                // Guardar las nuevas
+                gr.SubjectHoursList = req.SubjectHours.Select(kv => new GroupSubjectHour
+                {
+                    GroupId = gr.Id,
+                    SubjectKey = kv.Key.ToLower().Trim(),
+                    Hours = kv.Value
+                }).ToList();
+            }
             await db.SaveChangesAsync();
             return Results.Ok(ToDto(gr, []));
         });
@@ -77,9 +99,7 @@ public static class GroupEndpoints
 
     private static GroupDto ToDto(CourseGroup gr, Dictionary<Guid, string> tutorNames)
     {
-        Dictionary<string, int> subjectHours;
-        try { subjectHours = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, int>>(gr.SubjectHours) ?? new(); }
-        catch { subjectHours = new(); }
+        var subjectHours = gr.SubjectHoursList?.ToDictionary(x => x.SubjectKey, x => x.Hours) ?? new();
         return new(gr.Id, gr.CourseLevel, gr.GroupLabel, gr.DisplayName, gr.StudentCount,
             gr.TutorId, gr.TutorId.HasValue && tutorNames.TryGetValue(gr.TutorId.Value, out var n) ? n : null,
             gr.HomeClassroomId, subjectHours);

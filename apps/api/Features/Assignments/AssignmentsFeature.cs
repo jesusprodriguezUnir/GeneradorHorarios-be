@@ -47,6 +47,7 @@ public static class AssignmentEndpoints
 
             // Agrupar por asignatura para calcular completitud
             var courseGroups = await db.CourseGroups.AsNoTracking()
+                .Include(x => x.SubjectHoursList)
                 .Where(g => g.SchoolId == user.SchoolId)
                 .ToListAsync();
 
@@ -60,9 +61,7 @@ public static class AssignmentEndpoints
                     {
                         foreach (var cg in courseGroups)
                         {
-                            Dictionary<string, int>? groupHours = null;
-                            try { groupHours = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, int>>(cg.SubjectHours); } catch {}
-                            groupHours ??= new();
+                            var groupHours = cg.SubjectHoursList?.ToDictionary(x => x.SubjectKey, x => x.Hours) ?? new();
                             if (groupHours.TryGetValue(alloc.SubjectKey, out var h))
                             {
                                 required += h;

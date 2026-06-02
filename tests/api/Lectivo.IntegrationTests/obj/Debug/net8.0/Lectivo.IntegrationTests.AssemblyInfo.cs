@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Lectivo.IntegrationTests")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+d3a9e362676ab0450a7956b2992fd47c7943c66d")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+c7be6214b589f9c3394d6b42910d849650412ac4")]
 [assembly: System.Reflection.AssemblyProductAttribute("Lectivo.IntegrationTests")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Lectivo.IntegrationTests")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

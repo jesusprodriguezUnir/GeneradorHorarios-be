@@ -113,10 +113,24 @@ public class CourseGroup
     public int StudentCount { get; set; } = 25;
     public Guid? TutorId { get; set; }
     public Guid? HomeClassroomId { get; set; }
-    public string SubjectHours { get; set; } = "{}";  // JSON dictionary SubjectKey -> Hours
+
+    // ── Colección Relacionada ─────────────────────────────────────────────────
+    public ICollection<GroupSubjectHour> SubjectHoursList { get; set; } = new List<GroupSubjectHour>();
 
     // computed — ignorada por EF
     public string DisplayName => $"{CourseLevel}º{GroupLabel}";
+}
+
+// ── GroupSubjectHour ──────────────────────────────────────────────────────────
+public class GroupSubjectHour
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public required Guid GroupId { get; set; }
+    public required string SubjectKey { get; set; }
+    public int Hours { get; set; }
+
+    // Navigation property
+    public CourseGroup? Group { get; set; }
 }
 
 // ── Assignment ────────────────────────────────────────────────────────────────

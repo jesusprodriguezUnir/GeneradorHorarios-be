@@ -12,6 +12,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<CurriculumTemplate> CurriculumTemplates => Set<CurriculumTemplate>();
     public DbSet<SubjectAllocation> SubjectAllocations => Set<SubjectAllocation>();
     public DbSet<CourseGroup> CourseGroups => Set<CourseGroup>();
+    public DbSet<GroupSubjectHour> GroupSubjectHours => Set<GroupSubjectHour>();
     public DbSet<Assignment> Assignments => Set<Assignment>();
     public DbSet<TeacherConstraint> TeacherConstraints => Set<TeacherConstraint>();
     public DbSet<ScheduleRecord> Schedules => Set<ScheduleRecord>();
@@ -100,6 +101,20 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasIndex(x => new { x.SchoolId, x.CourseLevel, x.GroupLabel }).IsUnique();
             e.Property(x => x.GroupLabel).HasMaxLength(5).IsRequired();
             e.Ignore(x => x.DisplayName);
+        });
+
+        // ── GroupSubjectHour ──────────────────────────────────────────────────
+        mb.Entity<GroupSubjectHour>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.GroupId, x.SubjectKey }).IsUnique();
+            e.Property(x => x.SubjectKey).HasMaxLength(10).IsRequired();
+
+            // Relación con CourseGroup
+            e.HasOne(x => x.Group)
+             .WithMany(x => x.SubjectHoursList)
+             .HasForeignKey(x => x.GroupId)
+             .OnDelete(DeleteBehavior.Cascade);
         });
 
         // ── Assignment ───────────────────────────────────────────────────────
