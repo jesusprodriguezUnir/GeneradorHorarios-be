@@ -6,9 +6,9 @@
 
 | Capa | Tecnología |
 |------|-----------|
-| Frontend | Angular 20 · Zoneless · Signals · PrimeNG |
 | Backend | .NET 8 · Minimal API · Vertical Slice · SignalR |
 | Base de datos | SQL Server 2022 (Docker) · EF Core 8 |
+| Frontend (repo separado) | [GeneradorHorarios-spa](https://github.com/jesusprodriguezUnir/GeneradorHorarios-spa) — Angular 21 · Zoneless · Signals · PrimeNG |
 
 ## Inicio rápido
 
@@ -30,15 +30,12 @@ dotnet run
 La API aplica migraciones y siembra datos demo automáticamente.  
 Swagger disponible en: **http://localhost:5000/swagger**
 
-### 3. Arrancar el frontend
+### 3. Arrancar el frontend (repo separado)
 
 ```bash
-cd apps/web
-npm install   # solo la primera vez
-ng serve
+# Clona el repo del SPA y sigue su README:
+# https://github.com/jesusprodriguezUnir/GeneradorHorarios-spa
 ```
-
-App disponible en: **http://localhost:4200**
 
 ## Usuarios demo
 
@@ -60,22 +57,19 @@ App disponible en: **http://localhost:4200**
 ## Arquitectura
 
 ```
-GeneradorHorarios/
+GeneradorHorarios-sbe/
 ├── apps/
-│   ├── api/          # .NET 8 Vertical Slice
-│   │   ├── Domain/   # Entidades + Constraints + IScheduleEngine
-│   │   ├── Infrastructure/Engine/   # BacktrackingScheduleEngine
-│   │   ├── Infrastructure/Persistence/  # EF Core + DbContext + Seed LOMLOE
-│   │   └── Features/ # Auth/Schools/Teachers/Groups/Classrooms/Subjects/
-│   │                 # Assignments/Constraints/Schedules (slices)
-│   └── web/          # Angular 20 PWA
-│       └── src/app/
-│           ├── core/     # auth, api, device
-│           ├── shared/   # ScheduleGrid + ScheduleCell
-│           ├── shell/    # AppShell responsive
-│           └── features/ # login, my-schedule, teacher-profile,
-│                         # dashboard, generator, schedule-result, config
-├── doc/              # Documentacion: specs, ADRs, constitucion, seed SQL
+│   └── api/          # .NET 8 Vertical Slice
+│       ├── Domain/   # Entidades + Constraints + IScheduleEngine
+│       ├── Infrastructure/Engine/   # BacktrackingScheduleEngine
+│       ├── Infrastructure/Persistence/  # EF Core + DbContext + Seed LOMLOE
+│       └── Features/ # Auth/Schools/Teachers/Groups/Classrooms/Subjects/
+│                     # Assignments/Constraints/Schedules (slices)
+├── tests/
+│   └── api/
+│       ├── Lectivo.UnitTests/
+│       └── Lectivo.IntegrationTests/
+├── doc/              # Specs, ADRs, constitución, seed SQL
 ├── docker-compose.yml
 └── README.md
 ```

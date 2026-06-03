@@ -13,15 +13,6 @@
 .vs/
 apps/api/appsettings.Development.json
 
-# Node / Angular / Web
-node_modules/
-**/node_modules/
-dist/
-**/dist/
-.angular/
-**/.angular/
-apps/web/dist/
-apps/web/.angular/
 
 # IDEs
 .vscode/

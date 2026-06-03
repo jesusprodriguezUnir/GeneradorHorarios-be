@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Proyecto
 
-**Lectivo** — generador automático de horarios escolares para colegios de primaria bajo LOMLOE (Madrid). Monorepo con backend .NET 8 y frontend Angular 21.
+**Lectivo** — generador automático de horarios escolares para colegios de primaria bajo LOMLOE (Madrid). Backend .NET 8 · el frontend SPA vive en [GeneradorHorarios-spa](https://github.com/jesusprodriguezUnir/GeneradorHorarios-spa).
 
 ## Comandos principales
 
@@ -28,29 +28,14 @@ dotnet ef database update           # Aplicar migraciones manualmente
 
 La API aplica migraciones y siembra datos demo automáticamente al arrancar.
 
-### Frontend (apps/web)
-
-```bash
-cd apps/web
-npm install          # Solo la primera vez
-ng serve             # Dev server en http://localhost:4200
-ng build             # Build de producción
-ng build --watch --configuration development
-```
-
 ### Tests
 
 ```bash
-# Backend — unitarias (sin BD, ~1s)
+# Unitarias (sin BD, ~1s)
 dotnet test tests/api/Lectivo.UnitTests
 
-# Backend — integración (requiere Docker para Testcontainers)
+# Integración (requiere Docker para Testcontainers)
 dotnet test tests/api/Lectivo.IntegrationTests
-
-# Frontend — E2E con Playwright (requiere API + web levantados o usa webServer)
-cd apps/web
-npm run e2e
-npm run e2e:ui   # modo UI
 ```
 
 La solución `Lectivo.slnx` agrupa API + proyectos de test.
@@ -79,13 +64,6 @@ Resuelve el problema NP-duro de asignación de horarios mediante backtracking co
 
 Cada feature en `apps/api/Features/` es un slice autónomo con sus propios endpoints, DTOs y queries EF Core. No hay repositorios genéricos ni capas de aplicación separadas — la lógica de negocio simple va directamente en el endpoint handler; solo la generación de horarios tiene su propio servicio de dominio (`IScheduleEngine`).
 
-### Angular 20 Zoneless + Signals
-
-- `provideZonelessChangeDetection()` activo → **no usar NgZone ni `markForCheck()`**
-- Estado reactivo con `signal()` y `computed()` en lugar de BehaviorSubject cuando sea posible
-- Todos los componentes son `standalone: true`
-- Lazy loading por ruta en `app.routes.ts`
-
 ### Usuarios demo
 
 | Email | Rol |
@@ -98,4 +76,4 @@ Cada feature en `apps/api/Features/` es un slice autónomo con sus propios endpo
 - La especificación LOMLOE y los ADRs están en `doc/horarios-escolares/docs/`; consultarlos antes de cambiar reglas de negocio del motor.
 - El seed de datos (CEIP Miguel Hernández, Madrid) se aplica en `DbInitializer` al arrancar la API.
 - La base de datos de desarrollo corre en Docker con credenciales fijas en `appsettings.json`; no hay gestión de secretos para el entorno local.
-- TypeScript configurado en modo ultra-strict (`strict`, `noImplicitReturns`, `strictTemplates`); el compilador Angular (`ng build`) es la fuente de verdad para errores de tipado.
+- El frontend SPA que consume esta API vive en [GeneradorHorarios-spa](https://github.com/jesusprodriguezUnir/GeneradorHorarios-spa) (Angular 21 Zoneless + Signals).
