@@ -1,9 +1,11 @@
 ﻿using Microsoft.AspNetCore.SignalR;
 using MediatR;
+using Hangfire;
 using HorariosEscolares.Application.Features.Schedules;
 using HorariosEscolares.Application.Features.Schedules.Commands.GenerateSchedule;
 using HorariosEscolares.Domain.Services;
 using HorariosEscolares.Features.Auth;
+using HorariosEscolares.BackgroundJobs;
 
 namespace HorariosEscolares.Features.Schedules;
 
@@ -46,60 +48,40 @@ public static class ScheduleEndpoints
             return Results.Ok(result);
         });
 
-        // POST /api/schedules/generate — motor de backtracking + SignalR
-        g.MapPost("/generate", async (
+        // POST /api/schedules/generate — encola job en background
+        g.MapPost("/generate", (
             HttpContext ctx,
-            IScheduleGenerationOrchestrator orchestrator,
-            IHubContext<GenerationProgressHub> hub,
-            GenerateRequest req,
-            CancellationToken ct) =>
+            IBackgroundJobClient backgroundJobs,
+            GenerateRequest req) =>
         {
             var user = ctx.GetCurrentUserOrFail();
             if (!user.IsAdmin) return Results.StatusCode(403);
 
-            var progress = new Progress<GenerationProgress>(async p =>
+            var jobId = backgroundJobs.Enqueue<ScheduleGenerationJob>(job =>
+                job.ExecuteAsync(
+                    user.SchoolId,
+                    req.AcademicYear,
+                    req.TimeoutSeconds,
+                    user.SchoolId.ToString(),
+                    CancellationToken.None));
+
+            return Results.Accepted($"/api/schedules/jobs/{jobId}", new { jobId });
+        });
+
+        // GET /api/schedules/jobs/{jobId} — estado de un job en background
+        g.MapGet("/jobs/{jobId}", (string jobId) =>
+        {
+            var monitor = JobStorage.Current.GetMonitoringApi();
+            var job = monitor.JobDetails(jobId);
+            if (job is null) return Results.NotFound();
+
+            var latestState = job.History.OrderByDescending(h => h.CreatedAt).FirstOrDefault();
+            return Results.Ok(new
             {
-                try
-                {
-                    await hub.Clients.Group(user.SchoolId.ToString())
-                        .SendAsync("Progress", new
-                        {
-                            assigned = p.Assigned, total = p.Total,
-                            percentage = p.Percentage, currentAction = p.CurrentAction,
-                        }, ct);
-                }
-                catch { }
+                id = jobId,
+                state = latestState?.StateName ?? "Unknown",
+                createdAt = job.CreatedAt,
             });
-
-            var result = await orchestrator.GenerateAsync(
-                user.SchoolId, req.AcademicYear, req.TimeoutSeconds, progress, ct);
-
-            return result switch
-            {
-                GenerateScheduleResult.Success s => Results.Ok(new
-                {
-                    scheduleId = s.ScheduleId, status = s.Status,
-                    totalAssigned = s.TotalAssigned, totalRequired = s.TotalRequired,
-                    elapsedSeconds = s.ElapsedSeconds, totalConflicts = s.TotalConflicts,
-                    totalCost = s.TotalCost,
-                }),
-                GenerateScheduleResult.ViabilityFailed f => Results.BadRequest(new
-                {
-                    scheduleId = f.ScheduleId, status = "failed",
-                    totalAssigned = 0, totalRequired = 0,
-                    elapsedSeconds = 0, totalConflicts = f.TotalConflicts,
-                    conflicts = f.Conflicts.Select(c => new
-                    {
-                        type = c.Type.ToString().ToLower(),
-                        severity = c.Severity.ToString().ToLower(),
-                        description = c.Description,
-                        suggestions = c.Suggestions,
-                        teacherId = c.TeacherId, groupId = c.GroupId,
-                    }),
-                }),
-                GenerateScheduleResult.NoAssignments => Results.BadRequest(new { message = "No hay asignaciones configuradas." }),
-                _ => Results.StatusCode(500),
-            };
         });
 
         // GET /api/schedules/{id} — grid completo del horario

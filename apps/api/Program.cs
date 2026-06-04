@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MediatR;
+using Hangfire;
 using HorariosEscolares.Domain.Abstractions;
 using HorariosEscolares.Application;
 using HorariosEscolares.Infrastructure;
@@ -79,8 +80,21 @@ else
 // Application layer (MediatR, FluentValidation, behaviors)
 builder.Services.AddApplication();
 
-// Infrastructure layer (engine, normative)
+// Infrastructure layer (engine, normative, repositories)
 builder.Services.AddInfrastructure();
+
+// Hangfire background jobs (SQL Server storage)
+builder.Services.AddHangfire(config => config
+    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+    .UseSimpleAssemblyNameTypeSerializer()
+    .UseRecommendedSerializerSettings()
+    .UseSqlServerStorage(builder.Configuration.GetConnectionString("Default")));
+
+builder.Services.AddHangfireServer(options =>
+{
+    options.WorkerCount = 2;
+    options.Queues = new[] { "default", "schedules" };
+});
 
 // Register IAppDbContext → AppDbContext (same scoped instance)
 builder.Services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
@@ -110,6 +124,7 @@ if (!app.Environment.IsProduction())
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "Lectivo API v1");
         c.RoutePrefix = "swagger";
     });
+    app.UseHangfireDashboard("/hangfire");
 }
 
 app.UseCors("Frontend");
