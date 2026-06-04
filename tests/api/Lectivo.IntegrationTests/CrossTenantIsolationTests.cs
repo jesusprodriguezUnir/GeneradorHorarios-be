@@ -1,7 +1,7 @@
 using System.Net;
 using FluentAssertions;
 using HorariosEscolares.Infrastructure.Persistence;
-using HorariosEscolares.Infrastructure.Persistence.Entities;
+using HorariosEscolares.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 

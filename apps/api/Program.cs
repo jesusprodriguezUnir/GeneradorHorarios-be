@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
-using HorariosEscolares.Domain.Services;
-using HorariosEscolares.Infrastructure.Engine;
+using MediatR;
+using HorariosEscolares.Domain.Abstractions;
+using HorariosEscolares.Application;
+using HorariosEscolares.Infrastructure;
 using HorariosEscolares.Infrastructure.Persistence;
 using HorariosEscolares.Features.Auth;
 using HorariosEscolares.Features.Schools;
@@ -12,8 +14,6 @@ using HorariosEscolares.Features.Assignments;
 using HorariosEscolares.Features.Constraints;
 using HorariosEscolares.Features.Dev;
 using HorariosEscolares.Features.Schedules;
-using HorariosEscolares.Domain.Normative;
-using HorariosEscolares.Infrastructure.Normative;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -67,37 +67,34 @@ builder.Services.AddCors(options =>
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
     var conn = builder.Configuration.GetConnectionString("Default");
-    options.UseSqlServer(conn, sql =>
-    {
-        sql.EnableRetryOnFailure(3);
-    });
+    options.UseSqlServer(conn, sql => sql.EnableRetryOnFailure(3));
 });
 
 // Redis / Caché con fallback a memoria
 if (!string.IsNullOrWhiteSpace(redisConn))
-{
     builder.Services.AddStackExchangeRedisCache(o => o.Configuration = redisConn);
-}
 else
-{
-    builder.Services.AddDistributedMemoryCache(); // fallback a memoria
-}
+    builder.Services.AddDistributedMemoryCache();
 
-// Motor de generación de horarios
-builder.Services.AddScoped<IScheduleEngine, BacktrackingScheduleEngine>();
+// Application layer (MediatR, FluentValidation, behaviors)
+builder.Services.AddApplication();
 
-// Validador normativo (Decreto 61/2022 Madrid)
-builder.Services.AddScoped<INormativeValidator, NormativeValidator>();
+// Infrastructure layer (engine, normative)
+builder.Services.AddInfrastructure();
 
-// Opciones de seed leídas de la configuración (sección "Seed")
-builder.Services.Configure<SeedOptions>(builder.Configuration.GetSection("Seed"));
+// Register IAppDbContext → AppDbContext (same scoped instance)
+builder.Services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
+
+// Current user accessor
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUser, CurrentUserAccessor>();
 
 var app = builder.Build();
 
 // ── Inicialización de BD (migraciones + seed) ─────────────────────────────────
 using (var scope = app.Services.CreateScope())
 {
-    var db          = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     var seedOptions = app.Configuration.GetSection("Seed").Get<SeedOptions>();
     await DbInitializer.InitializeAsync(db, seedOptions);
 }
@@ -116,7 +113,7 @@ if (!app.Environment.IsProduction())
 }
 
 app.UseCors("Frontend");
-app.UseMiddleware<DevAuthMiddleware>();   // auth simulada — reemplazar por JWT en producción
+app.UseMiddleware<DevAuthMiddleware>();
 
 // ── Endpoints por feature ─────────────────────────────────────────────────────
 app.MapAuthEndpoints();
@@ -131,14 +128,12 @@ app.MapScheduleEndpoints();
 
 app.MapHub<GenerationProgressHub>("/hubs/generation");
 
-// ── Endpoints de desarrollo (solo en entornos no-Production) ──────────────────
 if (!app.Environment.IsProduction())
 {
     app.MapDevEndpoints();
 }
 app.MapHealthChecks("/health");
 
-// Redirect root to swagger en dev
 app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
 
 app.Run();

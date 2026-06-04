@@ -66,22 +66,44 @@
           }
         }
       },
-      "Microsoft.AspNetCore.Http.Connections/1.1.0": {
-        "dependencies": {
-          "Microsoft.AspNetCore.WebSockets": "2.2.0",
-          "Newtonsoft.Json": "13.0.1"
+      "FluentValidation/11.10.0": {
+        "runtime": {
+          "lib/net8.0/FluentValidation.dll": {
+            "assemblyVersion": "11.0.0.0",
+            "fileVersion": "11.10.0.0"
+          }
         }
       },
-      "Microsoft.AspNetCore.SignalR/1.1.0": {
+      "FluentValidation.DependencyInjectionExtensions/11.10.0": {
         "dependencies": {
-          "Microsoft.AspNetCore.Http.Connections": "1.1.0"
+          "FluentValidation": "11.10.0",
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "8.0.1"
+        },
+        "runtime": {
+          "lib/netstandard2.1/FluentValidation.DependencyInjectionExtensions.dll": {
+            "assemblyVersion": "11.0.0.0",
+            "fileVersion": "11.10.0.0"
+          }
         }
       },
-      "Microsoft.AspNetCore.WebSockets/2.2.0": {
+      "MediatR/12.4.1": {
         "dependencies": {
-          "Microsoft.Extensions.Logging.Abstractions": "8.0.1",
-          "Microsoft.Extensions.Options": "8.0.2",
-          "System.Net.WebSockets.WebSocketProtocol": "4.5.1"
+          "MediatR.Contracts": "2.0.1",
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "8.0.1"
+        },
+        "runtime": {
+          "lib/net6.0/MediatR.dll": {
+            "assemblyVersion": "12.0.0.0",
+            "fileVersion": "12.4.1.0"
+          }
+        }
+      },
+      "MediatR.Contracts/2.0.1": {
+        "runtime": {
+          "lib/netstandard2.0/MediatR.Contracts.dll": {
+            "assemblyVersion": "2.0.1.0",
+            "fileVersion": "2.0.1.0"
+          }
         }
       },
       "Microsoft.Bcl.AsyncInterfaces/1.1.1": {
@@ -847,14 +869,6 @@
           }
         }
       },
-      "System.Net.WebSockets.WebSocketProtocol/4.5.1": {
-        "runtime": {
-          "lib/netcoreapp2.1/System.Net.WebSockets.WebSocketProtocol.dll": {
-            "assemblyVersion": "4.0.0.0",
-            "fileVersion": "4.6.26606.5"
-          }
-        }
-      },
       "System.Runtime.Caching/6.0.0": {
         "dependencies": {
           "System.Configuration.ConfigurationManager": "6.0.1"
@@ -973,8 +987,9 @@
       "HorariosEscolares.Api/1.0.0": {
         "dependencies": {
           "AspNetCore.HealthChecks.Redis": "8.0.1",
-          "Microsoft.AspNetCore.SignalR": "1.1.0",
-          "Microsoft.EntityFrameworkCore": "8.0.5",
+          "HorariosEscolares.Application": "1.0.0",
+          "HorariosEscolares.Infrastructure": "1.0.0",
+          "MediatR": "12.4.1",
           "Microsoft.EntityFrameworkCore.SqlServer": "8.0.5",
           "Microsoft.Extensions.Caching.StackExchangeRedis": "8.0.5",
           "Serilog.AspNetCore": "8.0.1",
@@ -984,6 +999,45 @@
         "runtime": {
           "HorariosEscolares.Api.dll": {
             "fileVersion": "0.0.0.0"
+          }
+        }
+      },
+      "HorariosEscolares.Application/1.0.0": {
+        "dependencies": {
+          "FluentValidation": "11.10.0",
+          "FluentValidation.DependencyInjectionExtensions": "11.10.0",
+          "HorariosEscolares.Domain": "1.0.0",
+          "MediatR": "12.4.1",
+          "Microsoft.EntityFrameworkCore": "8.0.5"
+        },
+        "runtime": {
+          "HorariosEscolares.Application.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "HorariosEscolares.Domain/1.0.0": {
+        "dependencies": {
+          "Microsoft.EntityFrameworkCore": "8.0.5"
+        },
+        "runtime": {
+          "HorariosEscolares.Domain.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "HorariosEscolares.Infrastructure/1.0.0": {
+        "dependencies": {
+          "HorariosEscolares.Domain": "1.0.0",
+          "Microsoft.EntityFrameworkCore": "8.0.5",
+          "Microsoft.EntityFrameworkCore.SqlServer": "8.0.5"
+        },
+        "runtime": {
+          "HorariosEscolares.Infrastructure.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
           }
         }
       },
@@ -1031,26 +1085,33 @@
       "path": "fluentassertions/6.12.0",
       "hashPath": "fluentassertions.6.12.0.nupkg.sha512"
     },
-    "Microsoft.AspNetCore.Http.Connections/1.1.0": {
+    "FluentValidation/11.10.0": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-ZcwAM9rE5yjGC+vtiNAK0INybpKIqnvB+/rntZn2/CPtyiBAtovVrEp4UZOoC31zH5t0P78ix9gLNJzII/ODsA==",
-      "path": "microsoft.aspnetcore.http.connections/1.1.0",
-      "hashPath": "microsoft.aspnetcore.http.connections.1.1.0.nupkg.sha512"
+      "sha512": "sha512-qsJGSJDdZ8qiG+lVJ70PZfJHcEdq8UQZ/tZDXoj78/iHKG6lVKtMJsD11zyyv/IPc7rwqGqnFoFLTNzpo3IPYg==",
+      "path": "fluentvalidation/11.10.0",
+      "hashPath": "fluentvalidation.11.10.0.nupkg.sha512"
     },
-    "Microsoft.AspNetCore.SignalR/1.1.0": {
+    "FluentValidation.DependencyInjectionExtensions/11.10.0": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-V5X5XkeAHaFyyBOGPrddVeqTNo6zRPJNS5PRhlzEyBXiNG9AtqUbMyWFdZahQyMiIWJau550z59A4kdC9g5I9A==",
-      "path": "microsoft.aspnetcore.signalr/1.1.0",
-      "hashPath": "microsoft.aspnetcore.signalr.1.1.0.nupkg.sha512"
+      "sha512": "sha512-hIe+i6P+ZUxFh6lJOBXRs4EGE/thcub0Lpdk2FF2/JBKJUqDqE2xDnBIiqTMkpXLoekgBN0SlhJT0vpeNr1J6g==",
+      "path": "fluentvalidation.dependencyinjectionextensions/11.10.0",
+      "hashPath": "fluentvalidation.dependencyinjectionextensions.11.10.0.nupkg.sha512"
     },
-    "Microsoft.AspNetCore.WebSockets/2.2.0": {
+    "MediatR/12.4.1": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-ZpOcg2V0rCwU9ErfDb9y3Hcjoe7rU42XlmUS0mO4pVZQSgJVqR+DfyZtYd5LDa11F7bFNS2eezI9cBM3CmfGhw==",
-      "path": "microsoft.aspnetcore.websockets/2.2.0",
-      "hashPath": "microsoft.aspnetcore.websockets.2.2.0.nupkg.sha512"
+      "sha512": "sha512-0tLxCgEC5+r1OCuumR3sWyiVa+BMv3AgiU4+pz8xqTc+2q1WbUEXFOr7Orm96oZ9r9FsldgUtWvB2o7b9jDOaw==",
+      "path": "mediatr/12.4.1",
+      "hashPath": "mediatr.12.4.1.nupkg.sha512"
+    },
+    "MediatR.Contracts/2.0.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-FYv95bNT4UwcNA+G/J1oX5OpRiSUxteXaUt2BJbRSdRNiIUNbggJF69wy6mnk2wYToaanpdXZdCwVylt96MpwQ==",
+      "path": "mediatr.contracts/2.0.1",
+      "hashPath": "mediatr.contracts.2.0.1.nupkg.sha512"
     },
     "Microsoft.Bcl.AsyncInterfaces/1.1.1": {
       "type": "package",
@@ -1381,13 +1442,6 @@
       "path": "system.memory.data/1.0.2",
       "hashPath": "system.memory.data.1.0.2.nupkg.sha512"
     },
-    "System.Net.WebSockets.WebSocketProtocol/4.5.1": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-FquLjdb/0CeMqb15u9Px6TwnyFl306WztKWu6sKKc5kWPYMdpi5BFEkdxzGoieYFp9UksyGwJnCw4KKAUfJjrw==",
-      "path": "system.net.websockets.websocketprotocol/4.5.1",
-      "hashPath": "system.net.websockets.websocketprotocol.4.5.1.nupkg.sha512"
-    },
     "System.Runtime.Caching/6.0.0": {
       "type": "package",
       "serviceable": true,
@@ -1459,6 +1513,21 @@
       "hashPath": "xunit.extensibility.execution.2.9.0.nupkg.sha512"
     },
     "HorariosEscolares.Api/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "HorariosEscolares.Application/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "HorariosEscolares.Domain/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "HorariosEscolares.Infrastructure/1.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

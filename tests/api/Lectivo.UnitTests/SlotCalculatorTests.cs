@@ -1,5 +1,5 @@
-using HorariosEscolares.Features.Schools;
-using HorariosEscolares.Infrastructure.Persistence.Entities;
+using HorariosEscolares.Domain.Entities;
+using HorariosEscolares.Domain.Services;
 using FluentAssertions;
 
 namespace Lectivo.UnitTests;
@@ -49,11 +49,10 @@ public class SlotCalculatorTests
     }
 
     [Fact]
-    public void ToDto_MapsAllFields()
+    public void Compute_WithAllFields_CalculatesSlots()
     {
         var school = new School
         {
-            Id = Guid.NewGuid(),
             Name = "Test School",
             Slug = "test",
             ScheduleType = "continua",
@@ -66,16 +65,11 @@ public class SlotCalculatorTests
             WorkingDays = "[1,2,3,4,5]",
         };
 
-        var dto = SlotCalculator.ToDto(school);
+        var slots = SlotCalculator.Compute(school, school.SlotsPerDay);
 
-        dto.Id.Should().Be(school.Id);
-        dto.Name.Should().Be("Test School");
-        dto.MorningStart.Should().Be("09:00");
-        dto.AfternoonStart.Should().BeNull();
-        dto.SlotsPerDay.Should().Be(5);
-        dto.DaysPerWeek.Should().Be(5);
-        dto.WorkingDays.Should().BeEquivalentTo([1, 2, 3, 4, 5]);
-        dto.ComputedSlots.Should().NotBeEmpty();
+        slots.Should().NotBeEmpty();
+        slots.Where(s => !s.IsBreak).Should().HaveCount(5);
+        slots.First(s => !s.IsBreak).StartTime.Should().Be("09:00");
     }
 
     [Fact]
@@ -92,21 +86,19 @@ public class SlotCalculatorTests
             BreakAfterSlot = 2,
             BreakMinutes = 30,
             SlotsPerDay = 5,
-            AfternoonSlots = 2,   // 3 mañana + 2 tarde
+            AfternoonSlots = 2,
             DaysPerWeek = 5,
         };
 
         var slots = SlotCalculator.Compute(school, totalSlots: 5);
 
-        // 6 entradas: slots 0, 1, BREAK, 2 (mañana) + slots 3, 4 (tarde)
         slots.Should().HaveCount(6);
-
-        slots[0].Should().BeEquivalentTo(new SlotDto(0, "09:00", "10:00", false));
-        slots[1].Should().BeEquivalentTo(new SlotDto(1, "10:00", "11:00", false));
-        slots[2].Should().BeEquivalentTo(new SlotDto(-1, "11:00", "11:30", true));  // recreo
-        slots[3].Should().BeEquivalentTo(new SlotDto(2, "11:30", "12:30", false));
-        slots[4].Should().BeEquivalentTo(new SlotDto(3, "15:00", "16:00", false)); // tarde
-        slots[5].Should().BeEquivalentTo(new SlotDto(4, "16:00", "17:00", false));
+        slots[0].Should().BeEquivalentTo(new SlotInfo(0, "09:00", "10:00", false));
+        slots[1].Should().BeEquivalentTo(new SlotInfo(1, "10:00", "11:00", false));
+        slots[2].Should().BeEquivalentTo(new SlotInfo(-1, "11:00", "11:30", true));
+        slots[3].Should().BeEquivalentTo(new SlotInfo(2, "11:30", "12:30", false));
+        slots[4].Should().BeEquivalentTo(new SlotInfo(3, "15:00", "16:00", false));
+        slots[5].Should().BeEquivalentTo(new SlotInfo(4, "16:00", "17:00", false));
     }
 
     [Fact]
@@ -123,12 +115,11 @@ public class SlotCalculatorTests
             BreakAfterSlot = 2,
             BreakMinutes = 30,
             SlotsPerDay = 5,
-            AfternoonSlots = 0,  // sin slots de tarde → continua efectiva
+            AfternoonSlots = 0,
         };
 
         var slots = SlotCalculator.Compute(school, totalSlots: 5);
 
-        // Sin splits de tarde: 5 slots + 1 recreo
         slots.Should().HaveCount(6);
         slots.Should().NotContain(s => s.StartTime == "15:00");
     }
@@ -144,10 +135,10 @@ public class SlotCalculatorTests
             MorningStart = new TimeOnly(9, 0),
             AfternoonStart = new TimeOnly(15, 0),
             SlotMinutes = 60,
-            BreakAfterSlot = 5,   // break more than morning slots → no break inserted
+            BreakAfterSlot = 5,
             BreakMinutes = 30,
             SlotsPerDay = 4,
-            AfternoonSlots = 3,  // 1 mañana + 3 tarde
+            AfternoonSlots = 3,
         };
 
         var slots = SlotCalculator.Compute(school, totalSlots: 4);

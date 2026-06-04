@@ -1,0 +1,375 @@
+using Microsoft.EntityFrameworkCore;
+using HorariosEscolares.Domain.Normative;
+using HorariosEscolares.Domain.Services;
+using HorariosEscolares.Domain.Entities;
+
+namespace HorariosEscolares.Infrastructure.Persistence;
+
+public static class DbInitializer
+{
+    private static readonly Guid SchoolId    = Guid.Parse("00000000-0000-0000-0000-000000000001");
+    private static readonly Guid TemplateId  = Guid.Parse("00000000-0000-0000-0000-000000000002");
+    private static readonly Guid AdminUserId = Guid.Parse("00000000-0000-0000-0000-000000000010");
+    private static readonly Guid ProfUserId  = Guid.Parse("00000000-0000-0000-0000-000000000011");
+
+    private static readonly Dictionary<string, string> SubjectShortNames = new()
+    {
+        ["len"] = "Lengua",
+        ["mat"] = "Mates",
+        ["cie"] = "Naturales",
+        ["ing"] = "Inglés",
+        ["ef"]  = "E. Física",
+        ["mus"] = "Música",
+        ["art"] = "Plástica",
+        ["rel"] = "Religión",
+        ["tut"] = "Libre",
+    };
+
+    private static readonly string[] TutorColorKeys = ["len", "mat", "cie", "art", "tut", "rel"];
+
+    public static async Task InitializeAsync(AppDbContext db, SeedOptions? options = null)
+    {
+        await db.Database.MigrateAsync();
+        if (await db.Schools.AnyAsync()) return;
+
+        await SeedAsync(db, options ?? new SeedOptions());
+    }
+
+    public static async Task ReseedAsync(AppDbContext db, SeedOptions options)
+    {
+        await db.ScheduleConflicts.ExecuteDeleteAsync();
+        await db.ScheduleEntries.ExecuteDeleteAsync();
+        await db.Schedules.ExecuteDeleteAsync();
+        await db.Assignments.ExecuteDeleteAsync();
+        await db.TeacherConstraints.ExecuteDeleteAsync();
+        await db.AppUsers.ExecuteDeleteAsync();
+        await db.CourseGroups.ExecuteDeleteAsync();
+        await db.Teachers.ExecuteDeleteAsync();
+        await db.Classrooms.ExecuteDeleteAsync();
+        await db.SubjectAllocations.ExecuteDeleteAsync();
+        await db.CurriculumTemplates.ExecuteDeleteAsync();
+        await db.Schools.ExecuteDeleteAsync();
+
+        await SeedAsync(db, options);
+    }
+
+    private static async Task SeedAsync(AppDbContext db, SeedOptions opts)
+    {
+        var isBilingue = opts.Modality.Equals("bilingue", StringComparison.OrdinalIgnoreCase);
+        var isPartida  = opts.ScheduleType.Equals("partida", StringComparison.OrdinalIgnoreCase);
+        var totalGroups = opts.Levels * opts.LinesPerLevel;
+
+        db.Schools.Add(new School
+        {
+            Id             = SchoolId,
+            Name           = "CEIP Miguel Hernández",
+            Slug           = "ceip-miguel-hernandez",
+            CenterCode     = "28013291",
+            Locality       = "Madrid",
+            Community      = "madrid",
+            Stage          = "primaria",
+            MinCourseLevel = 1,
+            MaxCourseLevel = opts.Levels,
+            AcademicYear   = "2025/2026",
+            ScheduleType   = opts.ScheduleType,
+            MorningStart   = new TimeOnly(9, 0),
+            AfternoonStart = isPartida ? new TimeOnly(15, 0) : null,
+            SlotMinutes    = 60,
+            BreakAfterSlot = 2,
+            BreakMinutes   = LomloeMadrid.MinDailyBreakMinutes,
+            SlotsPerDay    = 5,
+            AfternoonSlots = isPartida ? 2 : 0,
+            DaysPerWeek    = 5,
+            WorkingDays    = "[1,2,3,4,5]",
+        });
+
+        var schoolForSeed = new School
+        {
+            Name           = "temp",
+            Slug           = "temp",
+            MorningStart   = new TimeOnly(9, 0),
+            ScheduleType   = opts.ScheduleType,
+            AfternoonStart = isPartida ? new TimeOnly(15, 0) : null,
+            SlotMinutes    = 60,
+            BreakAfterSlot = 2,
+            BreakMinutes   = LomloeMadrid.MinDailyBreakMinutes,
+            SlotsPerDay    = 5,
+            AfternoonSlots = isPartida ? 2 : 0,
+        };
+        for (int c = 1; c <= 3; c++)
+        {
+            var cycleEnd = SlotCalculator.ComputeEndTime(
+                totalSlots: 5,
+                slotMinutes: 60,
+                breakAfterSlot: 2,
+                breakMinutes: LomloeMadrid.MinDailyBreakMinutes,
+                afternoonSlots: isPartida ? 2 : 0,
+                morningStart: new TimeOnly(9, 0),
+                afternoonStart: isPartida ? new TimeOnly(15, 0) : null,
+                isPartida: isPartida);
+            db.CycleSchedules.Add(new CycleSchedule
+            {
+                SchoolId       = SchoolId,
+                Cycle          = c,
+                MorningStart   = new TimeOnly(9, 0),
+                EndTime        = cycleEnd,
+                AfternoonStart = isPartida ? new TimeOnly(15, 0) : null,
+            });
+        }
+
+        db.AppUsers.Add(new AppUser
+        {
+            Id       = AdminUserId,
+            Email    = "elena.castro@ceip-miguel-hernandez.es",
+            FullName = "Elena Castro",
+            SchoolId = SchoolId,
+            Role     = "school_admin",
+        });
+
+        db.CurriculumTemplates.Add(new CurriculumTemplate
+        {
+            Id         = TemplateId,
+            Name       = $"LOMLOE Madrid — Decreto 61/2022 (Primaria{(isBilingue ? ", sección bilingüe" : "")})",
+            Region     = "madrid",
+            Stage      = "primaria",
+            IsOfficial = true,
+        });
+
+        var subjectNorms = LomloeMadrid.GetSubjects(opts.Modality);
+        var allocations = subjectNorms.Select(n => new SubjectAllocation
+        {
+            Id                   = Guid.NewGuid(),
+            TemplateId           = TemplateId,
+            SubjectName          = n.SubjectName,
+            SubjectShort         = SubjectShortNames.GetValueOrDefault(n.SubjectKey, n.SubjectKey),
+            SubjectKey           = n.SubjectKey,
+            WeeklyHoursMin       = n.MinH,
+            WeeklyHoursMax       = n.MaxH,
+            WeeklyHoursDefault   = n.DefaultH,
+            RequiresSpecialist   = n.RequiresSpecialist,
+            RequiredClassroomType = n.RequiredClassroomType,
+            MaxConsecutiveSlots  = n.MaxConsecutiveSlots,
+            SplittableAcrossDays = n.Splittable,
+        }).ToList();
+        db.SubjectAllocations.AddRange(allocations);
+
+        var allocByKey = allocations.ToDictionary(a => a.SubjectKey);
+
+        var classrooms = new List<Classroom>();
+        char[] lineLabels = ['A', 'B', 'C', 'D', 'E'];
+
+        for (int level = 1; level <= opts.Levels; level++)
+        {
+            for (int li = 0; li < opts.LinesPerLevel; li++)
+            {
+                classrooms.Add(new Classroom
+                {
+                    Id            = Guid.NewGuid(),
+                    SchoolId      = SchoolId,
+                    Name          = $"Aula {level}º{lineLabels[li]}",
+                    ClassroomType = "regular",
+                    Capacity      = 28,
+                });
+            }
+        }
+
+        var gymRooms = new[]
+        {
+            new Classroom { Id = Guid.NewGuid(), SchoolId = SchoolId, Name = "Gimnasio",            ClassroomType = "gym", Capacity = 60 },
+            new Classroom { Id = Guid.NewGuid(), SchoolId = SchoolId, Name = "Pista Polideportiva", ClassroomType = "gym", Capacity = 80 },
+            new Classroom { Id = Guid.NewGuid(), SchoolId = SchoolId, Name = "Patio Cubierto",      ClassroomType = "gym", Capacity = 60 },
+        };
+        classrooms.AddRange(gymRooms);
+
+        var musicRoom = new Classroom { Id = Guid.NewGuid(), SchoolId = SchoolId, Name = "Aula de Música", ClassroomType = "music", Capacity = 30 };
+        classrooms.Add(musicRoom);
+
+        classrooms.Add(new Classroom { Id = Guid.NewGuid(), SchoolId = SchoolId, Name = "Aula de Informática", ClassroomType = "it", Capacity = 26 });
+
+        db.Classrooms.AddRange(classrooms);
+
+        var regularClassrooms = classrooms.Where(c => c.ClassroomType == "regular").ToList();
+
+        var tutorNames = new[]
+        {
+            ("Ana García",         "ana.garcia"),
+            ("Beatriz López",      "beatriz.lopez"),
+            ("Carlos Martínez",    "carlos.martinez"),
+            ("Diana Rodríguez",    "diana.rodriguez"),
+            ("Eduardo Sánchez",    "eduardo.sanchez"),
+            ("Fernanda Torres",    "fernanda.torres"),
+            ("Guillermo Jiménez",  "guillermo.jimenez"),
+            ("Helena Moreno",      "helena.moreno"),
+            ("Ignacio Díaz",       "ignacio.diaz"),
+            ("Julia Pérez",        "julia.perez"),
+            ("Kevin Romero",       "kevin.romero"),
+            ("Lorena Álvarez",     "lorena.alvarez"),
+            ("Manuel Navarro",     "manuel.navarro"),
+            ("Neus Serrano",       "neus.serrano"),
+            ("Óscar Molina",       "oscar.molina"),
+            ("Rafael Herrero",     "rafael.herrero"),
+            ("Sara Vidal",         "sara.vidal"),
+            ("Tomás Peña",         "tomas.pena"),
+        };
+
+        var tutors = new List<Teacher>();
+        for (int i = 0; i < Math.Min(totalGroups, tutorNames.Length); i++)
+        {
+            var (name, emailUser) = tutorNames[i];
+            tutors.Add(new Teacher
+            {
+                Id             = Guid.NewGuid(),
+                SchoolId       = SchoolId,
+                FullName       = name,
+                Email          = $"{emailUser}@ceip-miguel-hernandez.es",
+                TeacherType    = "definitivo",
+                MaxWeeklyHours = 25,
+                Specialties    = "[\"Generalista\"]",
+                ColorKey       = TutorColorKeys[i % TutorColorKeys.Length],
+            });
+        }
+        db.Teachers.AddRange(tutors);
+
+        var ingNames = new[]
+        {
+            ("Laura Fernández",  "laura.fernandez"),
+            ("David Soler",      "david.soler"),
+            ("Sandra Blanco",    "sandra.blanco"),
+            ("Alberto Rubio",    "alberto.rubio"),
+            ("Marta Iglesias",   "marta.iglesias"),
+        };
+        var ingTeachers = ingNames.Select((t, _) => new Teacher
+        {
+            Id             = Guid.NewGuid(),
+            SchoolId       = SchoolId,
+            FullName       = t.Item1,
+            Email          = $"{t.Item2}@ceip-miguel-hernandez.es",
+            TeacherType    = "especialista",
+            MaxWeeklyHours = 25,
+            Specialties    = "[\"Inglés (habilitación)\"]",
+            ColorKey       = "ing",
+        }).ToList();
+        db.Teachers.AddRange(ingTeachers);
+
+        db.AppUsers.Add(new AppUser
+        {
+            Id        = ProfUserId,
+            Email     = "laura.fernandez@ceip-miguel-hernandez.es",
+            FullName  = "Laura Fernández",
+            SchoolId  = SchoolId,
+            Role      = "teacher",
+            TeacherId = ingTeachers[0].Id,
+        });
+
+        var efNames = new[]
+        {
+            ("Javier Pardo",    "javier.pardo"),
+            ("Patricia Castro", "patricia.castro"),
+            ("Marcos Ruiz",     "marcos.ruiz"),
+        };
+        var efTeachers = efNames.Select(t => new Teacher
+        {
+            Id             = Guid.NewGuid(),
+            SchoolId       = SchoolId,
+            FullName       = t.Item1,
+            Email          = $"{t.Item2}@ceip-miguel-hernandez.es",
+            TeacherType    = "especialista",
+            MaxWeeklyHours = 25,
+            Specialties    = "[\"Educación Física\"]",
+            ColorKey       = "ef",
+        }).ToList();
+        db.Teachers.AddRange(efTeachers);
+
+        var musicTeacher = new Teacher
+        {
+            Id             = Guid.NewGuid(),
+            SchoolId       = SchoolId,
+            FullName       = "Lucía Navarro",
+            Email          = "lucia.navarro@ceip-miguel-hernandez.es",
+            TeacherType    = "definitivo",
+            MaxWeeklyHours = 25,
+            Specialties    = "[\"Generalista\",\"Música\"]",
+            ColorKey       = "mus",
+        };
+        db.Teachers.Add(musicTeacher);
+
+        var relTeacher = new Teacher
+        {
+            Id             = Guid.NewGuid(),
+            SchoolId       = SchoolId,
+            FullName       = "Pablo Vidal",
+            Email          = "pablo.vidal@ceip-miguel-hernandez.es",
+            TeacherType    = "especialista",
+            MaxWeeklyHours = 20,
+            Specialties    = "[\"Religión\"]",
+            ColorKey       = "rel",
+        };
+        db.Teachers.Add(relTeacher);
+
+        var groups = new List<CourseGroup>();
+        int groupIdx = 0;
+
+        for (int level = 1; level <= opts.Levels; level++)
+        {
+            for (int li = 0; li < opts.LinesPerLevel; li++)
+            {
+                var tutor     = groupIdx < tutors.Count ? tutors[groupIdx] : null;
+                var classroom = groupIdx < regularClassrooms.Count ? regularClassrooms[groupIdx] : null;
+
+                groups.Add(new CourseGroup
+                {
+                    Id              = Guid.NewGuid(),
+                    SchoolId        = SchoolId,
+                    CourseLevel     = level,
+                    GroupLabel      = lineLabels[li].ToString(),
+                    StudentCount    = 25,
+                    TutorId         = tutor?.Id,
+                    HomeClassroomId = classroom?.Id,
+                });
+                groupIdx++;
+            }
+        }
+        db.CourseGroups.AddRange(groups);
+
+        var assignments = new List<Assignment>();
+        void AddAssignment(Guid teacherId, Guid groupId, SubjectAllocation alloc, int hours) =>
+            assignments.Add(new Assignment
+            {
+                Id          = Guid.NewGuid(),
+                SchoolId    = SchoolId,
+                TeacherId   = teacherId,
+                GroupId     = groupId,
+                AllocationId = alloc.Id,
+                WeeklyHours = hours,
+            });
+
+        int ingSlots   = isBilingue ? 5 : 4;
+        int ingMod     = isBilingue ? 5 : 3;
+
+        for (int gi = 0; gi < groups.Count; gi++)
+        {
+            var group     = groups[gi];
+            var tutor     = tutors[gi % tutors.Count];
+
+            if (allocByKey.TryGetValue("len", out var lenAlloc)) AddAssignment(tutor.Id, group.Id, lenAlloc, 5);
+            if (allocByKey.TryGetValue("mat", out var matAlloc)) AddAssignment(tutor.Id, group.Id, matAlloc, 5);
+            if (allocByKey.TryGetValue("cie", out var cieAlloc)) AddAssignment(tutor.Id, group.Id, cieAlloc, 3);
+            if (allocByKey.TryGetValue("art", out var artAlloc)) AddAssignment(tutor.Id, group.Id, artAlloc, 2);
+
+            if (allocByKey.TryGetValue("ing", out var ingAlloc))
+                AddAssignment(ingTeachers[gi % ingMod].Id, group.Id, ingAlloc, ingSlots);
+
+            if (allocByKey.TryGetValue("ef", out var efAlloc))
+                AddAssignment(efTeachers[gi % efTeachers.Count].Id, group.Id, efAlloc, 3);
+
+            if (allocByKey.TryGetValue("mus", out var musAlloc))
+                AddAssignment(musicTeacher.Id, group.Id, musAlloc, 1);
+
+            if (allocByKey.TryGetValue("rel", out var relAlloc))
+                AddAssignment(relTeacher.Id, group.Id, relAlloc, 1);
+        }
+        db.Assignments.AddRange(assignments);
+
+        await db.SaveChangesAsync();
+    }
+}

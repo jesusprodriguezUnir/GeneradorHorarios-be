@@ -156,12 +156,26 @@ public class SchedulesGenerationTests
         using var teacherDoc = JsonDocument.Parse(await createTeacherResponse.Content.ReadAsStringAsync());
         var teacherId = teacherDoc.RootElement.GetProperty("id").GetGuid();
 
-        // 2. Crear una asignación de Inglés para este profesor
+        // 2. Obtener un grupo real y la asignatura de Inglés
+        var groupsResponse = await client.GetAsync("/api/groups");
+        groupsResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var groupsDoc = JsonDocument.Parse(await groupsResponse.Content.ReadAsStringAsync());
+        var groupId = groupsDoc.RootElement[0].GetProperty("id").GetGuid();
+
+        var allocationsResponse = await client.GetAsync("/api/subjects");
+        allocationsResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var allocsDoc = JsonDocument.Parse(await allocationsResponse.Content.ReadAsStringAsync());
+        var ingAllocation = allocsDoc.RootElement.EnumerateArray()
+            .FirstOrDefault(a => a.GetProperty("subjectKey").GetString() == "ing");
+        ingAllocation.Should().NotBeNull("should have an Inglés allocation");
+        var ingAllocId = ingAllocation.GetProperty("id").GetGuid();
+
+        // 3. Crear una asignación de Inglés para este profesor
         var assignmentPayload = new
         {
             teacherId = teacherId,
-            groupId = Guid.Parse("00000000-0000-0000-0003-000000000001"), // 1ºA
-            allocationId = Guid.Parse("00000000-0000-0000-0004-000000000004"), // Inglés (sIng)
+            groupId = groupId,
+            allocationId = ingAllocId,
             weeklyHours = 2
         };
         var createAssignmentResponse = await client.PostAsync("/api/assignments",
@@ -180,7 +194,7 @@ public class SchedulesGenerationTests
 
             generateResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
             var generateJson = await generateResponse.Content.ReadAsStringAsync();
-            generateJson.Should().Contain("no tiene la especialidad requerida para impartir");
+            generateJson.Should().Contain("no tiene la especialidad requerida");
         }
         finally
         {
@@ -198,7 +212,7 @@ public class SchedulesGenerationTests
         // 1. Obtener las aulas actuales
         var getClassroomsResponse = await client.GetAsync("/api/classrooms");
         getClassroomsResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-        
+
         using var classroomsDoc = JsonDocument.Parse(await getClassroomsResponse.Content.ReadAsStringAsync());
         var gymClassroom = classroomsDoc.RootElement.EnumerateArray()
             .FirstOrDefault(c => c.GetProperty("classroomType").GetString() == "gym");
@@ -215,14 +229,14 @@ public class SchedulesGenerationTests
 
         try
         {
-            // 3. Lanzar la generación y comprobar que falla por falta de aula gym (requerida por E. Física)
+            // 3. Lanzar la generación y comprobar que falla por falta de capacidad de aulas gym (requerida por E. Física)
             var generatePayload = new { academicYear = "2025-2026", timeoutSeconds = 30 };
             var generateResponse = await client.PostAsync("/api/schedules/generate",
                 new StringContent(JsonSerializer.Serialize(generatePayload), Encoding.UTF8, "application/json"));
 
             generateResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
             var generateJson = await generateResponse.Content.ReadAsStringAsync();
-            generateJson.Should().Contain("Falta configuración de espacio");
+            generateJson.Should().Contain("solo hay capacidad para");
         }
         finally
         {
@@ -244,10 +258,24 @@ public class SchedulesGenerationTests
     {
         var client = _factory.CreateAdminClient();
 
+        // Obtener configuración actual del centro
+        var schoolResponse = await client.GetAsync("/api/schools/me");
+        schoolResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var schoolDoc = JsonDocument.Parse(await schoolResponse.Content.ReadAsStringAsync());
+        var originalSlotsPerDay = schoolDoc.RootElement.GetProperty("slotsPerDay").GetInt32();
+        var originalWorkingDays = schoolDoc.RootElement.GetProperty("workingDays").EnumerateArray()
+            .Select(d => d.GetInt32()).ToArray();
+
+        // Aumentar SlotsPerDay (5→6) para que con 4 días haya 24 slots y el analizador de viabilidad no bloquee
+        // Cada grupo tiene 24 sesiones, y 4 días × 6 slots lectivos = 24
         // Excluir el miércoles (día 3)
         await client.PutAsync("/api/schools/me",
             new StringContent(
-                JsonSerializer.Serialize(new { workingDays = new[] { 1, 2, 4, 5 } }),
+                JsonSerializer.Serialize(new
+                {
+                    slotsPerDay = 6,
+                    workingDays = new[] { 1, 2, 4, 5 }
+                }),
                 Encoding.UTF8, "application/json"));
 
         try
@@ -273,10 +301,14 @@ public class SchedulesGenerationTests
         }
         finally
         {
-            // Restaurar los 5 días
+            // Restaurar configuración original
             await client.PutAsync("/api/schools/me",
                 new StringContent(
-                    JsonSerializer.Serialize(new { workingDays = new[] { 1, 2, 3, 4, 5 } }),
+                    JsonSerializer.Serialize(new
+                    {
+                        slotsPerDay = originalSlotsPerDay,
+                        workingDays = originalWorkingDays
+                    }),
                     Encoding.UTF8, "application/json"));
         }
     }

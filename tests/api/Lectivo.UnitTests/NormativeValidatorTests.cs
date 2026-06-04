@@ -1,7 +1,8 @@
+using HorariosEscolares.Domain.Constraints;
 using HorariosEscolares.Domain.Entities;
 using HorariosEscolares.Domain.Normative;
+using HorariosEscolares.Domain.Services;
 using HorariosEscolares.Infrastructure.Normative;
-using HorariosEscolares.Infrastructure.Persistence.Entities;
 using FluentAssertions;
 
 namespace Lectivo.UnitTests;
@@ -74,6 +75,22 @@ public class NormativeValidatorTests
         return (assignment, alloc);
     }
 
+    private static NormativeValidationData BuildValidationData(School school, IReadOnlyList<(Assignment Assignment, SubjectAllocation Allocation)> data)
+    {
+        var schoolConfig = new SchoolConfig(
+            school.SlotsPerDay, school.DaysPerWeek,
+            SlotCalculator.ParseWorkingDays(school.WorkingDays).ToList(),
+            SlotCalculator.Compute(school, school.SlotsPerDay)
+                .Select(s => new SlotConfig(s.Index, s.IsBreak)).ToList(), []);
+        return new NormativeValidationData(
+            schoolConfig, school.Stage, school.MinCourseLevel,
+            school.MaxCourseLevel, school.BreakMinutes, school.SlotMinutes,
+            data.Select(n => new NormativeAssignmentData(
+                n.Assignment.GroupId, n.Allocation.SubjectKey, n.Allocation.SubjectName,
+                n.Assignment.WeeklyHours, n.Allocation.WeeklyHoursMin,
+                n.Allocation.WeeklyHoursMax, n.Allocation.WeeklyHoursDefault)).ToList());
+    }
+
     /// <summary>
     /// Construye una lista de asignaciones estándar (24 h/semana)
     /// para el grupo indicado.
@@ -102,7 +119,7 @@ public class NormativeValidatorTests
         var groupId = Guid.NewGuid();
         var data = StandardGroupAssignments(groupId);
 
-        var issues = await Validator.ValidateAsync(school, data);
+        var issues = await Validator.ValidateAsync(BuildValidationData(school, data));
 
         issues.Should().BeEmpty();
     }
@@ -114,7 +131,7 @@ public class NormativeValidatorTests
         var groupId = Guid.NewGuid();
         var data = StandardGroupAssignments(groupId);
 
-        var issues = await Validator.ValidateAsync(school, data);
+        var issues = await Validator.ValidateAsync(BuildValidationData(school, data));
 
         issues.Should().ContainSingle(i =>
             i.Severity == ConflictSeverity.Error &&
@@ -129,7 +146,7 @@ public class NormativeValidatorTests
         var groupId = Guid.NewGuid();
         var data = StandardGroupAssignments(groupId);
 
-        var issues = await Validator.ValidateAsync(school, data);
+        var issues = await Validator.ValidateAsync(BuildValidationData(school, data));
         issues.Should().NotContain(i => i.Description.Contains("recreo"));
     }
 
@@ -141,7 +158,7 @@ public class NormativeValidatorTests
         var groupId = Guid.NewGuid();
         var data = StandardGroupAssignments(groupId);
 
-        var issues = await Validator.ValidateAsync(school, data);
+        var issues = await Validator.ValidateAsync(BuildValidationData(school, data));
 
         issues.Should().Contain(i =>
             i.Severity == ConflictSeverity.Error &&
@@ -154,7 +171,7 @@ public class NormativeValidatorTests
         var school = MakeSchool(maxCourseLevel: 7);
         var data = Array.Empty<(Assignment, SubjectAllocation)>();
 
-        var issues = await Validator.ValidateAsync(school, data);
+        var issues = await Validator.ValidateAsync(BuildValidationData(school, data));
 
         issues.Should().Contain(i =>
             i.Severity == ConflictSeverity.Error &&
@@ -167,7 +184,7 @@ public class NormativeValidatorTests
         var school = MakeSchool(stage: "secundaria");
         var data = Array.Empty<(Assignment, SubjectAllocation)>();
 
-        var issues = await Validator.ValidateAsync(school, data);
+        var issues = await Validator.ValidateAsync(BuildValidationData(school, data));
 
         issues.Should().Contain(i =>
             i.Severity == ConflictSeverity.Warning &&
@@ -188,7 +205,7 @@ public class NormativeValidatorTests
             MakeAssignment(groupId, "mat", 5),
         };
 
-        var issues = await Validator.ValidateAsync(school, data);
+        var issues = await Validator.ValidateAsync(BuildValidationData(school, data));
 
         issues.Should().Contain(i =>
             i.Severity == ConflictSeverity.Error &&
@@ -197,25 +214,24 @@ public class NormativeValidatorTests
     }
 
     [Fact]
-    public async Task ValidateAsync_GroupExceedsGridCapacity_ReturnsError()
+    public async Task ValidateAsync_SubjectExceedsMaxHours_ReturnsWarning()
     {
-        var school = MakeSchool(slotsPerDay: 5, slotMinutes: 60, daysPerWeek: 5); // capacidad 25h
+        var school = MakeSchool();
         var groupId = Guid.NewGuid();
-        // Asignamos 28 h (> 25 h capacidad)
         var data = new[]
         {
-            MakeAssignment(groupId, "len", 8, minH: 4, maxH: 10),
-            MakeAssignment(groupId, "mat", 8, minH: 4, maxH: 10),
-            MakeAssignment(groupId, "cie", 7, minH: 3, maxH: 10),
-            MakeAssignment(groupId, "ing", 5, minH: 3, maxH: 6),
+            MakeAssignment(groupId, "len", 8, minH: 4, maxH: 6),
+            MakeAssignment(groupId, "mat", 8, minH: 4, maxH: 6),
+            MakeAssignment(groupId, "cie", 7, minH: 3, maxH: 4),
+            MakeAssignment(groupId, "ing", 5, minH: 3, maxH: 5),
         };
 
-        var issues = await Validator.ValidateAsync(school, data);
+        var issues = await Validator.ValidateAsync(BuildValidationData(school, data));
 
         issues.Should().Contain(i =>
-            i.Severity == ConflictSeverity.Error &&
+            i.Severity == ConflictSeverity.Warning &&
             i.GroupId == groupId &&
-            i.Description.Contains("capacidad"));
+            i.Description.Contains("superando el máximo"));
     }
 
     [Fact]
@@ -229,7 +245,7 @@ public class NormativeValidatorTests
         data = data.Where(d => d.Item2.SubjectKey != "ing").ToList();
         data.Add(MakeAssignment(groupId, "ing", 2, minH: 3, maxH: 5));
 
-        var issues = await Validator.ValidateAsync(school, data);
+        var issues = await Validator.ValidateAsync(BuildValidationData(school, data));
 
         issues.Should().Contain(i =>
             i.Severity == ConflictSeverity.Warning &&
@@ -250,7 +266,7 @@ public class NormativeValidatorTests
             data.AddRange(StandardGroupAssignments(gId));
         }
 
-        var issues = await Validator.ValidateAsync(school, data);
+        var issues = await Validator.ValidateAsync(BuildValidationData(school, data));
 
         // No debe haber ningún error
         var errors = issues.Where(i => i.Severity == ConflictSeverity.Error).ToList();

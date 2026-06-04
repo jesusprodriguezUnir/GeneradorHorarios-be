@@ -10,11 +10,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Project references -->
+    <ProjectReference Include="..\..\src\HorariosEscolares.Application\HorariosEscolares.Application.csproj" />
+    <ProjectReference Include="..\..\src\HorariosEscolares.Infrastructure\HorariosEscolares.Infrastructure.csproj" />
+
     <!-- Swagger / OpenAPI -->
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.9.0" />
 
     <!-- EF Core + SQL Server -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.5" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.5" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.5">
       <PrivateAssets>all</PrivateAssets>
@@ -25,8 +28,8 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
     </PackageReference>
 
-    <!-- SignalR (ya incluido en ASP.NET Core, pero explicitamos la versión) -->
-    <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.1.0" />
+    <!-- MediatR -->
+    <PackageReference Include="MediatR" Version="12.4.1" />
 
     <!-- Serilog & Logging -->
     <PackageReference Include="Serilog.AspNetCore" Version="8.0.1" />
