@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using HorariosEscolares.Domain.Abstractions;
+using HorariosEscolares.Domain.Assignments;
 using HorariosEscolares.Domain.Entities;
 
 namespace HorariosEscolares.Application.Features.Assignments;
@@ -78,7 +79,7 @@ public sealed class GetAllAssignmentsHandler(IAppDbContext db, ICurrentUser user
     }
 }
 
-public sealed class CreateAssignmentHandler(IAppDbContext db, ICurrentUser user)
+public sealed class CreateAssignmentHandler(IAppDbContext db, IAssignmentRepository repository, ICurrentUser user)
     : IRequestHandler<CreateAssignmentCommand, AssignmentDto>
 {
     public async Task<AssignmentDto> Handle(CreateAssignmentCommand request, CancellationToken ct)
@@ -94,8 +95,8 @@ public sealed class CreateAssignmentHandler(IAppDbContext db, ICurrentUser user)
             GroupId = request.GroupId, AllocationId = request.AllocationId,
             WeeklyHours = request.WeeklyHours,
         };
-        db.Assignments.Add(a);
-        await db.SaveChangesAsync(ct);
+        await repository.AddAsync(a, ct);
+        await repository.SaveChangesAsync(ct);
 
         var teacherName = await db.Teachers.AsNoTracking()
             .Where(t => t.Id == request.TeacherId).Select(t => t.FullName).FirstOrDefaultAsync(ct) ?? "?";
@@ -108,14 +109,14 @@ public sealed class CreateAssignmentHandler(IAppDbContext db, ICurrentUser user)
     }
 }
 
-public sealed class DeleteAssignmentHandler(IAppDbContext db, ICurrentUser user)
+public sealed class DeleteAssignmentHandler(IAssignmentRepository repository, ICurrentUser user)
     : IRequestHandler<DeleteAssignmentCommand>
 {
     public async Task Handle(DeleteAssignmentCommand request, CancellationToken ct)
     {
-        var a = await db.Assignments.FirstOrDefaultAsync(x => x.Id == request.Id && x.SchoolId == user.SchoolId, ct);
-        if (a is null) throw new NotFoundException($"Assignment {request.Id} not found");
-        db.Assignments.Remove(a);
-        await db.SaveChangesAsync(ct);
+        var a = await repository.GetByIdAsync(request.Id, ct);
+        if (a is null || a.SchoolId != user.SchoolId) throw new NotFoundException($"Assignment {request.Id} not found");
+        await repository.DeleteAsync(a, ct);
+        await repository.SaveChangesAsync(ct);
     }
 }

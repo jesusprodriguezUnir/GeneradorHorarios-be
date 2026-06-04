@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using HorariosEscolares.Domain.Abstractions;
 using HorariosEscolares.Domain.Entities;
+using HorariosEscolares.Domain.Groups;
 
 namespace HorariosEscolares.Application.Features.Groups;
 
@@ -40,7 +41,7 @@ public sealed class GetAllGroupsHandler(IAppDbContext db, ICurrentUser user)
     }
 }
 
-public sealed class CreateGroupHandler(IAppDbContext db, ICurrentUser user)
+public sealed class CreateGroupHandler(IGroupRepository repository, ICurrentUser user)
     : IRequestHandler<CreateGroupCommand, GroupDto>
 {
     public async Task<GroupDto> Handle(CreateGroupCommand request, CancellationToken ct)
@@ -59,8 +60,8 @@ public sealed class CreateGroupHandler(IAppDbContext db, ICurrentUser user)
                 Hours = kv.Value
             }).ToList();
         }
-        db.CourseGroups.Add(gr);
-        await db.SaveChangesAsync(ct);
+        await repository.AddAsync(gr, ct);
+        await repository.SaveChangesAsync(ct);
         return ToDto(gr, []);
     }
 
@@ -73,15 +74,13 @@ public sealed class CreateGroupHandler(IAppDbContext db, ICurrentUser user)
     }
 }
 
-public sealed class UpdateGroupHandler(IAppDbContext db, ICurrentUser user)
+public sealed class UpdateGroupHandler(IAppDbContext db, IGroupRepository repository, ICurrentUser user)
     : IRequestHandler<UpdateGroupCommand, GroupDto>
 {
     public async Task<GroupDto> Handle(UpdateGroupCommand request, CancellationToken ct)
     {
-        var gr = await db.CourseGroups
-            .Include(x => x.SubjectHoursList)
-            .FirstOrDefaultAsync(x => x.Id == request.Id && x.SchoolId == user.SchoolId, ct);
-        if (gr is null) throw new NotFoundException($"Group {request.Id} not found");
+        var gr = await repository.GetByIdAsync(request.Id, ct);
+        if (gr is null || gr.SchoolId != user.SchoolId) throw new NotFoundException($"Group {request.Id} not found");
         if (request.CourseLevel.HasValue) gr.CourseLevel = request.CourseLevel.Value;
         if (request.GroupLabel is not null) gr.GroupLabel = request.GroupLabel;
         if (request.StudentCount.HasValue) gr.StudentCount = request.StudentCount.Value;
@@ -97,7 +96,7 @@ public sealed class UpdateGroupHandler(IAppDbContext db, ICurrentUser user)
                 Hours = kv.Value
             }).ToList();
         }
-        await db.SaveChangesAsync(ct);
+        await repository.SaveChangesAsync(ct);
         var tutorNames = await db.Teachers.AsNoTracking()
             .Where(t => t.SchoolId == user.SchoolId)
             .ToDictionaryAsync(t => t.Id, t => t.FullName, ct);
@@ -108,14 +107,14 @@ public sealed class UpdateGroupHandler(IAppDbContext db, ICurrentUser user)
     }
 }
 
-public sealed class DeleteGroupHandler(IAppDbContext db, ICurrentUser user)
+public sealed class DeleteGroupHandler(IGroupRepository repository, ICurrentUser user)
     : IRequestHandler<DeleteGroupCommand>
 {
     public async Task Handle(DeleteGroupCommand request, CancellationToken ct)
     {
-        var gr = await db.CourseGroups.FirstOrDefaultAsync(x => x.Id == request.Id && x.SchoolId == user.SchoolId, ct);
-        if (gr is null) throw new NotFoundException($"Group {request.Id} not found");
-        db.CourseGroups.Remove(gr);
-        await db.SaveChangesAsync(ct);
+        var gr = await repository.GetByIdAsync(request.Id, ct);
+        if (gr is null || gr.SchoolId != user.SchoolId) throw new NotFoundException($"Group {request.Id} not found");
+        await repository.DeleteAsync(gr, ct);
+        await repository.SaveChangesAsync(ct);
     }
 }

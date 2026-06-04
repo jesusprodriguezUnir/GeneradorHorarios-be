@@ -3,6 +3,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using HorariosEscolares.Domain.Abstractions;
 using HorariosEscolares.Domain.Entities;
+using HorariosEscolares.Domain.Teachers;
 
 namespace HorariosEscolares.Application.Features.Teachers;
 
@@ -68,7 +69,7 @@ public sealed class GetTeacherByIdHandler(IAppDbContext db, ICurrentUser user)
     }
 }
 
-public sealed class CreateTeacherHandler(IAppDbContext db, ICurrentUser user)
+public sealed class CreateTeacherHandler(ITeacherRepository repository, ICurrentUser user)
     : IRequestHandler<CreateTeacherCommand, TeacherDto>
 {
     public async Task<TeacherDto> Handle(CreateTeacherCommand request, CancellationToken ct)
@@ -80,27 +81,27 @@ public sealed class CreateTeacherHandler(IAppDbContext db, ICurrentUser user)
             Specialties = JsonSerializer.Serialize(request.Specialties),
             ColorKey = request.ColorKey,
         };
-        db.Teachers.Add(t);
-        await db.SaveChangesAsync(ct);
+        await repository.AddAsync(t, ct);
+        await repository.SaveChangesAsync(ct);
         return new(t.Id, t.FullName, t.Email, t.TeacherType,
             t.MaxWeeklyHours, request.Specialties, t.ColorKey, 0);
     }
 }
 
-public sealed class UpdateTeacherHandler(IAppDbContext db, ICurrentUser user)
+public sealed class UpdateTeacherHandler(IAppDbContext db, ITeacherRepository repository, ICurrentUser user)
     : IRequestHandler<UpdateTeacherCommand, TeacherDto>
 {
     public async Task<TeacherDto> Handle(UpdateTeacherCommand request, CancellationToken ct)
     {
-        var t = await db.Teachers.FirstOrDefaultAsync(x => x.Id == request.Id && x.SchoolId == user.SchoolId, ct);
-        if (t is null) throw new NotFoundException($"Teacher {request.Id} not found");
+        var t = await repository.GetByIdAsync(request.Id, ct);
+        if (t is null || t.SchoolId != user.SchoolId) throw new NotFoundException($"Teacher {request.Id} not found");
         if (request.FullName is not null) t.FullName = request.FullName;
         if (request.Email is not null) t.Email = request.Email;
         if (request.TeacherType is not null) t.TeacherType = request.TeacherType;
         if (request.MaxWeeklyHours.HasValue) t.MaxWeeklyHours = request.MaxWeeklyHours.Value;
         if (request.Specialties is not null) t.Specialties = JsonSerializer.Serialize(request.Specialties);
         if (request.ColorKey is not null) t.ColorKey = request.ColorKey;
-        await db.SaveChangesAsync(ct);
+        await repository.SaveChangesAsync(ct);
         var hours = await db.Assignments.AsNoTracking()
             .Where(a => a.TeacherId == request.Id).SumAsync(a => a.WeeklyHours, ct);
         string[] specialties;
@@ -111,14 +112,14 @@ public sealed class UpdateTeacherHandler(IAppDbContext db, ICurrentUser user)
     }
 }
 
-public sealed class DeleteTeacherHandler(IAppDbContext db, ICurrentUser user)
+public sealed class DeleteTeacherHandler(ITeacherRepository repository, ICurrentUser user)
     : IRequestHandler<DeleteTeacherCommand>
 {
     public async Task Handle(DeleteTeacherCommand request, CancellationToken ct)
     {
-        var t = await db.Teachers.FirstOrDefaultAsync(x => x.Id == request.Id && x.SchoolId == user.SchoolId, ct);
-        if (t is null) throw new NotFoundException($"Teacher {request.Id} not found");
-        db.Teachers.Remove(t);
-        await db.SaveChangesAsync(ct);
+        var t = await repository.GetByIdAsync(request.Id, ct);
+        if (t is null || t.SchoolId != user.SchoolId) throw new NotFoundException($"Teacher {request.Id} not found");
+        await repository.DeleteAsync(t, ct);
+        await repository.SaveChangesAsync(ct);
     }
 }

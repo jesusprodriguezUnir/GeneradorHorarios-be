@@ -3,6 +3,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using HorariosEscolares.Domain.Abstractions;
 using HorariosEscolares.Domain.Entities;
+using HorariosEscolares.Domain.Schools;
 using HorariosEscolares.Domain.Services;
 
 namespace HorariosEscolares.Application.Features.Schools;
@@ -77,12 +78,12 @@ public sealed class GetSchoolHandler(IAppDbContext db, ICurrentUser user)
     }
 }
 
-public sealed class UpdateSchoolHandler(IAppDbContext db, ICurrentUser user)
+public sealed class UpdateSchoolHandler(IAppDbContext db, ISchoolRepository repository, ICurrentUser user)
     : IRequestHandler<UpdateSchoolCommand, SchoolDto>
 {
     public async Task<SchoolDto> Handle(UpdateSchoolCommand request, CancellationToken ct)
     {
-        var s = await db.Schools.FirstOrDefaultAsync(x => x.Id == user.SchoolId, ct);
+        var s = await repository.GetByIdAsync(user.SchoolId, ct);
         if (s is null) throw new NotFoundException("School not found");
 
         if (request.Name is not null) s.Name = request.Name;
@@ -138,7 +139,7 @@ public sealed class UpdateSchoolHandler(IAppDbContext db, ICurrentUser user)
                 throw new InvalidOperationException("El inicio de la jornada de tarde debe ser posterior al final de la jornada de mañana.");
         }
 
-        await db.SaveChangesAsync(ct);
+        await repository.SaveChangesAsync(ct);
 
         var cycles = await db.CycleSchedules.AsNoTracking()
             .Where(c => c.SchoolId == user.SchoolId).ToListAsync(ct);

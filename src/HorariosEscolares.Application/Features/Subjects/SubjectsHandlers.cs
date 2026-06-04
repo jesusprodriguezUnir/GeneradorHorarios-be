@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using HorariosEscolares.Domain.Abstractions;
 using HorariosEscolares.Domain.Entities;
+using HorariosEscolares.Domain.Subjects;
 
 namespace HorariosEscolares.Application.Features.Subjects;
 
@@ -108,12 +109,12 @@ public sealed class CloneOfficialCurriculumHandler(IAppDbContext db, ICurrentUse
     }
 }
 
-public sealed class UpdateSubjectHoursHandler(IAppDbContext db, ICurrentUser user)
+public sealed class UpdateSubjectHoursHandler(IAppDbContext db, ISubjectRepository repository, ICurrentUser user)
     : IRequestHandler<UpdateSubjectHoursCommand, SubjectDto>
 {
     public async Task<SubjectDto> Handle(UpdateSubjectHoursCommand request, CancellationToken ct)
     {
-        var a = await db.SubjectAllocations.FirstOrDefaultAsync(x => x.Id == request.Id, ct);
+        var a = await repository.GetByIdAsync(request.Id, ct);
         if (a is null) throw new NotFoundException($"Subject {request.Id} not found");
 
         var template = await db.CurriculumTemplates.AsNoTracking()
@@ -129,7 +130,7 @@ public sealed class UpdateSubjectHoursHandler(IAppDbContext db, ICurrentUser use
             throw new InvalidOperationException($"Las horas deben estar entre {a.WeeklyHoursMin} y {a.WeeklyHoursMax} según la normativa LOMLOE Madrid.");
 
         a.WeeklyHoursDefault = request.WeeklyHoursDefault;
-        await db.SaveChangesAsync(ct);
+        await repository.SaveChangesAsync(ct);
         return new SubjectDto(a.Id, a.SubjectName, a.SubjectShort, a.SubjectKey,
             a.WeeklyHoursMin, a.WeeklyHoursMax, a.WeeklyHoursDefault,
             a.RequiresSpecialist, a.RequiredClassroomType,
@@ -137,7 +138,7 @@ public sealed class UpdateSubjectHoursHandler(IAppDbContext db, ICurrentUser use
     }
 }
 
-public sealed class CreateSubjectHandler(IAppDbContext db, ICurrentUser user)
+public sealed class CreateSubjectHandler(IAppDbContext db, ISubjectRepository repository, ICurrentUser user)
     : IRequestHandler<CreateSubjectCommand, SubjectDto>
 {
     public async Task<SubjectDto> Handle(CreateSubjectCommand request, CancellationToken ct)
@@ -160,8 +161,8 @@ public sealed class CreateSubjectHandler(IAppDbContext db, ICurrentUser user)
             SplittableAcrossDays = request.SplittableAcrossDays,
             IsOfficial = false
         };
-        db.SubjectAllocations.Add(s);
-        await db.SaveChangesAsync(ct);
+        await repository.AddAsync(s, ct);
+        await repository.SaveChangesAsync(ct);
         return new SubjectDto(s.Id, s.SubjectName, s.SubjectShort, s.SubjectKey,
             s.WeeklyHoursMin, s.WeeklyHoursMax, s.WeeklyHoursDefault,
             s.RequiresSpecialist, s.RequiredClassroomType,
@@ -169,12 +170,12 @@ public sealed class CreateSubjectHandler(IAppDbContext db, ICurrentUser user)
     }
 }
 
-public sealed class UpdateSubjectHandler(IAppDbContext db, ICurrentUser user)
+public sealed class UpdateSubjectHandler(IAppDbContext db, ISubjectRepository repository, ICurrentUser user)
     : IRequestHandler<UpdateSubjectCommand, SubjectDto>
 {
     public async Task<SubjectDto> Handle(UpdateSubjectCommand request, CancellationToken ct)
     {
-        var a = await db.SubjectAllocations.FirstOrDefaultAsync(x => x.Id == request.Id, ct);
+        var a = await repository.GetByIdAsync(request.Id, ct);
         if (a is null) throw new NotFoundException($"Subject {request.Id} not found");
 
         var template = await db.CurriculumTemplates.AsNoTracking()
@@ -192,7 +193,7 @@ public sealed class UpdateSubjectHandler(IAppDbContext db, ICurrentUser user)
         a.RequiredClassroomType = request.RequiredClassroomType;
         if (request.MaxConsecutiveSlots.HasValue) a.MaxConsecutiveSlots = request.MaxConsecutiveSlots.Value;
         if (request.SplittableAcrossDays.HasValue) a.SplittableAcrossDays = request.SplittableAcrossDays.Value;
-        await db.SaveChangesAsync(ct);
+        await repository.SaveChangesAsync(ct);
 
         return new SubjectDto(a.Id, a.SubjectName, a.SubjectShort, a.SubjectKey,
             a.WeeklyHoursMin, a.WeeklyHoursMax, a.WeeklyHoursDefault,
@@ -201,12 +202,12 @@ public sealed class UpdateSubjectHandler(IAppDbContext db, ICurrentUser user)
     }
 }
 
-public sealed class DeleteSubjectHandler(IAppDbContext db, ICurrentUser user)
+public sealed class DeleteSubjectHandler(IAppDbContext db, ISubjectRepository repository, ICurrentUser user)
     : IRequestHandler<DeleteSubjectCommand>
 {
     public async Task Handle(DeleteSubjectCommand request, CancellationToken ct)
     {
-        var a = await db.SubjectAllocations.FirstOrDefaultAsync(x => x.Id == request.Id, ct);
+        var a = await repository.GetByIdAsync(request.Id, ct);
         if (a is null) throw new NotFoundException($"Subject {request.Id} not found");
 
         var template = await db.CurriculumTemplates.AsNoTracking()
@@ -214,7 +215,7 @@ public sealed class DeleteSubjectHandler(IAppDbContext db, ICurrentUser user)
         if (template is null || template.IsOfficial || template.SchoolId != user.SchoolId)
             throw new UnauthorizedAccessException();
 
-        db.SubjectAllocations.Remove(a);
-        await db.SaveChangesAsync(ct);
+        await repository.DeleteAsync(a, ct);
+        await repository.SaveChangesAsync(ct);
     }
 }

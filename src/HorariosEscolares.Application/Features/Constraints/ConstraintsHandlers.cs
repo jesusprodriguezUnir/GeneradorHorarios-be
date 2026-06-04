@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using HorariosEscolares.Domain.Abstractions;
+using HorariosEscolares.Domain.Constraints;
 using HorariosEscolares.Domain.Entities;
 
 namespace HorariosEscolares.Application.Features.Constraints;
@@ -55,7 +56,7 @@ public sealed class GetConstraintsByTeacherHandler(IAppDbContext db, ICurrentUse
     }
 }
 
-public sealed class CreateConstraintHandler(IAppDbContext db, ICurrentUser user)
+public sealed class CreateConstraintHandler(IAppDbContext db, IConstraintRepository repository, ICurrentUser user)
     : IRequestHandler<CreateConstraintCommand, ConstraintDto>
 {
     public async Task<ConstraintDto> Handle(CreateConstraintCommand request, CancellationToken ct)
@@ -66,8 +67,8 @@ public sealed class CreateConstraintHandler(IAppDbContext db, ICurrentUser user)
             ConstraintType = request.ConstraintType, DayOfWeek = request.DayOfWeek,
             SlotIndex = request.SlotIndex, Weight = request.Weight, Reason = request.Reason,
         };
-        db.TeacherConstraints.Add(c);
-        await db.SaveChangesAsync(ct);
+        await repository.AddAsync(c, ct);
+        await repository.SaveChangesAsync(ct);
         var name = await db.Teachers.AsNoTracking()
             .Where(t => t.Id == request.TeacherId).Select(t => t.FullName).FirstOrDefaultAsync(ct) ?? "?";
         return new ConstraintDto(c.Id, c.TeacherId, name, c.ConstraintType,
@@ -75,15 +76,14 @@ public sealed class CreateConstraintHandler(IAppDbContext db, ICurrentUser user)
     }
 }
 
-public sealed class DeleteConstraintHandler(IAppDbContext db, ICurrentUser user)
+public sealed class DeleteConstraintHandler(IConstraintRepository repository, ICurrentUser user)
     : IRequestHandler<DeleteConstraintCommand>
 {
     public async Task Handle(DeleteConstraintCommand request, CancellationToken ct)
     {
-        var c = await db.TeacherConstraints.FirstOrDefaultAsync(
-            x => x.Id == request.Id && x.SchoolId == user.SchoolId, ct);
-        if (c is null) throw new NotFoundException($"Constraint {request.Id} not found");
-        db.TeacherConstraints.Remove(c);
-        await db.SaveChangesAsync(ct);
+        var c = await repository.GetByIdAsync(request.Id, ct);
+        if (c is null || c.SchoolId != user.SchoolId) throw new NotFoundException($"Constraint {request.Id} not found");
+        await repository.DeleteAsync(c, ct);
+        await repository.SaveChangesAsync(ct);
     }
 }
