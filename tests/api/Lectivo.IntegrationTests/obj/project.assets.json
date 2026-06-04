@@ -7703,11 +7703,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "D:\\Personal\\GeneradorHorarios\\tests\\api\\Lectivo.IntegrationTests\\Lectivo.IntegrationTests.csproj",
+      "projectUniqueName": "D:\\Proyectos\\Horarios\\GeneradorHorarios-be\\tests\\api\\Lectivo.IntegrationTests\\Lectivo.IntegrationTests.csproj",
       "projectName": "Lectivo.IntegrationTests",
-      "projectPath": "D:\\Personal\\GeneradorHorarios\\tests\\api\\Lectivo.IntegrationTests\\Lectivo.IntegrationTests.csproj",
+      "projectPath": "D:\\Proyectos\\Horarios\\GeneradorHorarios-be\\tests\\api\\Lectivo.IntegrationTests\\Lectivo.IntegrationTests.csproj",
       "packagesPath": "C:\\Users\\jesus\\.nuget\\packages\\",
-      "outputPath": "D:\\Personal\\GeneradorHorarios\\tests\\api\\Lectivo.IntegrationTests\\obj\\",
+      "outputPath": "D:\\Proyectos\\Horarios\\GeneradorHorarios-be\\tests\\api\\Lectivo.IntegrationTests\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -7726,10 +7726,11 @@
       },
       "frameworks": {
         "net8.0": {
+          "framework": "net8.0",
           "targetAlias": "net8.0",
           "projectReferences": {
-            "D:\\Personal\\GeneradorHorarios\\apps\\api\\api.csproj": {
-              "projectPath": "D:\\Personal\\GeneradorHorarios\\apps\\api\\api.csproj"
+            "D:\\Proyectos\\Horarios\\GeneradorHorarios-be\\apps\\api\\api.csproj": {
+              "projectPath": "D:\\Proyectos\\Horarios\\GeneradorHorarios-be\\apps\\api\\api.csproj"
             }
           }
         }
@@ -7748,6 +7749,7 @@
     },
     "frameworks": {
       "net8.0": {
+        "framework": "net8.0",
         "targetAlias": "net8.0",
         "dependencies": {
           "FluentAssertions": {

@@ -105,7 +105,7 @@ using (var scope = app.Services.CreateScope())
 // ── Pipeline ──────────────────────────────────────────────────────────────────
 app.UseSerilogRequestLogging();
 
-if (app.Environment.IsDevelopment())
+if (!app.Environment.IsProduction())
 {
     app.UseSwagger();
     app.UseSwaggerUI(c =>
@@ -131,8 +131,8 @@ app.MapScheduleEndpoints();
 
 app.MapHub<GenerationProgressHub>("/hubs/generation");
 
-// ── Endpoints de desarrollo (solo en entorno Development) ─────────────────────
-if (app.Environment.IsDevelopment())
+// ── Endpoints de desarrollo (solo en entornos no-Production) ──────────────────
+if (!app.Environment.IsProduction())
 {
     app.MapDevEndpoints();
 }

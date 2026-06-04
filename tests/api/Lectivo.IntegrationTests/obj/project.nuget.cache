@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "ZB7oet1lMDo=",
+  "dgSpecHash": "4SKZsqIAFRQ=",
   "success": true,
-  "projectFilePath": "D:\\Personal\\GeneradorHorarios\\tests\\api\\Lectivo.IntegrationTests\\Lectivo.IntegrationTests.csproj",
+  "projectFilePath": "D:\\Proyectos\\Horarios\\GeneradorHorarios-be\\tests\\api\\Lectivo.IntegrationTests\\Lectivo.IntegrationTests.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\jesus\\.nuget\\packages\\aspnetcore.healthchecks.redis\\8.0.1\\aspnetcore.healthchecks.redis.8.0.1.nupkg.sha512",
     "C:\\Users\\jesus\\.nuget\\packages\\azure.core\\1.35.0\\azure.core.1.35.0.nupkg.sha512",
