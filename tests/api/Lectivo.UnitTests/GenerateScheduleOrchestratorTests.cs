@@ -24,6 +24,7 @@ public class GenerateScheduleOrchestratorTests
     }
 
     private static readonly Guid SchoolId = Guid.NewGuid();
+    private static readonly Guid PeriodId = Guid.NewGuid();
     private static readonly Guid TeacherId = Guid.NewGuid();
     private static readonly Guid GroupId = Guid.NewGuid();
     private static readonly Guid AllocationId = Guid.NewGuid();
@@ -46,9 +47,40 @@ public class GenerateScheduleOrchestratorTests
         MaxCourseLevel = 6,
     };
 
+    private static void SeedDefaultPeriod(AppDbContext db)
+    {
+        var period = new SchoolPeriod
+        {
+            Id = PeriodId,
+            SchoolId = SchoolId,
+            Key = "ordinario",
+            Name = "Test ordinario",
+            Months = "[10,11,12,1,2,3,4,5]",
+            ScheduleType = "continua",
+            SlotMinutes = 60,
+            SlotsPerDay = 5,
+            AfternoonSlots = 0,
+            IsDefault = true,
+            SortOrder = 0,
+        };
+        for (int c = 1; c <= 3; c++)
+        {
+            period.Cycles.Add(new CycleSchedule
+            {
+                SchoolId = SchoolId,
+                PeriodId = period.Id,
+                Cycle = c,
+                MorningStart = new TimeOnly(9, 0),
+                EndTime = new TimeOnly(14, 0),
+            });
+        }
+        db.SchoolPeriods.Add(period);
+    }
+
     private static void SeedMinimalData(AppDbContext db)
     {
         db.Schools.Add(CreateSchool());
+        SeedDefaultPeriod(db);
         db.Teachers.Add(new Teacher
         {
             Id = TeacherId,
@@ -99,6 +131,7 @@ public class GenerateScheduleOrchestratorTests
     private static void SeedMissingSpecialistData(AppDbContext db)
     {
         db.Schools.Add(CreateSchool());
+        SeedDefaultPeriod(db);
         db.Teachers.Add(new Teacher
         {
             Id = TeacherId,
@@ -169,7 +202,7 @@ public class GenerateScheduleOrchestratorTests
         var orchestrator = CreateOrchestrator(db);
 
         var act = async () => await orchestrator.GenerateAsync(
-            Guid.NewGuid(), "2025/2026", 30, null, CancellationToken.None);
+            Guid.NewGuid(), Guid.NewGuid(), "2025/2026", 30, null, CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -179,11 +212,12 @@ public class GenerateScheduleOrchestratorTests
     {
         await using var db = CreateInMemoryDb();
         db.Schools.Add(CreateSchool());
+        SeedDefaultPeriod(db);
         await db.SaveChangesAsync();
 
         var orchestrator = CreateOrchestrator(db);
         var result = await orchestrator.GenerateAsync(
-            SchoolId, "2025/2026", 30, null, CancellationToken.None);
+            SchoolId, PeriodId, "2025/2026", 30, null, CancellationToken.None);
 
         result.Should().BeOfType<GenerateScheduleResult.NoAssignments>();
     }
@@ -196,7 +230,7 @@ public class GenerateScheduleOrchestratorTests
 
         var orchestrator = CreateOrchestrator(db);
         var result = await orchestrator.GenerateAsync(
-            SchoolId, "2025/2026", 30, null, CancellationToken.None);
+            SchoolId, PeriodId, "2025/2026", 30, null, CancellationToken.None);
 
         var failedResult = result.Should().BeOfType<GenerateScheduleResult.ViabilityFailed>().Subject;
         failedResult.TotalConflicts.Should().BeGreaterThan(0);
@@ -215,7 +249,7 @@ public class GenerateScheduleOrchestratorTests
         var orchestrator = CreateOrchestrator(db, fakeRepo);
 
         var result = await orchestrator.GenerateAsync(
-            SchoolId, "2025/2026", 30, null, CancellationToken.None);
+            SchoolId, PeriodId, "2025/2026", 30, null, CancellationToken.None);
 
         var success = result.Should().BeOfType<GenerateScheduleResult.Success>().Subject;
         success.TotalAssigned.Should().Be(2);
@@ -237,7 +271,7 @@ public class GenerateScheduleOrchestratorTests
         var orchestrator = CreateOrchestrator(db, fakeRepo);
 
         await orchestrator.GenerateAsync(
-            SchoolId, "2025/2026", 30, null, CancellationToken.None);
+            SchoolId, PeriodId, "2025/2026", 30, null, CancellationToken.None);
 
         fakeRepo.LastSchedule.Should().NotBeNull();
         fakeRepo.LastSchedule!.Status.Should().Be("failed");

@@ -50,18 +50,21 @@ public sealed class NormativeValidator : INormativeValidator
                 ]));
         }
 
-        decimal lectiveMinutes = (decimal)data.SchoolConfig.SlotsPerDay * data.SlotMinutes * data.SchoolConfig.DaysPerWeek;
-        decimal lectiveHours = lectiveMinutes / 60m;
-
-        if (lectiveHours < LomloeMadrid.MinWeeklyLectiveHours)
+        if (data.EnforceWeeklyLectiveMinimum)
         {
-            issues.Add(MakeIssue(ConflictSeverity.Error,
-                $"La rejilla horaria del centro ({lectiveHours:F1} h/semana lectivas) es inferior al " +
-                $"mínimo legal de {LomloeMadrid.MinWeeklyLectiveHours} h/semana (Decreto 61/2022).",
-                [
-                    $"Aumenta SlotsPerDay o DaysPerWeek para alcanzar ≥ {LomloeMadrid.MinWeeklyLectiveHours} h lectivas/semana.",
-                    "Por ejemplo: 5 tramos de 60 min × 5 días = 25 h/semana.",
-                ]));
+            decimal lectiveMinutes = (decimal)data.SchoolConfig.SlotsPerDay * data.SlotMinutes * data.SchoolConfig.DaysPerWeek;
+            decimal lectiveHours = lectiveMinutes / 60m;
+
+            if (lectiveHours < LomloeMadrid.MinWeeklyLectiveHours)
+            {
+                issues.Add(MakeIssue(ConflictSeverity.Error,
+                    $"La rejilla horaria del centro ({lectiveHours:F1} h/semana lectivas) es inferior al " +
+                    $"mínimo legal de {LomloeMadrid.MinWeeklyLectiveHours} h/semana (Decreto 61/2022).",
+                    [
+                        $"Aumenta SlotsPerDay o DaysPerWeek para alcanzar ≥ {LomloeMadrid.MinWeeklyLectiveHours} h lectivas/semana.",
+                        "Por ejemplo: 5 tramos de 60 min × 5 días = 25 h/semana.",
+                    ]));
+            }
         }
     }
 
@@ -75,7 +78,7 @@ public sealed class NormativeValidator : INormativeValidator
         {
             decimal totalH = assignments.Sum(a => (decimal)a.WeeklyHours);
 
-            if (totalH < LomloeMadrid.MinWeeklyLectiveHours)
+            if (data.EnforceWeeklyLectiveMinimum && totalH < LomloeMadrid.MinWeeklyLectiveHours)
             {
                 issues.Add(MakeIssue(ConflictSeverity.Error,
                     $"El grupo {GroupLabel(assignments)} solo tiene {totalH:F0} h/semana asignadas, " +

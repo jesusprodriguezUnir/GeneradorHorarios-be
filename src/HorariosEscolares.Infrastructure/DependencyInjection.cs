@@ -31,6 +31,7 @@ public static class DependencyInjection
         services.AddScoped<IConstraintRepository, ConstraintRepository>();
         services.AddScoped<IAssignmentRepository, AssignmentRepository>();
         services.AddScoped<ICycleScheduleRepository, CycleScheduleRepository>();
+        services.AddScoped<ISchoolPeriodRepository, SchoolPeriodRepository>();
 
         return services;
     }

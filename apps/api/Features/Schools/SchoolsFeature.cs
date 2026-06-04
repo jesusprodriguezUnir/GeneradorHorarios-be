@@ -14,6 +14,7 @@ public static class SchoolEndpoints
     {
         var g = app.MapGroup("/api/schools");
 
+        // ── School (compatibilidad) ─────────────────────────────────────────
         g.MapGet("/me", async (ISender sender) =>
         {
             var result = await sender.Send(new GetSchoolQuery());
@@ -47,6 +48,7 @@ public static class SchoolEndpoints
             }
         });
 
+        // ── Cycles (compatibilidad — apunta al periodo por defecto) ─────────
         g.MapGet("/me/cycles/{cycle}", async (int cycle, ISender sender) =>
         {
             var result = await sender.Send(new GetCycleScheduleQuery(cycle));
@@ -57,6 +59,75 @@ public static class SchoolEndpoints
         {
             if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
             var result = await sender.Send(cmd with { Cycle = cycle });
+            return Results.Ok(result);
+        });
+
+        // ── Periods CRUD ────────────────────────────────────────────────────
+        g.MapGet("/me/periods", async (ISender sender) =>
+        {
+            var result = await sender.Send(new GetPeriodsQuery());
+            return Results.Ok(result);
+        });
+
+        g.MapGet("/me/periods/{periodId:guid}", async (Guid periodId, ISender sender) =>
+        {
+            var result = await sender.Send(new GetPeriodQuery(periodId));
+            return result is not null ? Results.Ok(result) : Results.NotFound();
+        });
+
+        g.MapPost("/me/periods", async (HttpContext ctx, ISender sender, CreatePeriodCommand cmd) =>
+        {
+            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
+            try
+            {
+                var result = await sender.Send(cmd);
+                return Results.Created($"/api/schools/me/periods/{result.Id}", result);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.BadRequest(new { message = ex.Message });
+            }
+        });
+
+        g.MapPut("/me/periods/{periodId:guid}", async (Guid periodId, HttpContext ctx, ISender sender, UpdatePeriodCommand cmd) =>
+        {
+            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
+            try
+            {
+                var result = await sender.Send(cmd with { PeriodId = periodId });
+                return Results.Ok(result);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.BadRequest(new { message = ex.Message });
+            }
+        });
+
+        g.MapDelete("/me/periods/{periodId:guid}", async (Guid periodId, HttpContext ctx, ISender sender) =>
+        {
+            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
+            try
+            {
+                await sender.Send(new DeletePeriodCommand(periodId));
+                return Results.NoContent();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.BadRequest(new { message = ex.Message });
+            }
+        });
+
+        // ── Period cycles ───────────────────────────────────────────────────
+        g.MapGet("/me/periods/{periodId:guid}/cycles/{cycle}", async (Guid periodId, int cycle, ISender sender) =>
+        {
+            var result = await sender.Send(new GetPeriodCycleQuery(periodId, cycle));
+            return result is not null ? Results.Ok(result) : Results.NotFound();
+        });
+
+        g.MapPut("/me/periods/{periodId:guid}/cycles/{cycle}", async (Guid periodId, int cycle, HttpContext ctx, ISender sender, UpdatePeriodCycleCommand cmd) =>
+        {
+            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
+            var result = await sender.Send(cmd with { PeriodId = periodId, Cycle = cycle });
             return Results.Ok(result);
         });
 

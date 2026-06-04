@@ -84,13 +84,19 @@ public class NormativeValidatorTests
             school.SlotsPerDay, school.DaysPerWeek,
             SlotCalculator.ParseWorkingDays(school.WorkingDays).ToList(),
             cycles, []);
-        return new NormativeValidationData(
-            schoolConfig, school.Stage, school.MinCourseLevel,
-            school.MaxCourseLevel, school.BreakMinutes, school.SlotMinutes,
-            data.Select(n => new NormativeAssignmentData(
+        return new NormativeValidationData
+        {
+            SchoolConfig = schoolConfig,
+            Stage = school.Stage,
+            MinCourseLevel = school.MinCourseLevel,
+            MaxCourseLevel = school.MaxCourseLevel,
+            BreakMinutes = school.BreakMinutes,
+            SlotMinutes = school.SlotMinutes,
+            Assignments = data.Select(n => new NormativeAssignmentData(
                 n.Assignment.GroupId, n.Allocation.SubjectKey, n.Allocation.SubjectName,
                 n.Assignment.WeeklyHours, n.Allocation.WeeklyHoursMin,
-                n.Allocation.WeeklyHoursMax, n.Allocation.WeeklyHoursDefault)).ToList());
+                n.Allocation.WeeklyHoursMax, n.Allocation.WeeklyHoursDefault)).ToList(),
+        };
     }
 
     /// <summary>

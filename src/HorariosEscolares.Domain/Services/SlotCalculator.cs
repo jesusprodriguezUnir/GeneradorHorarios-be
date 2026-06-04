@@ -143,6 +143,28 @@ public static class SlotCalculator
             s.ScheduleType == "partida" && c.AfternoonStart.HasValue);
     }
 
+    public static List<SlotInfo> Compute(CycleSchedule c, SchoolPeriod p)
+    {
+        var breaks = c.Breaks
+            .OrderBy(b => b.AfterSlot)
+            .Select(b => (b.AfterSlot, b.Minutes))
+            .ToList();
+        return Compute(p.SlotsPerDay, p.SlotMinutes, breaks,
+            p.AfternoonSlots, c.MorningStart, c.AfternoonStart,
+            p.ScheduleType == "partida" && c.AfternoonStart.HasValue);
+    }
+
+    public static TimeOnly ComputeEndTime(CycleSchedule c, SchoolPeriod p)
+    {
+        var breaks = c.Breaks
+            .OrderBy(b => b.AfterSlot)
+            .Select(b => (b.AfterSlot, b.Minutes))
+            .ToList();
+        return ComputeEndTime(p.SlotsPerDay, p.SlotMinutes, breaks,
+            p.AfternoonSlots, c.MorningStart, c.AfternoonStart,
+            p.ScheduleType == "partida" && c.AfternoonStart.HasValue);
+    }
+
     public static IReadOnlyList<int> ParseWorkingDays(string json)
     {
         try

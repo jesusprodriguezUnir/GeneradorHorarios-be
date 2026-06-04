@@ -10,14 +10,17 @@ public interface INormativeValidator
         CancellationToken ct = default);
 }
 
-public record NormativeValidationData(
-    SchoolConfig SchoolConfig,
-    string Stage,
-    int MinCourseLevel,
-    int MaxCourseLevel,
-    int BreakMinutes,
-    int SlotMinutes,
-    IReadOnlyList<NormativeAssignmentData> Assignments);
+public class NormativeValidationData
+{
+    public SchoolConfig SchoolConfig { get; init; } = new(0, 0, [], [], []);
+    public string Stage { get; init; } = "primaria";
+    public int MinCourseLevel { get; init; }
+    public int MaxCourseLevel { get; init; }
+    public int BreakMinutes { get; init; }
+    public int SlotMinutes { get; init; }
+    public IReadOnlyList<NormativeAssignmentData> Assignments { get; init; } = [];
+    public bool EnforceWeeklyLectiveMinimum { get; init; } = true;
+}
 
 public record NormativeAssignmentData(
     Guid GroupId,

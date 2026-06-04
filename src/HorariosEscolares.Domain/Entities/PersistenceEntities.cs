@@ -141,6 +141,7 @@ public class ScheduleRecord
     public DateTime? PublishedAt { get; set; }
     public int? GenerationSeconds { get; set; }
     public int TotalConflicts { get; set; } = 0;
+    public Guid? PeriodId { get; set; }
     public required Guid CreatedBy { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
@@ -173,15 +174,41 @@ public class ScheduleConflictRecord
     public int? SlotIndex { get; set; }
 }
 
+public class SchoolPeriod
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public required Guid SchoolId { get; set; }
+    public required string Key { get; set; }
+    public required string Name { get; set; }
+    public string Months { get; set; } = "[10,11,12,1,2,3,4,5]";
+    public string ScheduleType { get; set; } = "partida";
+    public int SlotMinutes { get; set; } = 60;
+    public int SlotsPerDay { get; set; } = 5;
+    public int AfternoonSlots { get; set; } = 0;
+    public bool IsDefault { get; set; }
+    public int SortOrder { get; set; }
+    public ICollection<CycleSchedule> Cycles { get; set; } = new List<CycleSchedule>();
+}
+
 public class CycleSchedule
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public required Guid SchoolId { get; set; }
+    public required Guid PeriodId { get; set; }
     public required int Cycle { get; set; }
     public TimeOnly MorningStart { get; set; } = new(9, 0);
     public TimeOnly EndTime { get; set; } = new(14, 0);
     public TimeOnly? AfternoonStart { get; set; }
+    public SchoolPeriod? Period { get; set; }
     public ICollection<CycleBreak> Breaks { get; set; } = new List<CycleBreak>();
+}
+
+public class PeriodAssignmentHours
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public required Guid PeriodId { get; set; }
+    public required Guid AssignmentId { get; set; }
+    public required int WeeklyHours { get; set; }
 }
 
 public class CycleBreak

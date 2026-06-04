@@ -49,13 +49,19 @@ public sealed class NormativeCheckHandler(IAppDbContext db, INormativeValidator 
 
         var schoolConfig = new SchoolConfig(
             school.SlotsPerDay, school.DaysPerWeek, workingDays, cycles, []);
-        var data = new NormativeValidationData(
-            schoolConfig, school.Stage, school.MinCourseLevel,
-            school.MaxCourseLevel, school.BreakMinutes, school.SlotMinutes,
-            normativeData.Select(n => new NormativeAssignmentData(
+        var data = new NormativeValidationData
+        {
+            SchoolConfig = schoolConfig,
+            Stage = school.Stage,
+            MinCourseLevel = school.MinCourseLevel,
+            MaxCourseLevel = school.MaxCourseLevel,
+            BreakMinutes = school.BreakMinutes,
+            SlotMinutes = school.SlotMinutes,
+            Assignments = normativeData.Select(n => new NormativeAssignmentData(
                 n.a.GroupId, n.Item2.SubjectKey, n.Item2.SubjectName,
                 n.a.WeeklyHours, n.Item2.WeeklyHoursMin,
-                n.Item2.WeeklyHoursMax, n.Item2.WeeklyHoursDefault)).ToList());
+                n.Item2.WeeklyHoursMax, n.Item2.WeeklyHoursDefault)).ToList(),
+        };
         var issues = await validator.ValidateAsync(data, ct);
         var compliant = issues.All(i => i.Severity != ConflictSeverity.Error);
 

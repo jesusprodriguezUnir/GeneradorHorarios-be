@@ -10,7 +10,8 @@ namespace HorariosEscolares.Application.Features.Schedules;
 public record ScheduleListDto(
     Guid Id, string AcademicYear, string Status,
     DateTime? GeneratedAt, DateTime? PublishedAt,
-    int TotalConflicts, int? GenerationSeconds);
+    int TotalConflicts, int? GenerationSeconds,
+    Guid? PeriodId, string? PeriodName);
 
 public record ConflictDto(
     string Type, string Severity, string Description, string[] Suggestions,
@@ -21,7 +22,8 @@ public record ScheduleGridDto(
     IReadOnlyList<ScheduleGridEntry> Entries,
     IReadOnlyList<ConflictDto> Conflicts,
     IReadOnlyList<SlotInfoDto> Slots,
-    IReadOnlyDictionary<int, IReadOnlyList<SlotInfoDto>> SlotsByCycle);
+    IReadOnlyDictionary<int, IReadOnlyList<SlotInfoDto>> SlotsByCycle,
+    Guid? PeriodId, string? PeriodName);
 
 public record ScheduleGridEntry(
     Guid Id, int DayOfWeek, int SlotIndex,
@@ -55,12 +57,22 @@ public sealed class GetSchedulesListHandler(IAppDbContext db, ICurrentUser user)
 {
     public async Task<List<ScheduleListDto>> Handle(GetSchedulesListQuery request, CancellationToken ct)
     {
-        return await db.Schedules.AsNoTracking()
+        var schedules = await db.Schedules.AsNoTracking()
             .Where(s => s.SchoolId == user.SchoolId)
             .OrderByDescending(s => s.CreatedAt)
-            .Select(s => new ScheduleListDto(s.Id, s.AcademicYear, s.Status,
-                s.GeneratedAt, s.PublishedAt, s.TotalConflicts, s.GenerationSeconds))
             .ToListAsync(ct);
+
+        var periodIds = schedules.Where(s => s.PeriodId.HasValue).Select(s => s.PeriodId!.Value).Distinct().ToList();
+        var periodNames = periodIds.Count > 0
+            ? await db.SchoolPeriods.AsNoTracking()
+                .Where(p => periodIds.Contains(p.Id))
+                .ToDictionaryAsync(p => p.Id, p => p.Name, ct)
+            : new Dictionary<Guid, string>();
+
+        return schedules.Select(s => new ScheduleListDto(s.Id, s.AcademicYear, s.Status,
+            s.GeneratedAt, s.PublishedAt, s.TotalConflicts, s.GenerationSeconds,
+            s.PeriodId,
+            s.PeriodId.HasValue ? periodNames.GetValueOrDefault(s.PeriodId.Value) : null)).ToList();
     }
 }
 
@@ -86,23 +98,60 @@ public sealed class GetScheduleGridHandler(IAppDbContext db, ICurrentUser user)
             .Where(g => g.SchoolId == schedule.SchoolId).ToDictionaryAsync(g => g.Id, ct);
         var classrooms = await db.Classrooms.AsNoTracking()
             .Where(c => c.SchoolId == schedule.SchoolId).ToDictionaryAsync(c => c.Id, ct);
-        var school = await db.Schools.AsNoTracking()
-            .FirstOrDefaultAsync(s => s.Id == schedule.SchoolId, ct);
-        var cycles = school is not null
-            ? await db.CycleSchedules.AsNoTracking()
-                .Where(c => c.SchoolId == schedule.SchoolId).ToListAsync(ct)
-            : [];
+        SchoolPeriod? period = null;
+        if (schedule.PeriodId.HasValue)
+        {
+            period = await db.SchoolPeriods.AsNoTracking()
+                .Include(p => p.Cycles).ThenInclude(c => c.Breaks)
+                .FirstOrDefaultAsync(p => p.Id == schedule.PeriodId.Value, ct);
+        }
 
-        var slots = school is not null ? SlotCalculator.Compute(school, school.SlotsPerDay) : [];
+        var school = period is null
+            ? await db.Schools.AsNoTracking()
+                .FirstOrDefaultAsync(s => s.Id == schedule.SchoolId, ct)
+            : null;
 
-        var slotsByCycle = cycles
-            .OrderBy(c => c.Cycle)
-            .ToDictionary(
-                c => c.Cycle,
-                c => (IReadOnlyList<SlotInfoDto>)SlotCalculator
-                    .Compute(school!, school!.SlotsPerDay, c.MorningStart, c.AfternoonStart)
-                    .Select(sl => new SlotInfoDto(sl.Index, sl.StartTime, sl.EndTime, sl.IsBreak))
-                    .ToList());
+        var cycles = period is not null
+            ? period.Cycles.ToList()
+            : school is not null
+                ? await db.CycleSchedules.AsNoTracking()
+                    .Where(c => c.SchoolId == schedule.SchoolId).ToListAsync(ct)
+                : [];
+
+        IReadOnlyList<SlotInfoDto> slots;
+        IReadOnlyDictionary<int, IReadOnlyList<SlotInfoDto>> slotsByCycle;
+
+        if (period is not null)
+        {
+            slots = SlotCalculator.Compute(period.SlotsPerDay, period.SlotMinutes, [], 0,
+                new TimeOnly(9, 0)).Select(sl => new SlotInfoDto(sl.Index, sl.StartTime, sl.EndTime, sl.IsBreak)).ToList();
+            slotsByCycle = cycles
+                .OrderBy(c => c.Cycle)
+                .ToDictionary(
+                    c => c.Cycle,
+                    c => (IReadOnlyList<SlotInfoDto>)SlotCalculator
+                        .Compute(c, period)
+                        .Select(sl => new SlotInfoDto(sl.Index, sl.StartTime, sl.EndTime, sl.IsBreak))
+                        .ToList());
+        }
+        else if (school is not null)
+        {
+            slots = SlotCalculator.Compute(school, school.SlotsPerDay)
+                .Select(sl => new SlotInfoDto(sl.Index, sl.StartTime, sl.EndTime, sl.IsBreak)).ToList();
+            slotsByCycle = cycles
+                .OrderBy(c => c.Cycle)
+                .ToDictionary(
+                    c => c.Cycle,
+                    c => (IReadOnlyList<SlotInfoDto>)SlotCalculator
+                        .Compute(school, school.SlotsPerDay, c.MorningStart, c.AfternoonStart)
+                        .Select(sl => new SlotInfoDto(sl.Index, sl.StartTime, sl.EndTime, sl.IsBreak))
+                        .ToList());
+        }
+        else
+        {
+            slots = [];
+            slotsByCycle = new Dictionary<int, IReadOnlyList<SlotInfoDto>>();
+        }
 
         var gridEntries = entries.Select(e =>
         {
@@ -131,7 +180,9 @@ public sealed class GetScheduleGridHandler(IAppDbContext db, ICurrentUser user)
             schedule.Id, schedule.Status, schedule.AcademicYear,
             gridEntries, conflictDtos,
             slots.Select(sl => new SlotInfoDto(sl.Index, sl.StartTime, sl.EndTime, sl.IsBreak)).ToList(),
-            slotsByCycle);
+            slotsByCycle,
+            schedule.PeriodId,
+            schedule.PeriodId.HasValue && period is not null ? period.Name : null);
     }
 }
 

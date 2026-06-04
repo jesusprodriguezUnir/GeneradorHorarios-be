@@ -32,7 +32,7 @@ public sealed class GenerationProgressHub : Hub
     }
 }
 
-public record GenerateRequest(string AcademicYear, int TimeoutSeconds = 30);
+public record GenerateRequest(Guid PeriodId, string AcademicYear, int TimeoutSeconds = 30);
 public record UpdateEntryRequest(Guid TeacherId, Guid ClassroomId);
 
 public static class ScheduleEndpoints
@@ -60,6 +60,7 @@ public static class ScheduleEndpoints
             var jobId = backgroundJobs.Enqueue<ScheduleGenerationJob>(job =>
                 job.ExecuteAsync(
                     user.SchoolId,
+                    req.PeriodId,
                     req.AcademicYear,
                     req.TimeoutSeconds,
                     user.SchoolId.ToString(),

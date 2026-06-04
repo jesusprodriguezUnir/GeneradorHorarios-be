@@ -21,6 +21,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<ScheduleConflictRecord> ScheduleConflicts => Set<ScheduleConflictRecord>();
     public DbSet<CycleSchedule> CycleSchedules => Set<CycleSchedule>();
     public DbSet<CycleBreak> CycleBreaks => Set<CycleBreak>();
+    public DbSet<SchoolPeriod> SchoolPeriods => Set<SchoolPeriod>();
+    public DbSet<PeriodAssignmentHours> PeriodAssignmentHours => Set<PeriodAssignmentHours>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -147,10 +149,32 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.Suggestions).HasMaxLength(2000).HasDefaultValue("[]");
         });
 
+        mb.Entity<SchoolPeriod>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.SchoolId);
+            e.HasIndex(x => new { x.SchoolId, x.Key }).IsUnique();
+            e.Property(x => x.Key).HasMaxLength(50).IsRequired();
+            e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Months).HasMaxLength(100).HasDefaultValue("[10,11,12,1,2,3,4,5]");
+            e.Property(x => x.ScheduleType).HasMaxLength(20).HasDefaultValue("continua");
+            e.HasMany(x => x.Cycles)
+             .WithOne(x => x.Period)
+             .HasForeignKey(x => x.PeriodId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        mb.Entity<PeriodAssignmentHours>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.PeriodId, x.AssignmentId }).IsUnique();
+        });
+
         mb.Entity<CycleSchedule>(e =>
         {
             e.HasKey(x => x.Id);
-            e.HasIndex(x => new { x.SchoolId, x.Cycle }).IsUnique();
+            e.HasIndex(x => new { x.PeriodId, x.Cycle }).IsUnique();
+            e.HasIndex(x => new { x.SchoolId, x.Cycle });
             e.Property(x => x.MorningStart).HasColumnType("time");
             e.Property(x => x.EndTime).HasColumnType("time");
             e.Property(x => x.AfternoonStart).HasColumnType("time");

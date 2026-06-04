@@ -15,6 +15,14 @@ public sealed class CycleScheduleRepository(AppDbContext db) : ICycleScheduleRep
         return await query.FirstOrDefaultAsync(c => c.SchoolId == schoolId && c.Cycle == cycle, ct);
     }
 
+    public async Task<CycleSchedule?> GetByPeriodAndCycleAsync(Guid periodId, int cycle, CancellationToken ct, bool includeBreaks = true)
+    {
+        var query = db.CycleSchedules.AsQueryable();
+        if (includeBreaks)
+            query = query.Include(c => c.Breaks);
+        return await query.FirstOrDefaultAsync(c => c.PeriodId == periodId && c.Cycle == cycle, ct);
+    }
+
     public async Task SaveChangesAsync(CancellationToken ct)
         => await db.SaveChangesAsync(ct);
 }

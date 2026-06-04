@@ -48,8 +48,10 @@ public static class DbInitializer
         await db.Classrooms.ExecuteDeleteAsync();
         await db.SubjectAllocations.ExecuteDeleteAsync();
         await db.CurriculumTemplates.ExecuteDeleteAsync();
+        await db.PeriodAssignmentHours.ExecuteDeleteAsync();
         await db.CycleBreaks.ExecuteDeleteAsync();
         await db.CycleSchedules.ExecuteDeleteAsync();
+        await db.SchoolPeriods.ExecuteDeleteAsync();
         await db.Schools.ExecuteDeleteAsync();
 
         await SeedAsync(db, options);
@@ -85,26 +87,29 @@ public static class DbInitializer
             WorkingDays    = "[1,2,3,4,5]",
         });
 
-        var schoolForSeed = new School
+        var defaultBreakList = new List<(int AfterSlot, int Minutes)> { (2, LomloeMadrid.MinDailyBreakMinutes) }.AsReadOnly();
+
+        var ordinarioPeriod = new SchoolPeriod
         {
-            Name           = "temp",
-            Slug           = "temp",
-            MorningStart   = new TimeOnly(9, 0),
-            ScheduleType   = opts.ScheduleType,
-            AfternoonStart = isPartida ? new TimeOnly(15, 0) : null,
-            SlotMinutes    = 60,
-            BreakAfterSlot = 2,
-            BreakMinutes   = LomloeMadrid.MinDailyBreakMinutes,
-            SlotsPerDay    = 5,
+            Id = Guid.Parse("00000000-0000-0000-0000-000000000020"),
+            SchoolId = SchoolId,
+            Key = "ordinario",
+            Name = "Jornada ordinaria",
+            Months = "[10,11,12,1,2,3,4,5]",
+            ScheduleType = opts.ScheduleType,
+            SlotMinutes = 60,
+            SlotsPerDay = 5,
             AfternoonSlots = isPartida ? 2 : 0,
+            IsDefault = true,
+            SortOrder = 0,
         };
-        var defaultBreaks = new List<(int AfterSlot, int Minutes)> { (2, LomloeMadrid.MinDailyBreakMinutes) }.AsReadOnly();
+
         for (int c = 1; c <= 3; c++)
         {
             var cycleEnd = SlotCalculator.ComputeEndTime(
                 totalSlots: 5,
                 slotMinutes: 60,
-                breaks: defaultBreaks,
+                breaks: defaultBreakList,
                 afternoonSlots: isPartida ? 2 : 0,
                 morningStart: new TimeOnly(9, 0),
                 afternoonStart: isPartida ? new TimeOnly(15, 0) : null,
@@ -112,6 +117,7 @@ public static class DbInitializer
             var cycleSchedule = new CycleSchedule
             {
                 SchoolId       = SchoolId,
+                PeriodId       = ordinarioPeriod.Id,
                 Cycle          = c,
                 MorningStart   = new TimeOnly(9, 0),
                 EndTime        = cycleEnd,
@@ -123,8 +129,54 @@ public static class DbInitializer
                 AfterSlot = 2,
                 Minutes = LomloeMadrid.MinDailyBreakMinutes,
             });
-            db.CycleSchedules.Add(cycleSchedule);
+            ordinarioPeriod.Cycles.Add(cycleSchedule);
         }
+        db.SchoolPeriods.Add(ordinarioPeriod);
+
+        var junSepPeriod = new SchoolPeriod
+        {
+            Id = Guid.Parse("00000000-0000-0000-0000-000000000021"),
+            SchoolId = SchoolId,
+            Key = "jun-sep",
+            Name = "Jornada de junio y septiembre",
+            Months = "[6,9]",
+            ScheduleType = "continua",
+            SlotMinutes = 60,
+            SlotsPerDay = 4,
+            AfternoonSlots = 0,
+            IsDefault = false,
+            SortOrder = 1,
+        };
+
+        var junSepBreaks = new List<(int AfterSlot, int Minutes)> { (2, LomloeMadrid.MinDailyBreakMinutes) }.AsReadOnly();
+        for (int c = 1; c <= 3; c++)
+        {
+            var cycleEnd = SlotCalculator.ComputeEndTime(
+                totalSlots: 4,
+                slotMinutes: 60,
+                breaks: junSepBreaks,
+                afternoonSlots: 0,
+                morningStart: new TimeOnly(9, 0),
+                afternoonStart: null,
+                isPartida: false);
+            var cycleSchedule = new CycleSchedule
+            {
+                SchoolId       = SchoolId,
+                PeriodId       = junSepPeriod.Id,
+                Cycle          = c,
+                MorningStart   = new TimeOnly(9, 0),
+                EndTime        = cycleEnd,
+                AfternoonStart = null,
+            };
+            cycleSchedule.Breaks.Add(new CycleBreak
+            {
+                CycleScheduleId = cycleSchedule.Id,
+                AfterSlot = 2,
+                Minutes = LomloeMadrid.MinDailyBreakMinutes,
+            });
+            junSepPeriod.Cycles.Add(cycleSchedule);
+        }
+        db.SchoolPeriods.Add(junSepPeriod);
 
         db.AppUsers.Add(new AppUser
         {

@@ -20,5 +20,7 @@ public interface IAppDbContext
     DbSet<ScheduleConflictRecord> ScheduleConflicts { get; }
     DbSet<CycleSchedule> CycleSchedules { get; }
     DbSet<CycleBreak> CycleBreaks { get; }
+    DbSet<SchoolPeriod> SchoolPeriods { get; }
+    DbSet<PeriodAssignmentHours> PeriodAssignmentHours { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

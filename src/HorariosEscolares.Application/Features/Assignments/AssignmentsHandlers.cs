@@ -120,3 +120,67 @@ public sealed class DeleteAssignmentHandler(IAssignmentRepository repository, IC
         await repository.SaveChangesAsync(ct);
     }
 }
+
+// ── Period hours overrides ──────────────────────────────────────────────────────
+
+public record PeriodAssignmentHoursDto(Guid AssignmentId, int WeeklyHours);
+
+public record GetPeriodAssignmentHoursQuery(Guid PeriodId) : IRequest<List<PeriodAssignmentHoursDto>>;
+public record SetPeriodAssignmentHoursCommand(Guid PeriodId, IReadOnlyList<PeriodAssignmentHoursDto> Hours) : IRequest;
+
+public sealed class GetPeriodAssignmentHoursHandler(IAppDbContext db, ICurrentUser user)
+    : IRequestHandler<GetPeriodAssignmentHoursQuery, List<PeriodAssignmentHoursDto>>
+{
+    public async Task<List<PeriodAssignmentHoursDto>> Handle(GetPeriodAssignmentHoursQuery request, CancellationToken ct)
+    {
+        var periodOk = await db.SchoolPeriods.AnyAsync(p => p.Id == request.PeriodId && p.SchoolId == user.SchoolId, ct);
+        if (!periodOk) throw new NotFoundException("Periodo no encontrado.");
+
+        var overrides = await db.PeriodAssignmentHours.AsNoTracking()
+            .Where(h => h.PeriodId == request.PeriodId)
+            .ToDictionaryAsync(h => h.AssignmentId, h => h.WeeklyHours, ct);
+
+        var baseAssignments = await db.Assignments.AsNoTracking()
+            .Where(a => a.SchoolId == user.SchoolId)
+            .ToListAsync(ct);
+
+        return baseAssignments.Select(a => new PeriodAssignmentHoursDto(
+            a.Id, overrides.GetValueOrDefault(a.Id, a.WeeklyHours)))
+            .OrderBy(x => x.AssignmentId)
+            .ToList();
+    }
+}
+
+public sealed class SetPeriodAssignmentHoursHandler(IAppDbContext db, ICurrentUser user)
+    : IRequestHandler<SetPeriodAssignmentHoursCommand>
+{
+    public async Task Handle(SetPeriodAssignmentHoursCommand request, CancellationToken ct)
+    {
+        var periodOk = await db.SchoolPeriods.AnyAsync(p => p.Id == request.PeriodId && p.SchoolId == user.SchoolId, ct);
+        if (!periodOk) throw new NotFoundException("Periodo no encontrado.");
+
+        var existing = await db.PeriodAssignmentHours
+            .Where(h => h.PeriodId == request.PeriodId)
+            .ToListAsync(ct);
+        db.PeriodAssignmentHours.RemoveRange(existing);
+
+        var baseAssignments = await db.Assignments.AsNoTracking()
+            .Where(a => a.SchoolId == user.SchoolId)
+            .ToDictionaryAsync(a => a.Id, a => a.WeeklyHours, ct);
+
+        foreach (var dto in request.Hours)
+        {
+            if (!baseAssignments.ContainsKey(dto.AssignmentId)) continue;
+            if (dto.WeeklyHours == baseAssignments[dto.AssignmentId]) continue;
+
+            db.PeriodAssignmentHours.Add(new PeriodAssignmentHours
+            {
+                PeriodId = request.PeriodId,
+                AssignmentId = dto.AssignmentId,
+                WeeklyHours = dto.WeeklyHours,
+            });
+        }
+
+        await db.SaveChangesAsync(ct);
+    }
+}
