@@ -3,52 +3,70 @@ using Microsoft.EntityFrameworkCore;
 using HorariosEscolares.Domain.Abstractions;
 using HorariosEscolares.Domain.Entities;
 using HorariosEscolares.Domain.Groups;
+using HorariosEscolares.Domain.Services;
 
 namespace HorariosEscolares.Application.Features.Groups;
 
-public record GroupDto(Guid Id, int CourseLevel, string GroupLabel, string DisplayName,
+public record GroupDto(Guid Id, Guid StageId, int CourseLevel, string GroupLabel, string DisplayName,
     int StudentCount, Guid? TutorId, string? TutorName, Guid? HomeClassroomId, Dictionary<string, int> SubjectHours, int Cycle);
 
-public record GetAllGroupsQuery : IRequest<List<GroupDto>>;
-public record CreateGroupCommand(int CourseLevel, string GroupLabel, int StudentCount,
+public record GetAllGroupsQuery(Guid? StageId = null) : IRequest<List<GroupDto>>;
+public record CreateGroupCommand(Guid StageId, int CourseLevel, string GroupLabel, int StudentCount,
     Guid? TutorId, Guid? HomeClassroomId, Dictionary<string, int>? SubjectHours) : IRequest<GroupDto>;
 public record UpdateGroupCommand(Guid Id, int? CourseLevel, string? GroupLabel, int? StudentCount,
     Guid? TutorId, Guid? HomeClassroomId, Dictionary<string, int>? SubjectHours) : IRequest<GroupDto>;
 public record DeleteGroupCommand(Guid Id) : IRequest;
 
-public sealed class GetAllGroupsHandler(IAppDbContext db, ICurrentUser user)
+internal static class GroupMapping
+{
+    public static GroupDto ToDto(CourseGroup gr, Dictionary<Guid, string> tutorNames, int cycle)
+    {
+        var subjectHours = gr.SubjectHoursList?.ToDictionary(x => x.SubjectKey, x => x.Hours) ?? new();
+        return new(gr.Id, gr.StageId, gr.CourseLevel, gr.GroupLabel, gr.DisplayName, gr.StudentCount,
+            gr.TutorId, gr.TutorId.HasValue && tutorNames.TryGetValue(gr.TutorId.Value, out var n) ? n : null,
+            gr.HomeClassroomId, subjectHours, cycle);
+    }
+}
+
+public sealed class GetAllGroupsHandler(IAppDbContext db, ICurrentUser user, ICycleResolver cycleResolver)
     : IRequestHandler<GetAllGroupsQuery, List<GroupDto>>
 {
     public async Task<List<GroupDto>> Handle(GetAllGroupsQuery request, CancellationToken ct)
     {
-        var groups = await db.CourseGroups.AsNoTracking()
+        var query = db.CourseGroups.AsNoTracking()
             .Include(x => x.SubjectHoursList)
-            .Where(x => x.SchoolId == user.SchoolId)
+            .Where(x => x.SchoolId == user.SchoolId);
+        if (request.StageId.HasValue)
+            query = query.Where(x => x.StageId == request.StageId.Value);
+
+        var groups = await query
             .OrderBy(x => x.CourseLevel).ThenBy(x => x.GroupLabel)
             .ToListAsync(ct);
         var tutorNames = await db.Teachers.AsNoTracking()
             .Where(t => t.SchoolId == user.SchoolId)
             .ToDictionaryAsync(t => t.Id, t => t.FullName, ct);
-        return groups.Select(gr => ToDto(gr, tutorNames)).ToList();
-    }
+        var stageTypes = await db.SchoolStages.AsNoTracking()
+            .Where(s => s.SchoolId == user.SchoolId)
+            .ToDictionaryAsync(s => s.Id, s => s.StageType, ct);
 
-    private static GroupDto ToDto(CourseGroup gr, Dictionary<Guid, string> tutorNames)
-    {
-        var subjectHours = gr.SubjectHoursList?.ToDictionary(x => x.SubjectKey, x => x.Hours) ?? new();
-        return new(gr.Id, gr.CourseLevel, gr.GroupLabel, gr.DisplayName, gr.StudentCount,
-            gr.TutorId, gr.TutorId.HasValue && tutorNames.TryGetValue(gr.TutorId.Value, out var n) ? n : null,
-            gr.HomeClassroomId, subjectHours, gr.Cycle);
+        return groups.Select(gr => GroupMapping.ToDto(gr, tutorNames,
+            cycleResolver.ResolveCycle(stageTypes.GetValueOrDefault(gr.StageId, StageTypes.Primaria), gr.CourseLevel))).ToList();
     }
 }
 
-public sealed class CreateGroupHandler(IGroupRepository repository, ICurrentUser user)
+public sealed class CreateGroupHandler(IAppDbContext db, IGroupRepository repository, ICurrentUser user, ICycleResolver cycleResolver)
     : IRequestHandler<CreateGroupCommand, GroupDto>
 {
     public async Task<GroupDto> Handle(CreateGroupCommand request, CancellationToken ct)
     {
+        var stage = await db.SchoolStages.AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == request.StageId && s.SchoolId == user.SchoolId, ct)
+            ?? throw new NotFoundException("La etapa indicada no existe en este centro.");
+
         var gr = new CourseGroup
         {
-            SchoolId = user.SchoolId, CourseLevel = request.CourseLevel, GroupLabel = request.GroupLabel,
+            SchoolId = user.SchoolId, StageId = request.StageId,
+            CourseLevel = request.CourseLevel, GroupLabel = request.GroupLabel,
             StudentCount = request.StudentCount, TutorId = request.TutorId, HomeClassroomId = request.HomeClassroomId,
         };
         if (request.SubjectHours is not null)
@@ -62,19 +80,11 @@ public sealed class CreateGroupHandler(IGroupRepository repository, ICurrentUser
         }
         await repository.AddAsync(gr, ct);
         await repository.SaveChangesAsync(ct);
-        return ToDto(gr, []);
-    }
-
-    private static GroupDto ToDto(CourseGroup gr, Dictionary<Guid, string> tutorNames)
-    {
-        var subjectHours = gr.SubjectHoursList?.ToDictionary(x => x.SubjectKey, x => x.Hours) ?? new();
-        return new(gr.Id, gr.CourseLevel, gr.GroupLabel, gr.DisplayName, gr.StudentCount,
-            gr.TutorId, gr.TutorId.HasValue && tutorNames.TryGetValue(gr.TutorId.Value, out var n) ? n : null,
-            gr.HomeClassroomId, subjectHours, gr.Cycle);
+        return GroupMapping.ToDto(gr, [], cycleResolver.ResolveCycle(stage.StageType, gr.CourseLevel));
     }
 }
 
-public sealed class UpdateGroupHandler(IAppDbContext db, IGroupRepository repository, ICurrentUser user)
+public sealed class UpdateGroupHandler(IAppDbContext db, IGroupRepository repository, ICurrentUser user, ICycleResolver cycleResolver)
     : IRequestHandler<UpdateGroupCommand, GroupDto>
 {
     public async Task<GroupDto> Handle(UpdateGroupCommand request, CancellationToken ct)
@@ -100,10 +110,11 @@ public sealed class UpdateGroupHandler(IAppDbContext db, IGroupRepository reposi
         var tutorNames = await db.Teachers.AsNoTracking()
             .Where(t => t.SchoolId == user.SchoolId)
             .ToDictionaryAsync(t => t.Id, t => t.FullName, ct);
-        var subjectHours = gr.SubjectHoursList?.ToDictionary(x => x.SubjectKey, x => x.Hours) ?? new();
-        return new(gr.Id, gr.CourseLevel, gr.GroupLabel, gr.DisplayName, gr.StudentCount,
-            gr.TutorId, gr.TutorId.HasValue && tutorNames.TryGetValue(gr.TutorId.Value, out var n) ? n : null,
-            gr.HomeClassroomId, subjectHours, gr.Cycle);
+        var stageType = await db.SchoolStages.AsNoTracking()
+            .Where(s => s.Id == gr.StageId)
+            .Select(s => s.StageType)
+            .FirstOrDefaultAsync(ct) ?? StageTypes.Primaria;
+        return GroupMapping.ToDto(gr, tutorNames, cycleResolver.ResolveCycle(stageType, gr.CourseLevel));
     }
 }
 

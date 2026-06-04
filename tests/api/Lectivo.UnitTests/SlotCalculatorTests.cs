@@ -221,7 +221,7 @@ public class SlotCalculatorTests
         };
         var cycle = new CycleSchedule
         {
-            SchoolId = Guid.NewGuid(), PeriodId = Guid.NewGuid(), Cycle = 1,
+            SchoolId = Guid.NewGuid(), StageId = Guid.NewGuid(), PeriodId = Guid.NewGuid(), Cycle = 1,
             MorningStart = new TimeOnly(9, 0),
         };
         cycle.Breaks.Add(new CycleBreak { CycleScheduleId = cycle.Id, AfterSlot = 2, Minutes = 30 });

@@ -15,6 +15,7 @@ public sealed class ScheduleGenerationJob(
     [AutomaticRetry(Attempts = 0)]
     public async Task ExecuteAsync(
         Guid schoolId,
+        Guid stageId,
         Guid periodId,
         string academicYear,
         int timeoutSeconds,
@@ -43,7 +44,7 @@ public sealed class ScheduleGenerationJob(
         try
         {
             var result = await orchestrator.GenerateAsync(
-                schoolId, periodId, academicYear, timeoutSeconds, progress, ct);
+                schoolId, stageId, periodId, academicYear, timeoutSeconds, progress, ct);
 
             object payload = result switch
             {

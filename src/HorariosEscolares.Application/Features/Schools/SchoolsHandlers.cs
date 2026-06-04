@@ -35,6 +35,15 @@ public record UpdateSchoolCommand(
     string? AfternoonStart, IReadOnlyList<int>? WorkingDays) : IRequest<SchoolDto>;
 public record NormativeCheckQuery : IRequest<NormativeCheckDto>;
 
+public record SchoolStageDto(
+    Guid Id, string StageType, string Name, int MinLevel, int MaxLevel, int SortOrder,
+    string ScheduleType, string MorningStart, string? AfternoonStart,
+    int SlotMinutes, int BreakAfterSlot, int BreakMinutes,
+    int SlotsPerDay, int AfternoonSlots, int DaysPerWeek,
+    IReadOnlyList<int> WorkingDays);
+
+public record GetStagesQuery : IRequest<List<SchoolStageDto>>;
+
 public record GetCycleScheduleQuery(int Cycle) : IRequest<CycleScheduleDto?>;
 public record UpdateCycleScheduleCommand(int Cycle, string MorningStart, string EndTime, string? AfternoonStart, IReadOnlyList<CycleBreakDto>? Breaks = null) : IRequest<CycleScheduleDto>;
 
@@ -153,6 +162,25 @@ public sealed class UpdateSchoolHandler(IAppDbContext db, ISchoolRepository repo
     }
 }
 
+public sealed class GetStagesHandler(IAppDbContext db, ICurrentUser user)
+    : IRequestHandler<GetStagesQuery, List<SchoolStageDto>>
+{
+    public async Task<List<SchoolStageDto>> Handle(GetStagesQuery request, CancellationToken ct)
+    {
+        var stages = await db.SchoolStages.AsNoTracking()
+            .Where(s => s.SchoolId == user.SchoolId)
+            .OrderBy(s => s.SortOrder)
+            .ToListAsync(ct);
+
+        return stages.Select(s => new SchoolStageDto(
+            s.Id, s.StageType, s.Name, s.MinLevel, s.MaxLevel, s.SortOrder,
+            s.ScheduleType, s.MorningStart.ToString("HH:mm"), s.AfternoonStart?.ToString("HH:mm"),
+            s.SlotMinutes, s.BreakAfterSlot, s.BreakMinutes,
+            s.SlotsPerDay, s.AfternoonSlots, s.DaysPerWeek,
+            SlotCalculator.ParseWorkingDays(s.WorkingDays))).ToList();
+    }
+}
+
 public sealed class GetCycleScheduleHandler(IAppDbContext db, ICurrentUser user)
     : IRequestHandler<GetCycleScheduleQuery, CycleScheduleDto?>
 {
@@ -192,7 +220,7 @@ public sealed class UpdateCycleScheduleHandler(IAppDbContext db, ICurrentUser us
         {
             c = new CycleSchedule
             {
-                SchoolId = user.SchoolId, PeriodId = period.Id, Cycle = request.Cycle,
+                SchoolId = user.SchoolId, StageId = period.StageId, PeriodId = period.Id, Cycle = request.Cycle,
                 MorningStart = morningStart,
                 EndTime = TimeOnly.Parse(request.EndTime),
                 AfternoonStart = afternoonStart,
@@ -232,14 +260,14 @@ public sealed class UpdateCycleScheduleHandler(IAppDbContext db, ICurrentUser us
 // ── Period CRUD ─────────────────────────────────────────────────────────────────
 
 public record SchoolPeriodDto(
-    Guid Id, string Key, string Name, IReadOnlyList<int> Months,
+    Guid Id, Guid StageId, string Key, string Name, IReadOnlyList<int> Months,
     string ScheduleType, int SlotMinutes, int SlotsPerDay, int AfternoonSlots,
     bool IsDefault, int SortOrder, IReadOnlyList<CycleScheduleDto> Cycles);
 
-public record GetPeriodsQuery : IRequest<List<SchoolPeriodDto>>;
+public record GetPeriodsQuery(Guid? StageId = null) : IRequest<List<SchoolPeriodDto>>;
 public record GetPeriodQuery(Guid PeriodId) : IRequest<SchoolPeriodDto?>;
 public record CreatePeriodCommand(
-    string Key, string Name, IReadOnlyList<int> Months,
+    Guid StageId, string Key, string Name, IReadOnlyList<int> Months,
     string ScheduleType, int SlotMinutes, int SlotsPerDay, int AfternoonSlots,
     int SortOrder) : IRequest<SchoolPeriodDto>;
 public record UpdatePeriodCommand(
@@ -258,9 +286,13 @@ public sealed class GetPeriodsHandler(IAppDbContext db, ICurrentUser user)
 {
     public async Task<List<SchoolPeriodDto>> Handle(GetPeriodsQuery request, CancellationToken ct)
     {
-        var periods = await db.SchoolPeriods.AsNoTracking()
+        var query = db.SchoolPeriods.AsNoTracking()
             .Include(p => p.Cycles).ThenInclude(c => c.Breaks)
-            .Where(p => p.SchoolId == user.SchoolId)
+            .Where(p => p.SchoolId == user.SchoolId);
+        if (request.StageId.HasValue)
+            query = query.Where(p => p.StageId == request.StageId.Value);
+
+        var periods = await query
             .OrderBy(p => p.SortOrder)
             .ToListAsync(ct);
 
@@ -281,7 +313,7 @@ public sealed class GetPeriodsHandler(IAppDbContext db, ICurrentUser user)
         }).ToList();
 
         return new SchoolPeriodDto(
-            p.Id, p.Key, p.Name, months,
+            p.Id, p.StageId, p.Key, p.Name, months,
             p.ScheduleType, p.SlotMinutes, p.SlotsPerDay, p.AfternoonSlots,
             p.IsDefault, p.SortOrder, cycleDtos);
     }
@@ -309,12 +341,17 @@ public sealed class CreatePeriodHandler(
         if (request.AfternoonSlots >= request.SlotsPerDay)
             throw new InvalidOperationException("Los slots de tarde deben ser menores que el total de slots por día.");
 
-        if (await db.SchoolPeriods.AnyAsync(p => p.SchoolId == user.SchoolId && p.Key == request.Key, ct))
-            throw new InvalidOperationException($"Ya existe un periodo con la clave '{request.Key}'.");
+        var stage = await db.SchoolStages.AsNoTracking()
+            .FirstOrDefaultAsync(st => st.Id == request.StageId && st.SchoolId == user.SchoolId, ct)
+            ?? throw new InvalidOperationException("La etapa indicada no existe en este centro.");
+
+        if (await db.SchoolPeriods.AnyAsync(p => p.StageId == request.StageId && p.Key == request.Key, ct))
+            throw new InvalidOperationException($"Ya existe un periodo con la clave '{request.Key}' en esta etapa.");
 
         var period = new SchoolPeriod
         {
             SchoolId = user.SchoolId,
+            StageId = request.StageId,
             Key = request.Key,
             Name = request.Name,
             Months = JsonSerializer.Serialize(request.Months),
@@ -322,7 +359,7 @@ public sealed class CreatePeriodHandler(
             SlotMinutes = request.SlotMinutes,
             SlotsPerDay = request.SlotsPerDay,
             AfternoonSlots = request.AfternoonSlots,
-            IsDefault = !await db.SchoolPeriods.AnyAsync(p => p.SchoolId == user.SchoolId, ct),
+            IsDefault = !await db.SchoolPeriods.AnyAsync(p => p.StageId == request.StageId, ct),
             SortOrder = request.SortOrder,
         };
 
@@ -341,6 +378,7 @@ public sealed class CreatePeriodHandler(
             period.Cycles.Add(new CycleSchedule
             {
                 SchoolId = user.SchoolId,
+                StageId = request.StageId,
                 PeriodId = period.Id,
                 Cycle = c,
                 MorningStart = morningStart,
@@ -472,7 +510,7 @@ public sealed class UpdatePeriodCycleHandler(IAppDbContext db, ICurrentUser user
         {
             c = new CycleSchedule
             {
-                SchoolId = user.SchoolId, PeriodId = request.PeriodId, Cycle = request.Cycle,
+                SchoolId = user.SchoolId, StageId = period.StageId, PeriodId = request.PeriodId, Cycle = request.Cycle,
                 MorningStart = morningStart,
                 EndTime = TimeOnly.Parse(request.EndTime),
                 AfternoonStart = afternoonStart,

@@ -15,6 +15,6 @@ public sealed class GenerateScheduleHandler(
             throw new ForbiddenAccessException("Solo administradores pueden generar horarios.");
 
         return await orchestrator.GenerateAsync(
-            user.SchoolId, request.PeriodId, request.AcademicYear, request.TimeoutSeconds, null, ct);
+            user.SchoolId, request.StageId, request.PeriodId, request.AcademicYear, request.TimeoutSeconds, null, ct);
     }
 }

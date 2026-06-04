@@ -11,6 +11,9 @@ public static class DbInitializer
     private static readonly Guid TemplateId  = Guid.Parse("00000000-0000-0000-0000-000000000002");
     private static readonly Guid AdminUserId = Guid.Parse("00000000-0000-0000-0000-000000000010");
     private static readonly Guid ProfUserId  = Guid.Parse("00000000-0000-0000-0000-000000000011");
+    private static readonly Guid InfantilStageId   = Guid.Parse("00000000-0000-0000-0000-000000000030");
+    private static readonly Guid PrimariaStageId   = Guid.Parse("00000000-0000-0000-0000-000000000031");
+    private static readonly Guid SecundariaStageId = Guid.Parse("00000000-0000-0000-0000-000000000032");
 
     private static readonly Dictionary<string, string> SubjectShortNames = new()
     {
@@ -52,6 +55,7 @@ public static class DbInitializer
         await db.CycleBreaks.ExecuteDeleteAsync();
         await db.CycleSchedules.ExecuteDeleteAsync();
         await db.SchoolPeriods.ExecuteDeleteAsync();
+        await db.SchoolStages.ExecuteDeleteAsync();
         await db.Schools.ExecuteDeleteAsync();
 
         await SeedAsync(db, options);
@@ -87,12 +91,56 @@ public static class DbInitializer
             WorkingDays    = "[1,2,3,4,5]",
         });
 
+        // ── Etapas educativas (bloques) ──────────────────────────────────────
+        var primariaStage = new SchoolStage
+        {
+            Id             = PrimariaStageId,
+            SchoolId       = SchoolId,
+            StageType      = StageTypes.Primaria,
+            Name           = "Educación Primaria",
+            MinLevel       = 1,
+            MaxLevel       = opts.Levels,
+            SortOrder      = 1,
+            ScheduleType   = opts.ScheduleType,
+            MorningStart   = new TimeOnly(9, 0),
+            AfternoonStart = isPartida ? new TimeOnly(15, 0) : null,
+            SlotMinutes    = 60,
+            BreakAfterSlot = 2,
+            BreakMinutes   = LomloeMadrid.MinDailyBreakMinutes,
+            SlotsPerDay    = 5,
+            AfternoonSlots = isPartida ? 2 : 0,
+            DaysPerWeek    = 5,
+            WorkingDays    = "[1,2,3,4,5]",
+        };
+        var infantilStage = new SchoolStage
+        {
+            Id        = InfantilStageId,
+            SchoolId  = SchoolId,
+            StageType = StageTypes.Infantil,
+            Name      = "Educación Infantil",
+            MinLevel  = 1,
+            MaxLevel  = 3,
+            SortOrder = 0,
+        };
+        var secundariaStage = new SchoolStage
+        {
+            Id        = SecundariaStageId,
+            SchoolId  = SchoolId,
+            StageType = StageTypes.Secundaria,
+            Name      = "Educación Secundaria (ESO)",
+            MinLevel  = 1,
+            MaxLevel  = 4,
+            SortOrder = 2,
+        };
+        db.SchoolStages.AddRange(primariaStage, infantilStage, secundariaStage);
+
         var defaultBreakList = new List<(int AfterSlot, int Minutes)> { (2, LomloeMadrid.MinDailyBreakMinutes) }.AsReadOnly();
 
         var ordinarioPeriod = new SchoolPeriod
         {
             Id = Guid.Parse("00000000-0000-0000-0000-000000000020"),
             SchoolId = SchoolId,
+            StageId = PrimariaStageId,
             Key = "ordinario",
             Name = "Jornada ordinaria",
             Months = "[10,11,12,1,2,3,4,5]",
@@ -117,6 +165,7 @@ public static class DbInitializer
             var cycleSchedule = new CycleSchedule
             {
                 SchoolId       = SchoolId,
+                StageId        = PrimariaStageId,
                 PeriodId       = ordinarioPeriod.Id,
                 Cycle          = c,
                 MorningStart   = new TimeOnly(9, 0),
@@ -137,6 +186,7 @@ public static class DbInitializer
         {
             Id = Guid.Parse("00000000-0000-0000-0000-000000000021"),
             SchoolId = SchoolId,
+            StageId = PrimariaStageId,
             Key = "jun-sep",
             Name = "Jornada de junio y septiembre",
             Months = "[6,9]",
@@ -162,6 +212,7 @@ public static class DbInitializer
             var cycleSchedule = new CycleSchedule
             {
                 SchoolId       = SchoolId,
+                StageId        = PrimariaStageId,
                 PeriodId       = junSepPeriod.Id,
                 Cycle          = c,
                 MorningStart   = new TimeOnly(9, 0),
@@ -190,6 +241,7 @@ public static class DbInitializer
         db.CurriculumTemplates.Add(new CurriculumTemplate
         {
             Id         = TemplateId,
+            StageId    = PrimariaStageId,
             Name       = $"LOMLOE Madrid — Decreto 61/2022 (Primaria{(isBilingue ? ", sección bilingüe" : "")})",
             Region     = "madrid",
             Stage      = "primaria",
@@ -381,6 +433,7 @@ public static class DbInitializer
                 {
                     Id              = Guid.NewGuid(),
                     SchoolId        = SchoolId,
+                    StageId         = PrimariaStageId,
                     CourseLevel     = level,
                     GroupLabel      = lineLabels[li].ToString(),
                     StudentCount    = 25,
@@ -431,6 +484,73 @@ public static class DbInitializer
         }
         db.Assignments.AddRange(assignments);
 
+        // ── Esqueletos de Infantil y Secundaria (estructura, sin asignaciones) ──
+        AddStageSkeleton(db, infantilStage, cycles: 1);
+        AddStageSkeleton(db, secundariaStage, cycles: 2);
+
         await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Crea la estructura mínima de una etapa: un periodo ordinario con sus ciclos
+    /// y un grupo (línea A) por nivel. Sin profesores ni asignaciones todavía.
+    /// </summary>
+    private static void AddStageSkeleton(AppDbContext db, SchoolStage stage, int cycles)
+    {
+        var breaks = new List<(int AfterSlot, int Minutes)> { (2, LomloeMadrid.MinDailyBreakMinutes) }.AsReadOnly();
+
+        var period = new SchoolPeriod
+        {
+            Id = Guid.NewGuid(),
+            SchoolId = SchoolId,
+            StageId = stage.Id,
+            Key = "ordinario",
+            Name = "Jornada ordinaria",
+            Months = "[10,11,12,1,2,3,4,5]",
+            ScheduleType = "continua",
+            SlotMinutes = 60,
+            SlotsPerDay = stage.SlotsPerDay,
+            AfternoonSlots = 0,
+            IsDefault = true,
+            SortOrder = 0,
+        };
+
+        for (int c = 1; c <= cycles; c++)
+        {
+            var cycleEnd = SlotCalculator.ComputeEndTime(
+                totalSlots: stage.SlotsPerDay,
+                slotMinutes: 60,
+                breaks: breaks,
+                afternoonSlots: 0,
+                morningStart: new TimeOnly(9, 0),
+                afternoonStart: null,
+                isPartida: false);
+            var cs = new CycleSchedule
+            {
+                SchoolId       = SchoolId,
+                StageId        = stage.Id,
+                PeriodId       = period.Id,
+                Cycle          = c,
+                MorningStart   = new TimeOnly(9, 0),
+                EndTime        = cycleEnd,
+                AfternoonStart = null,
+            };
+            cs.Breaks.Add(new CycleBreak { CycleScheduleId = cs.Id, AfterSlot = 2, Minutes = LomloeMadrid.MinDailyBreakMinutes });
+            period.Cycles.Add(cs);
+        }
+        db.SchoolPeriods.Add(period);
+
+        for (int level = stage.MinLevel; level <= stage.MaxLevel; level++)
+        {
+            db.CourseGroups.Add(new CourseGroup
+            {
+                Id           = Guid.NewGuid(),
+                SchoolId     = SchoolId,
+                StageId      = stage.Id,
+                CourseLevel  = level,
+                GroupLabel   = "A",
+                StudentCount = 22,
+            });
+        }
     }
 }

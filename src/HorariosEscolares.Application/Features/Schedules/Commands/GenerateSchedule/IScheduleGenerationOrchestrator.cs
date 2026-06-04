@@ -6,6 +6,7 @@ public interface IScheduleGenerationOrchestrator
 {
     Task<GenerateScheduleResult> GenerateAsync(
         Guid schoolId,
+        Guid stageId,
         Guid periodId,
         string academicYear,
         int timeoutSeconds,

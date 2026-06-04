@@ -24,11 +24,26 @@ public class GenerateScheduleOrchestratorTests
     }
 
     private static readonly Guid SchoolId = Guid.NewGuid();
+    private static readonly Guid StageId = Guid.NewGuid();
     private static readonly Guid PeriodId = Guid.NewGuid();
     private static readonly Guid TeacherId = Guid.NewGuid();
     private static readonly Guid GroupId = Guid.NewGuid();
     private static readonly Guid AllocationId = Guid.NewGuid();
     private static readonly Guid ClassroomId = Guid.NewGuid();
+
+    private static void SeedStage(AppDbContext db) =>
+        db.SchoolStages.Add(new SchoolStage
+        {
+            Id = StageId,
+            SchoolId = SchoolId,
+            StageType = StageTypes.Primaria,
+            Name = "Educación Primaria",
+            MinLevel = 1,
+            MaxLevel = 6,
+            SlotsPerDay = 5,
+            BreakMinutes = 30,
+            WorkingDays = "[1,2,3,4,5]",
+        });
 
     private static School CreateSchool() => new()
     {
@@ -53,6 +68,7 @@ public class GenerateScheduleOrchestratorTests
         {
             Id = PeriodId,
             SchoolId = SchoolId,
+            StageId = StageId,
             Key = "ordinario",
             Name = "Test ordinario",
             Months = "[10,11,12,1,2,3,4,5]",
@@ -68,6 +84,7 @@ public class GenerateScheduleOrchestratorTests
             period.Cycles.Add(new CycleSchedule
             {
                 SchoolId = SchoolId,
+                StageId = StageId,
                 PeriodId = period.Id,
                 Cycle = c,
                 MorningStart = new TimeOnly(9, 0),
@@ -80,6 +97,7 @@ public class GenerateScheduleOrchestratorTests
     private static void SeedMinimalData(AppDbContext db)
     {
         db.Schools.Add(CreateSchool());
+        SeedStage(db);
         SeedDefaultPeriod(db);
         db.Teachers.Add(new Teacher
         {
@@ -101,6 +119,7 @@ public class GenerateScheduleOrchestratorTests
         {
             Id = GroupId,
             SchoolId = SchoolId,
+            StageId = StageId,
             CourseLevel = 1,
             GroupLabel = "A",
         });
@@ -131,6 +150,7 @@ public class GenerateScheduleOrchestratorTests
     private static void SeedMissingSpecialistData(AppDbContext db)
     {
         db.Schools.Add(CreateSchool());
+        SeedStage(db);
         SeedDefaultPeriod(db);
         db.Teachers.Add(new Teacher
         {
@@ -152,6 +172,7 @@ public class GenerateScheduleOrchestratorTests
         {
             Id = GroupId,
             SchoolId = SchoolId,
+            StageId = StageId,
             CourseLevel = 1,
             GroupLabel = "A",
         });
@@ -190,7 +211,8 @@ public class GenerateScheduleOrchestratorTests
             db,
             repository ?? new FakeScheduleRepository(),
             engine ?? new BacktrackingScheduleEngine(),
-            normativeValidator ?? new FakeNormativeValidator());
+            normativeValidator ?? new FakeNormativeValidator(),
+            new CycleResolver());
     }
 
     // ── Tests ──────────────────────────────────────────────────────────────────
@@ -202,7 +224,7 @@ public class GenerateScheduleOrchestratorTests
         var orchestrator = CreateOrchestrator(db);
 
         var act = async () => await orchestrator.GenerateAsync(
-            Guid.NewGuid(), Guid.NewGuid(), "2025/2026", 30, null, CancellationToken.None);
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "2025/2026", 30, null, CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -212,12 +234,13 @@ public class GenerateScheduleOrchestratorTests
     {
         await using var db = CreateInMemoryDb();
         db.Schools.Add(CreateSchool());
+        SeedStage(db);
         SeedDefaultPeriod(db);
         await db.SaveChangesAsync();
 
         var orchestrator = CreateOrchestrator(db);
         var result = await orchestrator.GenerateAsync(
-            SchoolId, PeriodId, "2025/2026", 30, null, CancellationToken.None);
+            SchoolId, StageId, PeriodId, "2025/2026", 30, null, CancellationToken.None);
 
         result.Should().BeOfType<GenerateScheduleResult.NoAssignments>();
     }
@@ -230,7 +253,7 @@ public class GenerateScheduleOrchestratorTests
 
         var orchestrator = CreateOrchestrator(db);
         var result = await orchestrator.GenerateAsync(
-            SchoolId, PeriodId, "2025/2026", 30, null, CancellationToken.None);
+            SchoolId, StageId, PeriodId, "2025/2026", 30, null, CancellationToken.None);
 
         var failedResult = result.Should().BeOfType<GenerateScheduleResult.ViabilityFailed>().Subject;
         failedResult.TotalConflicts.Should().BeGreaterThan(0);
@@ -249,7 +272,7 @@ public class GenerateScheduleOrchestratorTests
         var orchestrator = CreateOrchestrator(db, fakeRepo);
 
         var result = await orchestrator.GenerateAsync(
-            SchoolId, PeriodId, "2025/2026", 30, null, CancellationToken.None);
+            SchoolId, StageId, PeriodId, "2025/2026", 30, null, CancellationToken.None);
 
         var success = result.Should().BeOfType<GenerateScheduleResult.Success>().Subject;
         success.TotalAssigned.Should().Be(2);
@@ -271,7 +294,7 @@ public class GenerateScheduleOrchestratorTests
         var orchestrator = CreateOrchestrator(db, fakeRepo);
 
         await orchestrator.GenerateAsync(
-            SchoolId, PeriodId, "2025/2026", 30, null, CancellationToken.None);
+            SchoolId, StageId, PeriodId, "2025/2026", 30, null, CancellationToken.None);
 
         fakeRepo.LastSchedule.Should().NotBeNull();
         fakeRepo.LastSchedule!.Status.Should().Be("failed");
@@ -298,6 +321,8 @@ public class GenerateScheduleOrchestratorTests
             LastConflicts = [.. conflicts];
             return Task.CompletedTask;
         }
+
+        public Task DeleteAsync(Guid scheduleId, CancellationToken ct) => Task.CompletedTask;
     }
 
     private sealed class FakeNormativeValidator : INormativeValidator

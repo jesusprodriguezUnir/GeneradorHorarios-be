@@ -13,23 +13,31 @@ public sealed class GenerateScheduleOrchestrator(
     IAppDbContext db,
     IScheduleRepository scheduleRepository,
     IScheduleEngine engine,
-    INormativeValidator normativeValidator)
+    INormativeValidator normativeValidator,
+    ICycleResolver cycleResolver)
     : IScheduleGenerationOrchestrator
 {
     public async Task<GenerateScheduleResult> GenerateAsync(
         Guid schoolId,
+        Guid stageId,
         Guid periodId,
         string academicYear,
         int timeoutSeconds,
         IProgress<GenerationProgress>? progress,
         CancellationToken ct)
     {
+        // ── 0. Cargar etapa (dueña de los cursos, ciclos y niveles) ──────────
+        var stage = await db.SchoolStages.AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == stageId && s.SchoolId == schoolId, ct);
+        if (stage is null)
+            throw new NotFoundException("Etapa no encontrada.");
+
         // ── 1. Cargar periodo (dueño de la jornada) ──────────────────────────
         var period = await db.SchoolPeriods.AsNoTracking()
             .Include(p => p.Cycles).ThenInclude(c => c.Breaks)
-            .FirstOrDefaultAsync(p => p.Id == periodId && p.SchoolId == schoolId, ct);
+            .FirstOrDefaultAsync(p => p.Id == periodId && p.StageId == stageId, ct);
         if (period is null)
-            throw new NotFoundException("Periodo no encontrado.");
+            throw new NotFoundException("Periodo no encontrado para esta etapa.");
 
         var cycleMap = period.Cycles.ToDictionary(c => c.Cycle);
 
@@ -38,7 +46,7 @@ public sealed class GenerateScheduleOrchestrator(
             .Where(h => h.PeriodId == periodId)
             .ToDictionaryAsync(h => h.AssignmentId, h => h.WeeklyHours, ct);
 
-        var sessions = await BuildSessionsAsync(schoolId, periodHoursOverrides, ct);
+        var sessions = await BuildSessionsAsync(schoolId, stage, periodHoursOverrides, ct);
         if (sessions.Count == 0)
             return new GenerateScheduleResult.NoAssignments();
 
@@ -54,19 +62,19 @@ public sealed class GenerateScheduleOrchestrator(
             .Select(c => (c.TeacherId, c.Day, c.Slot)).ToHashSet();
 
         // ── 4. Validación normativa (pero no para periodos reducidos) ─────────
+        var stageGroupIds = (await db.CourseGroups.AsNoTracking()
+            .Where(g => g.StageId == stageId)
+            .Select(g => g.Id).ToListAsync(ct)).ToHashSet();
+
         var normativeAllocs = await db.SubjectAllocations.AsNoTracking()
             .ToDictionaryAsync(a => a.Id, ct);
         var normativeAssignments = await db.Assignments.AsNoTracking()
             .Where(a => a.SchoolId == schoolId).ToListAsync(ct);
         var normativeData = normativeAssignments
-            .Where(a => normativeAllocs.ContainsKey(a.AllocationId))
+            .Where(a => stageGroupIds.Contains(a.GroupId) && normativeAllocs.ContainsKey(a.AllocationId))
             .Select(a => (a, normativeAllocs[a.AllocationId])).ToList();
 
-        var workingDays = SlotCalculator.ParseWorkingDays(
-            (await db.Schools.AsNoTracking()
-                .Where(s => s.Id == schoolId)
-                .Select(s => s.WorkingDays)
-                .FirstOrDefaultAsync(ct)) ?? "[1,2,3,4,5]");
+        var workingDays = SlotCalculator.ParseWorkingDays(stage.WorkingDays);
         var cyclesList = BuildCycleGrids(period);
         var referenceSlots = cyclesList.FirstOrDefault()?.Slots
             ?? Enumerable.Range(0, period.SlotsPerDay)
@@ -79,10 +87,10 @@ public sealed class GenerateScheduleOrchestrator(
         var normativeValidationData = new NormativeValidationData
         {
             SchoolConfig = schoolConfig,
-            Stage = "primaria",
-            MinCourseLevel = 1,
-            MaxCourseLevel = 6,
-            BreakMinutes = 30,
+            Stage = stage.StageType,
+            MinCourseLevel = stage.MinLevel,
+            MaxCourseLevel = stage.MaxLevel,
+            BreakMinutes = stage.BreakMinutes,
             SlotMinutes = period.SlotMinutes,
             EnforceWeeklyLectiveMinimum = period.IsDefault,
             Assignments = normativeData.Select(n => new NormativeAssignmentData(
@@ -117,7 +125,7 @@ public sealed class GenerateScheduleOrchestrator(
         {
             var failedSchedule = new ScheduleRecord
             {
-                SchoolId = schoolId, AcademicYear = academicYear,
+                SchoolId = schoolId, StageId = stageId, AcademicYear = academicYear,
                 Status = "failed",
                 GeneratedAt = DateTime.UtcNow, GenerationSeconds = 0,
                 TotalConflicts = viabilityErrors.Count,
@@ -147,7 +155,7 @@ public sealed class GenerateScheduleOrchestrator(
 
         // ── 8. Post-procesamiento ────────────────────────────────────────────
         var homeClassroomMap = await db.CourseGroups.AsNoTracking()
-            .Where(g => g.SchoolId == schoolId && g.HomeClassroomId.HasValue)
+            .Where(g => g.StageId == stageId && g.HomeClassroomId.HasValue)
             .ToDictionaryAsync(g => g.Id, g => g.HomeClassroomId!.Value, ct);
         var defaultClassroomId = await db.Classrooms.AsNoTracking()
             .Where(c => c.SchoolId == schoolId && c.ClassroomType == "regular")
@@ -156,10 +164,10 @@ public sealed class GenerateScheduleOrchestrator(
             .Where(c => c.SchoolId == schoolId)
             .Select(c => c.Id).ToListAsync(ct)).ToHashSet();
         var allGroups = await db.CourseGroups.AsNoTracking()
-            .Where(g => g.SchoolId == schoolId)
+            .Where(g => g.StageId == stageId)
             .ToDictionaryAsync(g => g.Id, ct);
         var teacherAssignedWeeklyHoursExpected = await db.Assignments.AsNoTracking()
-            .Where(a => a.SchoolId == schoolId)
+            .Where(a => a.SchoolId == schoolId && stageGroupIds.Contains(a.GroupId))
             .GroupBy(a => a.TeacherId)
             .Select(g => new { TeacherId = g.Key, ExpectedHours = g.Sum(a => a.WeeklyHours) })
             .ToDictionaryAsync(x => x.TeacherId, x => x.ExpectedHours, ct);
@@ -180,7 +188,7 @@ public sealed class GenerateScheduleOrchestrator(
         // ── 9. Persistir resultado ────────────────────────────────────────────
         var schedule = new ScheduleRecord
         {
-            SchoolId = schoolId, AcademicYear = academicYear,
+            SchoolId = schoolId, StageId = stageId, AcademicYear = academicYear,
             Status = "generated",
             GeneratedAt = DateTime.UtcNow, GenerationSeconds = result.ElapsedSeconds,
             TotalConflicts = result.Conflicts.Count(c => c.Severity == ConflictSeverity.Error)
@@ -261,6 +269,7 @@ public sealed class GenerateScheduleOrchestrator(
 
     private async Task<List<SessionToAssign>> BuildSessionsAsync(
         Guid schoolId,
+        SchoolStage stage,
         IReadOnlyDictionary<Guid, int> periodHoursOverrides,
         CancellationToken ct)
     {
@@ -272,12 +281,14 @@ public sealed class GenerateScheduleOrchestrator(
             .Where(t => t.SchoolId == schoolId)
             .ToDictionaryAsync(t => t.Id, ct);
         var groups = await db.CourseGroups.AsNoTracking()
-            .Where(g => g.SchoolId == schoolId)
+            .Where(g => g.StageId == stage.Id)
             .ToDictionaryAsync(g => g.Id, ct);
 
         var sessions = new List<SessionToAssign>();
         foreach (var a in assignments)
         {
+            // Solo sesiones de los grupos de esta etapa.
+            if (!groups.TryGetValue(a.GroupId, out var grp)) continue;
             if (!allocations.TryGetValue(a.AllocationId, out var alloc)) continue;
             if (!teachers.TryGetValue(a.TeacherId, out var teacher)) continue;
 
@@ -287,8 +298,8 @@ public sealed class GenerateScheduleOrchestrator(
             List<string> specialties;
             try { specialties = JsonSerializer.Deserialize<List<string>>(teacher.Specialties) ?? []; }
             catch { specialties = []; }
-            var groupLabel = groups.TryGetValue(a.GroupId, out var grp) ? grp.DisplayName : "Grupo";
-            var cycle = grp?.Cycle ?? 1;
+            var groupLabel = grp.DisplayName;
+            var cycle = cycleResolver.ResolveCycle(stage.StageType, grp.CourseLevel);
 
             var hoursToUse = periodHoursOverrides.GetValueOrDefault(a.Id, a.WeeklyHours);
 

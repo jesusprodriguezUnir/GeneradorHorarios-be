@@ -3,6 +3,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using HorariosEscolares.Domain.Abstractions;
 using HorariosEscolares.Domain.Entities;
+using HorariosEscolares.Domain.Scheduling;
 using HorariosEscolares.Domain.Services;
 
 namespace HorariosEscolares.Application.Features.Schedules;
@@ -11,7 +12,8 @@ public record ScheduleListDto(
     Guid Id, string AcademicYear, string Status,
     DateTime? GeneratedAt, DateTime? PublishedAt,
     int TotalConflicts, int? GenerationSeconds,
-    Guid? PeriodId, string? PeriodName);
+    Guid? PeriodId, string? PeriodName,
+    Guid StageId, string? StageName);
 
 public record ConflictDto(
     string Type, string Severity, string Description, string[] Suggestions,
@@ -46,19 +48,24 @@ public record MyScheduleEntry(
 
 public record UpdateEntryRequest(Guid TeacherId, Guid ClassroomId);
 
-public record GetSchedulesListQuery : IRequest<List<ScheduleListDto>>;
+public record GetSchedulesListQuery(Guid? StageId = null) : IRequest<List<ScheduleListDto>>;
 public record GetScheduleGridQuery(Guid ScheduleId) : IRequest<ScheduleGridDto?>;
 public record GetMyScheduleQuery : IRequest<MyScheduleDto?>;
 public record PublishScheduleCommand(Guid ScheduleId) : IRequest<string>;
 public record UpdateScheduleEntryCommand(Guid ScheduleId, Guid EntryId, UpdateEntryRequest Request) : IRequest;
+public record DeleteScheduleCommand(Guid ScheduleId) : IRequest;
 
 public sealed class GetSchedulesListHandler(IAppDbContext db, ICurrentUser user)
     : IRequestHandler<GetSchedulesListQuery, List<ScheduleListDto>>
 {
     public async Task<List<ScheduleListDto>> Handle(GetSchedulesListQuery request, CancellationToken ct)
     {
-        var schedules = await db.Schedules.AsNoTracking()
-            .Where(s => s.SchoolId == user.SchoolId)
+        var query = db.Schedules.AsNoTracking()
+            .Where(s => s.SchoolId == user.SchoolId);
+        if (request.StageId.HasValue)
+            query = query.Where(s => s.StageId == request.StageId.Value);
+
+        var schedules = await query
             .OrderByDescending(s => s.CreatedAt)
             .ToListAsync(ct);
 
@@ -69,10 +76,15 @@ public sealed class GetSchedulesListHandler(IAppDbContext db, ICurrentUser user)
                 .ToDictionaryAsync(p => p.Id, p => p.Name, ct)
             : new Dictionary<Guid, string>();
 
+        var stageNames = await db.SchoolStages.AsNoTracking()
+            .Where(st => st.SchoolId == user.SchoolId)
+            .ToDictionaryAsync(st => st.Id, st => st.Name, ct);
+
         return schedules.Select(s => new ScheduleListDto(s.Id, s.AcademicYear, s.Status,
             s.GeneratedAt, s.PublishedAt, s.TotalConflicts, s.GenerationSeconds,
             s.PeriodId,
-            s.PeriodId.HasValue ? periodNames.GetValueOrDefault(s.PeriodId.Value) : null)).ToList();
+            s.PeriodId.HasValue ? periodNames.GetValueOrDefault(s.PeriodId.Value) : null,
+            s.StageId, stageNames.GetValueOrDefault(s.StageId))).ToList();
     }
 }
 
@@ -95,7 +107,7 @@ public sealed class GetScheduleGridHandler(IAppDbContext db, ICurrentUser user)
         var teachers = await db.Teachers.AsNoTracking()
             .Where(t => t.SchoolId == schedule.SchoolId).ToDictionaryAsync(t => t.Id, ct);
         var groups = await db.CourseGroups.AsNoTracking()
-            .Where(g => g.SchoolId == schedule.SchoolId).ToDictionaryAsync(g => g.Id, ct);
+            .Where(g => g.StageId == schedule.StageId).ToDictionaryAsync(g => g.Id, ct);
         var classrooms = await db.Classrooms.AsNoTracking()
             .Where(c => c.SchoolId == schedule.SchoolId).ToDictionaryAsync(c => c.Id, ct);
         SchoolPeriod? period = null;
@@ -285,5 +297,20 @@ public sealed class UpdateScheduleEntryHandler(IAppDbContext db, ICurrentUser us
         entry.ClassroomId = request.Request.ClassroomId;
         entry.IsManualOverride = true;
         await db.SaveChangesAsync(ct);
+    }
+}
+
+public sealed class DeleteScheduleHandler(IAppDbContext db, IScheduleRepository repository, ICurrentUser user)
+    : IRequestHandler<DeleteScheduleCommand>
+{
+    public async Task Handle(DeleteScheduleCommand request, CancellationToken ct)
+    {
+        var schedule = await db.Schedules.AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == request.ScheduleId && s.SchoolId == user.SchoolId, ct);
+        if (schedule is null) throw new NotFoundException("Schedule not found");
+        if (schedule.Status == "published")
+            throw new InvalidOperationException("No se puede eliminar un horario publicado. Archívalo primero.");
+
+        await repository.DeleteAsync(schedule.Id, ct);
     }
 }

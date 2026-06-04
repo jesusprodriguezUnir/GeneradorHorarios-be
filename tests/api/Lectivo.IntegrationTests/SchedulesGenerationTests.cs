@@ -13,6 +13,7 @@ public class SchedulesGenerationTests
 {
     private readonly LectivoApiFactory _factory;
     private static readonly Guid SchoolId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+    private static readonly Guid StageId = Guid.Parse("00000000-0000-0000-0000-000000000031");
     private static readonly Guid PeriodId = Guid.Parse("00000000-0000-0000-0000-000000000020");
 
     public SchedulesGenerationTests(MsSqlFixture fixture)
@@ -25,7 +26,7 @@ public class SchedulesGenerationTests
         using var scope = _factory.Services.CreateScope();
         var orchestrator = scope.ServiceProvider.GetRequiredService<IScheduleGenerationOrchestrator>();
         var result = await orchestrator.GenerateAsync(
-            SchoolId, PeriodId, academicYear, timeoutSeconds, null, CancellationToken.None);
+            SchoolId, StageId, PeriodId, academicYear, timeoutSeconds, null, CancellationToken.None);
 
         return result switch
         {
@@ -40,7 +41,7 @@ public class SchedulesGenerationTests
     {
         var client = _factory.CreateAdminClient();
 
-        var payload = new { periodId = PeriodId, academicYear = "2025-2026", timeoutSeconds = 30 };
+        var payload = new { stageId = StageId, periodId = PeriodId, academicYear = "2025-2026", timeoutSeconds = 30 };
         var response = await client.PostAsync("/api/schedules/generate",
             new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json"));
 
@@ -56,7 +57,7 @@ public class SchedulesGenerationTests
     {
         var client = _factory.CreateAdminClient();
 
-        var payload = new { periodId = PeriodId, academicYear = "2025-2026", timeoutSeconds = 30 };
+        var payload = new { stageId = StageId, periodId = PeriodId, academicYear = "2025-2026", timeoutSeconds = 30 };
         var response = await client.PostAsync("/api/schedules/generate",
             new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json"));
 
@@ -89,7 +90,7 @@ public class SchedulesGenerationTests
         await connection.InvokeAsync("JoinSchoolGroup", "00000000-0000-0000-0000-000000000001");
 
         var client = _factory.CreateAdminClient();
-        var payload = new { periodId = PeriodId, academicYear = "2025-2026", timeoutSeconds = 30 };
+        var payload = new { stageId = StageId, periodId = PeriodId, academicYear = "2025-2026", timeoutSeconds = 30 };
         var response = await client.PostAsync("/api/schedules/generate",
             new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json"));
         response.StatusCode.Should().Be(HttpStatusCode.Accepted);
@@ -134,7 +135,7 @@ public class SchedulesGenerationTests
         using var scope = _factory.Services.CreateScope();
         var orchestrator = scope.ServiceProvider.GetRequiredService<IScheduleGenerationOrchestrator>();
         var result = await orchestrator.GenerateAsync(
-            SchoolId, PeriodId, "2025-2026", 30, null, CancellationToken.None);
+            SchoolId, StageId, PeriodId, "2025-2026", 30, null, CancellationToken.None);
 
         result.Should().BeOfType<GenerateScheduleResult.Success>();
         var success = (GenerateScheduleResult.Success)result;

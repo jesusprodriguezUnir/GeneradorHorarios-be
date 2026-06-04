@@ -4,7 +4,7 @@ using HorariosEscolares.Domain.Services;
 
 namespace HorariosEscolares.Infrastructure.Normative;
 
-public sealed class NormativeValidator : INormativeValidator
+public sealed class NormativeValidator(INormativeStageRegistry registry) : INormativeValidator
 {
     public Task<List<ConflictExplanation>> ValidateAsync(
         NormativeValidationData data,
@@ -12,41 +12,41 @@ public sealed class NormativeValidator : INormativeValidator
     {
         var issues = new List<ConflictExplanation>();
 
-        ValidateSchoolConfig(data, issues);
-        ValidateGroupHours(data, issues);
+        var normative = registry.Resolve(data.Stage);
+        if (normative is null)
+        {
+            issues.Add(MakeIssue(ConflictSeverity.Warning,
+                $"La etapa configurada es '{data.Stage}', pero no hay normativa registrada para validarla.",
+                ["Comprueba que la etapa del centro sea una de: infantil, primaria, secundaria."]));
+            return Task.FromResult(issues);
+        }
+
+        ValidateSchoolConfig(data, normative, issues);
+        ValidateGroupHours(data, normative, issues);
 
         return Task.FromResult(issues);
     }
 
-    private static void ValidateSchoolConfig(NormativeValidationData data, List<ConflictExplanation> issues)
+    private static void ValidateSchoolConfig(
+        NormativeValidationData data, IStageNormative normative, List<ConflictExplanation> issues)
     {
-        if (!string.Equals(data.Stage, LomloeMadrid.Stage, StringComparison.OrdinalIgnoreCase))
-        {
-            issues.Add(MakeIssue(ConflictSeverity.Warning,
-                $"La etapa configurada es '{data.Stage}', pero este validador solo cubre Educación Primaria.",
-                ["Comprueba que la etapa del centro esté establecida a 'primaria'."]));
-        }
-        else
-        {
-            if (data.MinCourseLevel < LomloeMadrid.PrimariaMinLevel)
-                issues.Add(MakeIssue(ConflictSeverity.Error,
-                    $"El nivel mínimo del centro ({data.MinCourseLevel}) es inferior al permitido para primaria ({LomloeMadrid.PrimariaMinLevel}).",
-                    ["Establece MinCourseLevel = 1."]));
+        if (data.MinCourseLevel < normative.MinLevel)
+            issues.Add(MakeIssue(ConflictSeverity.Error,
+                $"El nivel mínimo del centro ({data.MinCourseLevel}) es inferior al permitido para {normative.StageType} ({normative.MinLevel}).",
+                [$"Establece MinCourseLevel = {normative.MinLevel}."]));
 
-            if (data.MaxCourseLevel > LomloeMadrid.PrimariaMaxLevel)
-                issues.Add(MakeIssue(ConflictSeverity.Error,
-                    $"El nivel máximo del centro ({data.MaxCourseLevel}) supera el de primaria ({LomloeMadrid.PrimariaMaxLevel} cursos).",
-                    ["Establece MaxCourseLevel ≤ 6 para primaria."]));
-        }
+        if (data.MaxCourseLevel > normative.MaxLevel)
+            issues.Add(MakeIssue(ConflictSeverity.Error,
+                $"El nivel máximo del centro ({data.MaxCourseLevel}) supera el de {normative.StageType} ({normative.MaxLevel} cursos).",
+                [$"Establece MaxCourseLevel ≤ {normative.MaxLevel} para {normative.StageType}."]));
 
-        if (data.BreakMinutes < LomloeMadrid.MinDailyBreakMinutes)
+        if (data.BreakMinutes < normative.MinDailyBreakMinutes)
         {
             issues.Add(MakeIssue(ConflictSeverity.Error,
-                $"El recreo configurado ({data.BreakMinutes} min) es inferior al mínimo legal de {LomloeMadrid.MinDailyBreakMinutes} min/día " +
-                $"(Decreto 61/2022, Decreto 94/2025).",
+                $"El recreo configurado ({data.BreakMinutes} min) es inferior al mínimo legal de {normative.MinDailyBreakMinutes} min/día.",
                 [
-                    $"Establece BreakMinutes ≥ {LomloeMadrid.MinDailyBreakMinutes}.",
-                    "El recreo no cuenta como tiempo lectivo — debe añadirse a las 22,5 h semanales.",
+                    $"Establece BreakMinutes ≥ {normative.MinDailyBreakMinutes}.",
+                    "El recreo no cuenta como tiempo lectivo — debe añadirse a las horas lectivas semanales.",
                 ]));
         }
 
@@ -55,20 +55,21 @@ public sealed class NormativeValidator : INormativeValidator
             decimal lectiveMinutes = (decimal)data.SchoolConfig.SlotsPerDay * data.SlotMinutes * data.SchoolConfig.DaysPerWeek;
             decimal lectiveHours = lectiveMinutes / 60m;
 
-            if (lectiveHours < LomloeMadrid.MinWeeklyLectiveHours)
+            if (lectiveHours < normative.MinWeeklyLectiveHours)
             {
                 issues.Add(MakeIssue(ConflictSeverity.Error,
                     $"La rejilla horaria del centro ({lectiveHours:F1} h/semana lectivas) es inferior al " +
-                    $"mínimo legal de {LomloeMadrid.MinWeeklyLectiveHours} h/semana (Decreto 61/2022).",
+                    $"mínimo legal de {normative.MinWeeklyLectiveHours} h/semana.",
                     [
-                        $"Aumenta SlotsPerDay o DaysPerWeek para alcanzar ≥ {LomloeMadrid.MinWeeklyLectiveHours} h lectivas/semana.",
+                        $"Aumenta SlotsPerDay o DaysPerWeek para alcanzar ≥ {normative.MinWeeklyLectiveHours} h lectivas/semana.",
                         "Por ejemplo: 5 tramos de 60 min × 5 días = 25 h/semana.",
                     ]));
             }
         }
     }
 
-    private static void ValidateGroupHours(NormativeValidationData data, List<ConflictExplanation> issues)
+    private static void ValidateGroupHours(
+        NormativeValidationData data, IStageNormative normative, List<ConflictExplanation> issues)
     {
         var byGroup = data.Assignments
             .GroupBy(d => d.GroupId)
@@ -78,14 +79,14 @@ public sealed class NormativeValidator : INormativeValidator
         {
             decimal totalH = assignments.Sum(a => (decimal)a.WeeklyHours);
 
-            if (data.EnforceWeeklyLectiveMinimum && totalH < LomloeMadrid.MinWeeklyLectiveHours)
+            if (data.EnforceWeeklyLectiveMinimum && totalH < normative.MinWeeklyLectiveHours)
             {
                 issues.Add(MakeIssue(ConflictSeverity.Error,
                     $"El grupo {GroupLabel(assignments)} solo tiene {totalH:F0} h/semana asignadas, " +
-                    $"por debajo del mínimo legal de {LomloeMadrid.MinWeeklyLectiveHours} h (Decreto 61/2022).",
+                    $"por debajo del mínimo legal de {normative.MinWeeklyLectiveHours} h.",
                     [
-                        "Añade asignaciones de asignaturas para completar al menos 22,5 h lectivas/semana.",
-                        "Consulta la tabla del Decreto 61/2022 (Anexo IV) para los mínimos por área.",
+                        $"Añade asignaciones de asignaturas para completar al menos {normative.MinWeeklyLectiveHours} h lectivas/semana.",
+                        "Consulta la tabla normativa de la etapa para los mínimos por área.",
                     ],
                     groupId: groupId));
             }
@@ -94,7 +95,7 @@ public sealed class NormativeValidator : INormativeValidator
                 .Where(a => a.SubjectKey == "ing")
                 .Sum(a => a.WeeklyHours);
             string modality = ingHours >= 5 ? "bilingue" : "estandar";
-            var norms = LomloeMadrid.GetSubjects(modality);
+            var norms = normative.GetSubjects(modality);
 
             foreach (var norm in norms.Where(n => n.MinH > 0))
             {
@@ -106,7 +107,7 @@ public sealed class NormativeValidator : INormativeValidator
                 {
                     issues.Add(MakeIssue(ConflictSeverity.Warning,
                         $"El grupo {GroupLabel(assignments)} tiene {assignedH} h/semana de {norm.SubjectName}, " +
-                        $"por debajo del mínimo recomendado de {norm.MinH} h según el Decreto 61/2022.",
+                        $"por debajo del mínimo recomendado de {norm.MinH} h.",
                         [
                             $"Considera asignar al menos {norm.MinH} h de {norm.SubjectName} a este grupo.",
                             $"El margen es {norm.MinH}-{norm.MaxH} h/semana.",
@@ -117,7 +118,7 @@ public sealed class NormativeValidator : INormativeValidator
                 {
                     issues.Add(MakeIssue(ConflictSeverity.Warning,
                         $"El grupo {GroupLabel(assignments)} tiene {assignedH} h/semana de {norm.SubjectName}, " +
-                        $"superando el máximo de {norm.MaxH} h según el Decreto 61/2022.",
+                        $"superando el máximo de {norm.MaxH} h.",
                         [
                             $"Reduce las horas de {norm.SubjectName} a ≤ {norm.MaxH} h/semana.",
                         ],

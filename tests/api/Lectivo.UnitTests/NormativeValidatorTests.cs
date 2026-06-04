@@ -13,7 +13,7 @@ namespace Lectivo.UnitTests;
 /// </summary>
 public class NormativeValidatorTests
 {
-    private static readonly NormativeValidator Validator = new();
+    private static readonly NormativeValidator Validator = new(new NormativeStageRegistry());
 
     // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -187,16 +187,18 @@ public class NormativeValidatorTests
     }
 
     [Fact]
-    public async Task ValidateAsync_NonPrimariaStage_ReturnsWarning()
+    public async Task ValidateAsync_UnregisteredStage_ReturnsWarning()
     {
-        var school = MakeSchool(stage: "secundaria");
+        // 'bachillerato' no tiene normativa registrada → aviso de etapa no soportada.
+        var school = MakeSchool(stage: "bachillerato");
         var data = Array.Empty<(Assignment, SubjectAllocation)>();
 
         var issues = await Validator.ValidateAsync(BuildValidationData(school, data));
 
         issues.Should().Contain(i =>
             i.Severity == ConflictSeverity.Warning &&
-            i.Description.Contains("secundaria"));
+            i.Description.Contains("bachillerato") &&
+            i.Description.Contains("no hay normativa registrada"));
     }
 
     // ── Tests de horas por grupo ──────────────────────────────────────────────────

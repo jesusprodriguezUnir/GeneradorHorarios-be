@@ -63,6 +63,7 @@ public class CurriculumTemplate
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid? SchoolId { get; set; }
+    public Guid? StageId { get; set; }
     public required string Name { get; set; }
     public string Region { get; set; } = "madrid";
     public string Stage { get; set; } = "primaria";
@@ -90,6 +91,7 @@ public class CourseGroup
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public required Guid SchoolId { get; set; }
+    public required Guid StageId { get; set; }
     public required int CourseLevel { get; set; }
     public required string GroupLabel { get; set; }
     public int StudentCount { get; set; } = 25;
@@ -97,7 +99,6 @@ public class CourseGroup
     public Guid? HomeClassroomId { get; set; }
     public ICollection<GroupSubjectHour> SubjectHoursList { get; set; } = new List<GroupSubjectHour>();
     public string DisplayName => $"{CourseLevel}º{GroupLabel}";
-    public int Cycle => (CourseLevel + 1) / 2;
 }
 
 public class GroupSubjectHour
@@ -135,6 +136,7 @@ public class ScheduleRecord
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public required Guid SchoolId { get; set; }
+    public required Guid StageId { get; set; }
     public required string AcademicYear { get; set; }
     public string Status { get; set; } = "draft";
     public DateTime? GeneratedAt { get; set; }
@@ -178,6 +180,7 @@ public class SchoolPeriod
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public required Guid SchoolId { get; set; }
+    public required Guid StageId { get; set; }
     public required string Key { get; set; }
     public required string Name { get; set; }
     public string Months { get; set; } = "[10,11,12,1,2,3,4,5]";
@@ -194,6 +197,7 @@ public class CycleSchedule
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public required Guid SchoolId { get; set; }
+    public required Guid StageId { get; set; }
     public required Guid PeriodId { get; set; }
     public required int Cycle { get; set; }
     public TimeOnly MorningStart { get; set; } = new(9, 0);
@@ -218,4 +222,39 @@ public class CycleBreak
     public required int AfterSlot { get; set; }
     public int Minutes { get; set; } = 30;
     public CycleSchedule? Cycle { get; set; }
+}
+
+/// <summary>
+/// Etapa educativa ("bloque") de un colegio: Infantil, Primaria o Secundaria.
+/// Un colegio puede impartir varias etapas, cada una con sus cursos, ciclos y jornada propios.
+/// </summary>
+public class SchoolStage
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public required Guid SchoolId { get; set; }
+    public required string StageType { get; set; }   // StageTypes.Infantil | Primaria | Secundaria
+    public required string Name { get; set; }
+    public int MinLevel { get; set; } = 1;
+    public int MaxLevel { get; set; } = 6;
+    public int SortOrder { get; set; }
+
+    // Configuración de jornada propia de la etapa
+    public string ScheduleType { get; set; } = "continua";
+    public TimeOnly MorningStart { get; set; } = new(9, 0);
+    public TimeOnly? AfternoonStart { get; set; }
+    public int SlotMinutes { get; set; } = 60;
+    public int BreakAfterSlot { get; set; } = 2;
+    public int BreakMinutes { get; set; } = 30;
+    public int SlotsPerDay { get; set; } = 5;
+    public int AfternoonSlots { get; set; } = 0;
+    public int DaysPerWeek { get; set; } = 5;
+    public string WorkingDays { get; set; } = "[1,2,3,4,5]";
+}
+
+/// <summary>Tipos de etapa educativa soportados.</summary>
+public static class StageTypes
+{
+    public const string Infantil = "infantil";
+    public const string Primaria = "primaria";
+    public const string Secundaria = "secundaria";
 }

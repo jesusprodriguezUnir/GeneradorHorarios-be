@@ -10,9 +10,9 @@ public static class GroupEndpoints
     {
         var g = app.MapGroup("/api/groups");
 
-        g.MapGet("/", async (ISender sender) =>
+        g.MapGet("/", async (ISender sender, Guid? stageId) =>
         {
-            var result = await sender.Send(new GetAllGroupsQuery());
+            var result = await sender.Send(new GetAllGroupsQuery(stageId));
             return Results.Ok(result);
         });
 

@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using HorariosEscolares.Domain.Entities;
 using HorariosEscolares.Domain.Scheduling;
 using HorariosEscolares.Infrastructure.Persistence;
@@ -16,5 +17,12 @@ public sealed class ScheduleRepository(AppDbContext db) : IScheduleRepository
         db.ScheduleEntries.AddRange(entries);
         db.ScheduleConflicts.AddRange(conflicts);
         await db.SaveChangesAsync(ct);
+    }
+
+    public async Task DeleteAsync(Guid scheduleId, CancellationToken ct)
+    {
+        await db.ScheduleConflicts.Where(c => c.ScheduleId == scheduleId).ExecuteDeleteAsync(ct);
+        await db.ScheduleEntries.Where(e => e.ScheduleId == scheduleId).ExecuteDeleteAsync(ct);
+        await db.Schedules.Where(s => s.Id == scheduleId).ExecuteDeleteAsync(ct);
     }
 }

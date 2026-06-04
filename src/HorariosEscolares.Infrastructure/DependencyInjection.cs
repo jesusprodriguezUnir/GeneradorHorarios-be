@@ -20,8 +20,10 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(this IServiceCollection services)
     {
         services.AddScoped<IScheduleEngine, BacktrackingScheduleEngine>();
+        services.AddSingleton<INormativeStageRegistry, NormativeStageRegistry>();
         services.AddScoped<INormativeValidator, NormativeValidator>();
         services.AddScoped<IScheduleRepository, ScheduleRepository>();
+        services.AddSingleton<ICycleResolver, CycleResolver>();
 
         services.AddScoped<ITeacherRepository, TeacherRepository>();
         services.AddScoped<ISchoolRepository, SchoolRepository>();

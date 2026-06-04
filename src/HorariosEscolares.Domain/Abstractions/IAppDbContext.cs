@@ -6,6 +6,7 @@ namespace HorariosEscolares.Domain.Abstractions;
 public interface IAppDbContext
 {
     DbSet<School> Schools { get; }
+    DbSet<SchoolStage> SchoolStages { get; }
     DbSet<AppUser> AppUsers { get; }
     DbSet<Teacher> Teachers { get; }
     DbSet<Classroom> Classrooms { get; }

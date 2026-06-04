@@ -62,10 +62,17 @@ public static class SchoolEndpoints
             return Results.Ok(result);
         });
 
-        // ── Periods CRUD ────────────────────────────────────────────────────
-        g.MapGet("/me/periods", async (ISender sender) =>
+        // ── Stages (etapas / bloques) ───────────────────────────────────────
+        g.MapGet("/me/stages", async (ISender sender) =>
         {
-            var result = await sender.Send(new GetPeriodsQuery());
+            var result = await sender.Send(new GetStagesQuery());
+            return Results.Ok(result);
+        });
+
+        // ── Periods CRUD ────────────────────────────────────────────────────
+        g.MapGet("/me/periods", async (ISender sender, Guid? stageId) =>
+        {
+            var result = await sender.Send(new GetPeriodsQuery(stageId));
             return Results.Ok(result);
         });
 

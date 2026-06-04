@@ -32,7 +32,7 @@ public sealed class GenerationProgressHub : Hub
     }
 }
 
-public record GenerateRequest(Guid PeriodId, string AcademicYear, int TimeoutSeconds = 30);
+public record GenerateRequest(Guid StageId, Guid PeriodId, string AcademicYear, int TimeoutSeconds = 30);
 public record UpdateEntryRequest(Guid TeacherId, Guid ClassroomId);
 
 public static class ScheduleEndpoints
@@ -41,10 +41,10 @@ public static class ScheduleEndpoints
     {
         var g = app.MapGroup("/api/schedules");
 
-        // GET /api/schedules — lista de horarios del colegio
-        g.MapGet("/", async (ISender sender) =>
+        // GET /api/schedules — lista de horarios del colegio (filtro opcional por etapa)
+        g.MapGet("/", async (ISender sender, Guid? stageId) =>
         {
-            var result = await sender.Send(new GetSchedulesListQuery());
+            var result = await sender.Send(new GetSchedulesListQuery(stageId));
             return Results.Ok(result);
         });
 
@@ -60,6 +60,7 @@ public static class ScheduleEndpoints
             var jobId = backgroundJobs.Enqueue<ScheduleGenerationJob>(job =>
                 job.ExecuteAsync(
                     user.SchoolId,
+                    req.StageId,
                     req.PeriodId,
                     req.AcademicYear,
                     req.TimeoutSeconds,
@@ -110,6 +111,21 @@ public static class ScheduleEndpoints
             {
                 var message = await sender.Send(new PublishScheduleCommand(id));
                 return Results.Ok(new { message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.BadRequest(new { message = ex.Message });
+            }
+        });
+
+        // DELETE /api/schedules/{id} — elimina un horario (no publicado)
+        g.MapDelete("/{id:guid}", async (Guid id, HttpContext ctx, ISender sender) =>
+        {
+            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
+            try
+            {
+                await sender.Send(new DeleteScheduleCommand(id));
+                return Results.NoContent();
             }
             catch (InvalidOperationException ex)
             {
