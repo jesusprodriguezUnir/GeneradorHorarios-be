@@ -3,6 +3,7 @@ using FluentValidation;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using HorariosEscolares.Application.Common.Behaviors;
+using HorariosEscolares.Application.Features.Schedules.Commands.GenerateSchedule;
 
 namespace HorariosEscolares.Application;
 
@@ -18,6 +19,7 @@ public static class DependencyInjection
         });
 
         services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
+        services.AddScoped<IScheduleGenerationOrchestrator, GenerateScheduleOrchestrator>();
 
         return services;
     }

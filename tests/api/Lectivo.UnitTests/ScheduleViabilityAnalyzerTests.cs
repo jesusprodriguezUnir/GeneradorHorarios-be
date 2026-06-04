@@ -1,6 +1,5 @@
 using HorariosEscolares.Domain.Entities;
 using HorariosEscolares.Domain.Services;
-using HorariosEscolares.Infrastructure.Engine;
 using FluentAssertions;
 
 namespace Lectivo.UnitTests;
