@@ -23,11 +23,17 @@ public sealed class GenerateScheduleOrchestrator(
         IProgress<GenerationProgress>? progress,
         CancellationToken ct)
     {
-        // ── 1. Cargar colegio ─────────────────────────────────────────────────
+        // ── 1. Cargar colegio y configuraciones de ciclo ─────────────────────
         var school = await db.Schools.AsNoTracking()
             .FirstOrDefaultAsync(s => s.Id == schoolId, ct);
         if (school is null)
             throw new NotFoundException("Colegio no encontrado.");
+
+        var cycleSchedules = await db.CycleSchedules.AsNoTracking()
+            .Include(c => c.Breaks)
+            .Where(c => c.SchoolId == schoolId)
+            .ToListAsync(ct);
+        var cycleMap = cycleSchedules.ToDictionary(c => c.Cycle);
 
         // ── 2. Construir sesiones ─────────────────────────────────────────────
         var sessions = await BuildSessionsAsync(schoolId, ct);
@@ -53,11 +59,19 @@ public sealed class GenerateScheduleOrchestrator(
         var normativeData = normativeAssignments
             .Where(a => normativeAllocs.ContainsKey(a.AllocationId))
             .Select(a => (a, normativeAllocs[a.AllocationId])).ToList();
+
+        var workingDays = SlotCalculator.ParseWorkingDays(school.WorkingDays);
+        var cyclesList = BuildCycleGrids(school, cycleSchedules);
+        var referenceSlots = cyclesList.FirstOrDefault()?.Slots
+            ?? SlotCalculator.Compute(school, school.SlotsPerDay)
+                .Select(s => new SlotConfig(s.Index, s.IsBreak, s.StartMinute, s.EndMinute)).ToList();
+
+        var schoolConfig = new SchoolConfig(
+            school.SlotsPerDay, school.DaysPerWeek, workingDays, cyclesList,
+            classrooms.Select(c => new ClassroomInfo(c.Id, c.Name, ParseClassroomType(c.ClassroomType))).ToList());
+
         var normativeValidationData = new NormativeValidationData(
-            new SchoolConfig(school.SlotsPerDay, school.DaysPerWeek,
-                SlotCalculator.ParseWorkingDays(school.WorkingDays).ToList(),
-                SlotCalculator.Compute(school, school.SlotsPerDay)
-                    .Select(s => new SlotConfig(s.Index, s.IsBreak)).ToList(), []),
+            schoolConfig,
             school.Stage, school.MinCourseLevel, school.MaxCourseLevel,
             school.BreakMinutes, school.SlotMinutes,
             normativeData.Select(n => new NormativeAssignmentData(
@@ -67,23 +81,17 @@ public sealed class GenerateScheduleOrchestrator(
         var normativeIssues = await normativeValidator.ValidateAsync(normativeValidationData, ct);
 
         // ── 5. Computar slots y constraints ──────────────────────────────────
-        var slots = SlotCalculator.Compute(school, school.SlotsPerDay);
-        int lastLectivoSlotIndex = slots.Where(s => !s.IsBreak).Any()
-            ? slots.Where(s => !s.IsBreak).Max(s => s.Index) : 4;
+        int lastLectivoSlotIndex = referenceSlots.Where(s => !s.IsBreak).Any()
+            ? referenceSlots.Where(s => !s.IsBreak).Max(s => s.Index) : 4;
 
         var weights = new SoftConstraintWeights();
         var hardConstraints = BuildHardConstraints(unavailableSlots
             .Select(c => (c.TeacherId, c.Day, c.Slot)).ToList());
         var softConstraints = await BuildSoftConstraintsAsync(schoolId, lastLectivoSlotIndex, weights, ct);
 
-        var workingDays = SlotCalculator.ParseWorkingDays(school.WorkingDays);
         var context = new GenerationContext
         {
-            School = new SchoolConfig(
-                school.SlotsPerDay, school.DaysPerWeek, workingDays,
-                slots.Select(s => new SlotConfig(s.Index, s.IsBreak)).ToList(),
-                classrooms.Select(c => new ClassroomInfo(c.Id, c.Name, ParseClassroomType(c.ClassroomType))).ToList()
-            ),
+            School = schoolConfig,
             Sessions = sessions,
             HardConstraints = hardConstraints,
             SoftConstraints = softConstraints,
@@ -101,7 +109,7 @@ public sealed class GenerateScheduleOrchestrator(
                 Status = "failed",
                 GeneratedAt = DateTime.UtcNow, GenerationSeconds = 0,
                 TotalConflicts = viabilityErrors.Count,
-                CreatedBy = Guid.Empty, // El endpoint sobrescribe esto si es necesario
+                CreatedBy = Guid.Empty,
             };
 
             var failedConflicts = viabilityErrors.Select(conflict => new ScheduleConflictRecord
@@ -146,13 +154,12 @@ public sealed class GenerateScheduleOrchestrator(
             .Where(t => t.SchoolId == schoolId)
             .ToDictionaryAsync(t => t.Id, t => t.FullName, ct);
 
-        var workingDaysList = SlotCalculator.ParseWorkingDays(school.WorkingDays);
-        var lectivoSlotIndices = slots.Where(s => !s.IsBreak).Select(s => s.Index).ToHashSet();
+        var lectivoSlotIndices = referenceSlots.Where(s => !s.IsBreak).Select(s => s.Index).ToHashSet();
         var assignedSet = result.AssignedSlots
             .Select(s => (s.GroupId, s.DayOfWeek, s.SlotIndex)).ToHashSet();
 
         var coverageConflicts = DetectCoverageConflicts(
-            allGroups, workingDaysList, lectivoSlotIndices, assignedSet);
+            allGroups, workingDays, lectivoSlotIndices, assignedSet);
 
         var teacherHoursConflicts = DetectTeacherHoursConflicts(
             result.AssignedSlots, teacherAssignedWeeklyHoursExpected, teacherNames);
@@ -208,6 +215,31 @@ public sealed class GenerateScheduleOrchestrator(
             result.ElapsedSeconds, schedule.TotalConflicts, result.TotalCost);
     }
 
+    private List<CycleGrid> BuildCycleGrids(School school, List<CycleSchedule> cycleSchedules)
+    {
+        var grids = new List<CycleGrid>();
+        var presentCycles = cycleSchedules.Select(c => c.Cycle).ToHashSet();
+
+        foreach (var cs in cycleSchedules)
+        {
+            var slots = SlotCalculator.Compute(cs, school);
+            grids.Add(new CycleGrid(cs.Cycle,
+                slots.Select(s => new SlotConfig(s.Index, s.IsBreak, s.StartMinute, s.EndMinute)).ToList()));
+        }
+
+        for (int c = 1; c <= 3; c++)
+        {
+            if (!presentCycles.Contains(c))
+            {
+                var fallbackSlots = SlotCalculator.Compute(school, school.SlotsPerDay);
+                grids.Add(new CycleGrid(c,
+                    fallbackSlots.Select(s => new SlotConfig(s.Index, s.IsBreak, s.StartMinute, s.EndMinute)).ToList()));
+            }
+        }
+
+        return grids;
+    }
+
     // ── Métodos privados ──────────────────────────────────────────────────────
 
     private async Task<List<SessionToAssign>> BuildSessionsAsync(Guid schoolId, CancellationToken ct)
@@ -236,6 +268,7 @@ public sealed class GenerateScheduleOrchestrator(
             try { specialties = JsonSerializer.Deserialize<List<string>>(teacher.Specialties) ?? []; }
             catch { specialties = []; }
             var groupLabel = groups.TryGetValue(a.GroupId, out var grp) ? grp.DisplayName : "Grupo";
+            var cycle = grp?.Cycle ?? 1;
 
             for (int i = 0; i < a.WeeklyHours; i++)
             {
@@ -249,7 +282,8 @@ public sealed class GenerateScheduleOrchestrator(
                     SubjectKey: alloc.SubjectKey ?? "",
                     TeacherSpecialties: specialties,
                     TeacherMaxWeeklyHours: teacher.MaxWeeklyHours,
-                    SplittableAcrossDays: alloc.SplittableAcrossDays));
+                    SplittableAcrossDays: alloc.SplittableAcrossDays,
+                    Cycle: cycle));
             }
         }
         return sessions;

@@ -19,14 +19,15 @@ public static class TestData
     public static SchoolConfig DefaultSchool(int slotsPerDay = 5, int daysPerWeek = 5)
     {
         var slots = Enumerable.Range(0, slotsPerDay)
-            .Select(i => new SlotConfig(i, IsBreak: false))
+            .Select(i => new SlotConfig(i, IsBreak: false, StartMinute: i * 60, EndMinute: (i + 1) * 60))
             .ToList();
         var workingDays = Enumerable.Range(1, daysPerWeek).ToList();
+        var cycles = new List<CycleGrid> { new(1, slots) };
         return new SchoolConfig(
             slotsPerDay,
             daysPerWeek,
             workingDays,
-            slots,
+            cycles,
             new List<ClassroomInfo>
             {
                 new(RegularClassroomId, "Aula 1A", ClassroomType.Regular),

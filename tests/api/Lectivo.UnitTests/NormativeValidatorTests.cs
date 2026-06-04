@@ -77,11 +77,13 @@ public class NormativeValidatorTests
 
     private static NormativeValidationData BuildValidationData(School school, IReadOnlyList<(Assignment Assignment, SubjectAllocation Allocation)> data)
     {
+        var slots = SlotCalculator.Compute(school, school.SlotsPerDay)
+            .Select(s => new SlotConfig(s.Index, s.IsBreak, s.StartMinute, s.EndMinute)).ToList();
+        var cycles = new List<CycleGrid> { new(1, slots) };
         var schoolConfig = new SchoolConfig(
             school.SlotsPerDay, school.DaysPerWeek,
             SlotCalculator.ParseWorkingDays(school.WorkingDays).ToList(),
-            SlotCalculator.Compute(school, school.SlotsPerDay)
-                .Select(s => new SlotConfig(s.Index, s.IsBreak)).ToList(), []);
+            cycles, []);
         return new NormativeValidationData(
             schoolConfig, school.Stage, school.MinCourseLevel,
             school.MaxCourseLevel, school.BreakMinutes, school.SlotMinutes,

@@ -4,8 +4,8 @@ namespace HorariosEscolares.Domain.Constraints;
 
 public sealed class AssignmentState
 {
-    private readonly HashSet<(Guid TeacherId, int Day, int Slot)> _teacherSlots = [];
-    private readonly HashSet<(Guid ClassroomId, int Day, int Slot)> _classroomSlots = [];
+    private readonly HashSet<(Guid TeacherId, int Day, int Bucket)> _teacherBuckets = [];
+    private readonly HashSet<(Guid ClassroomId, int Day, int Bucket)> _classroomBuckets = [];
     private readonly Dictionary<Guid, int> _teacherAssignedHours = [];
     private readonly List<AssignedSlot> _assigned = [];
 
@@ -14,17 +14,25 @@ public sealed class AssignmentState
 
     public AssignmentState(SchoolConfig school) => _school = school;
 
-    public bool IsTeacherBusy(Guid teacherId, int day, int slot)
-        => _teacherSlots.Contains((teacherId, day, slot));
+    private static IEnumerable<int> BucketRange(int startMinute, int endMinute)
+    {
+        int start = startMinute / 5;
+        int end = (endMinute + 4) / 5;
+        for (int b = start; b < end; b++)
+            yield return b;
+    }
 
-    public bool IsClassroomBusy(Guid classroomId, int day, int slot)
-        => _classroomSlots.Contains((classroomId, day, slot));
+    public bool IsTeacherBusy(Guid teacherId, int day, int startMinute, int endMinute)
+        => BucketRange(startMinute, endMinute).Any(b => _teacherBuckets.Contains((teacherId, day, b)));
+
+    public bool IsClassroomBusy(Guid classroomId, int day, int startMinute, int endMinute)
+        => BucketRange(startMinute, endMinute).Any(b => _classroomBuckets.Contains((classroomId, day, b)));
 
     public int GetTeacherAssignedHours(Guid teacherId)
         => _teacherAssignedHours.GetValueOrDefault(teacherId, 0);
 
     public Guid? FindAvailableClassroom(
-        int day, int slot,
+        int day, int startMinute, int endMinute,
         ClassroomType? requiredType,
         IReadOnlyList<ClassroomInfo> classrooms)
     {
@@ -32,25 +40,31 @@ public sealed class AssignmentState
             .Where(c => requiredType is null
                 ? c.Type == ClassroomType.Regular
                 : c.Type == requiredType)
-            .Where(c => !_classroomSlots.Contains((c.Id, day, slot)));
+            .Where(c => !BucketRange(startMinute, endMinute).Any(b => _classroomBuckets.Contains((c.Id, day, b))));
 
         return matching.FirstOrDefault()?.Id;
     }
 
-    public void Assign(SessionToAssign session, int day, int slot, Guid classroomId)
+    public void Assign(SessionToAssign session, int day, int slot, int startMinute, int endMinute, Guid classroomId)
     {
-        _teacherSlots.Add((session.TeacherId, day, slot));
-        _classroomSlots.Add((classroomId, day, slot));
+        foreach (var b in BucketRange(startMinute, endMinute))
+        {
+            _teacherBuckets.Add((session.TeacherId, day, b));
+            _classroomBuckets.Add((classroomId, day, b));
+        }
         _teacherAssignedHours[session.TeacherId] = _teacherAssignedHours.GetValueOrDefault(session.TeacherId, 0) + 1;
         _assigned.Add(new AssignedSlot(
             session.AssignmentId, session.GroupId, session.TeacherId,
-            session.AllocationId, classroomId, day, slot));
+            session.AllocationId, classroomId, day, slot, startMinute, endMinute, session.Cycle));
     }
 
-    public void Unassign(SessionToAssign session, int day, int slot, Guid classroomId)
+    public void Unassign(SessionToAssign session, int day, int slot, int startMinute, int endMinute, Guid classroomId)
     {
-        _teacherSlots.Remove((session.TeacherId, day, slot));
-        _classroomSlots.Remove((classroomId, day, slot));
+        foreach (var b in BucketRange(startMinute, endMinute))
+        {
+            _teacherBuckets.Remove((session.TeacherId, day, b));
+            _classroomBuckets.Remove((classroomId, day, b));
+        }
         _teacherAssignedHours[session.TeacherId] = Math.Max(0, _teacherAssignedHours.GetValueOrDefault(session.TeacherId, 0) - 1);
         _assigned.RemoveAll(a => a.AssignmentId == session.AssignmentId
                                && a.DayOfWeek == day
@@ -58,15 +72,24 @@ public sealed class AssignmentState
     }
 }
 
-public record SlotConfig(int Index, bool IsBreak);
+public record SlotConfig(int Index, bool IsBreak, int StartMinute, int EndMinute);
+
+public record CycleGrid(int Cycle, IReadOnlyList<SlotConfig> Slots);
 
 public record SchoolConfig(
     int SlotsPerDay,
     int DaysPerWeek,
     IReadOnlyList<int> WorkingDays,
-    IReadOnlyList<SlotConfig> Slots,
-    IReadOnlyList<ClassroomInfo> Classrooms);
+    IReadOnlyList<CycleGrid> Cycles,
+    IReadOnlyList<ClassroomInfo> Classrooms)
+{
+    public IReadOnlyList<SlotConfig> SlotsFor(int cycle)
+        => Cycles.FirstOrDefault(c => c.Cycle == cycle)?.Slots ?? [];
+
+    public SlotConfig? Slot(int cycle, int index)
+        => SlotsFor(cycle).FirstOrDefault(s => s.Index == index);
+}
 
 public record ClassroomInfo(Guid Id, string Name, ClassroomType Type);
 
-public record ProposedEntry(SessionToAssign Session, int Day, int Slot, Guid ClassroomId);
+public record ProposedEntry(SessionToAssign Session, int Day, int Slot, Guid ClassroomId, int StartMinute, int EndMinute);

@@ -20,7 +20,7 @@ public sealed class TeacherNotDoubleBooked : IHardConstraint
     public string Name => "Profesor no duplicado";
 
     public bool IsSatisfied(ProposedEntry entry, AssignmentState state)
-        => !state.IsTeacherBusy(entry.Session.TeacherId, entry.Day, entry.Slot);
+        => !state.IsTeacherBusy(entry.Session.TeacherId, entry.Day, entry.StartMinute, entry.EndMinute);
 }
 
 public sealed class ClassroomNotDoubleBooked : IHardConstraint
@@ -28,7 +28,7 @@ public sealed class ClassroomNotDoubleBooked : IHardConstraint
     public string Name => "Aula no duplicada";
 
     public bool IsSatisfied(ProposedEntry entry, AssignmentState state)
-        => !state.IsClassroomBusy(entry.ClassroomId, entry.Day, entry.Slot);
+        => !state.IsClassroomBusy(entry.ClassroomId, entry.Day, entry.StartMinute, entry.EndMinute);
 }
 
 public sealed class TeacherAvailabilityConstraint : IHardConstraint
@@ -152,10 +152,11 @@ public sealed class TeacherConsecutiveLoadConstraint : ISoftConstraint
 
     public int Penalty(ProposedEntry entry, AssignmentState state)
     {
+        int thresholdMinutes = _maxPreferred * 60;
         int consecutive = state.Assigned.Count(a =>
             a.TeacherId == entry.Session.TeacherId
             && a.DayOfWeek == entry.Day
-            && Math.Abs(a.SlotIndex - entry.Slot) <= _maxPreferred);
+            && Math.Abs(a.StartMinute - entry.StartMinute) <= thresholdMinutes);
 
         return consecutive >= _maxPreferred ? Weight * 15 : 0;
     }
@@ -200,22 +201,19 @@ public sealed class TeacherGapsConstraint : ISoftConstraint
 
     public int Penalty(ProposedEntry entry, AssignmentState state)
     {
-        var slots = state.Assigned
+        var times = state.Assigned
             .Where(a => a.TeacherId == entry.Session.TeacherId && a.DayOfWeek == entry.Day)
-            .Select(a => a.SlotIndex)
-            .Append(entry.Slot)
-            .OrderBy(s => s)
+            .Select(a => a.StartMinute)
+            .Append(entry.StartMinute)
+            .OrderBy(m => m)
             .ToList();
 
-        if (slots.Count <= 1) return 0;
+        if (times.Count <= 1) return 0;
 
         int gaps = 0;
-        int min = slots[0];
-        int max = slots[^1];
-
-        for (int s = min + 1; s < max; s++)
+        for (int i = 1; i < times.Count; i++)
         {
-            if (!slots.Contains(s)) gaps++;
+            if (times[i] - times[i - 1] > 65) gaps++;
         }
 
         return gaps * Weight * 5;

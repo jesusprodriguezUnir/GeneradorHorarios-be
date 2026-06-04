@@ -18,6 +18,11 @@ public sealed class NormativeCheckHandler(IAppDbContext db, INormativeValidator 
         if (school is null)
             throw new NotFoundException("School not found");
 
+        var cycleSchedules = await db.CycleSchedules.AsNoTracking()
+            .Include(c => c.Breaks)
+            .Where(c => c.SchoolId == user.SchoolId)
+            .ToListAsync(ct);
+
         var normativeAllocs = await db.SubjectAllocations.AsNoTracking()
             .ToDictionaryAsync(a => a.Id, ct);
         var normativeAssignments = await db.Assignments.AsNoTracking()
@@ -27,12 +32,23 @@ public sealed class NormativeCheckHandler(IAppDbContext db, INormativeValidator 
             .Select(a => (a, normativeAllocs[a.AllocationId]))
             .ToList();
 
+        var workingDays = SlotCalculator.ParseWorkingDays(school.WorkingDays);
+        var cycles = cycleSchedules.Select(cs =>
+        {
+            var slots = SlotCalculator.Compute(cs, school);
+            return new CycleGrid(cs.Cycle,
+                slots.Select(s => new SlotConfig(s.Index, s.IsBreak, s.StartMinute, s.EndMinute)).ToList());
+        }).ToList();
+
+        if (cycles.Count == 0)
+        {
+            var fallbackSlots = SlotCalculator.Compute(school, school.SlotsPerDay);
+            cycles.Add(new CycleGrid(1,
+                fallbackSlots.Select(s => new SlotConfig(s.Index, s.IsBreak, s.StartMinute, s.EndMinute)).ToList()));
+        }
+
         var schoolConfig = new SchoolConfig(
-            school.SlotsPerDay, school.DaysPerWeek,
-            SlotCalculator.ParseWorkingDays(school.WorkingDays).ToList(),
-            SlotCalculator.Compute(school, school.SlotsPerDay)
-                .Select(s => new SlotConfig(s.Index, s.IsBreak)).ToList(),
-            []);
+            school.SlotsPerDay, school.DaysPerWeek, workingDays, cycles, []);
         var data = new NormativeValidationData(
             schoolConfig, school.Stage, school.MinCourseLevel,
             school.MaxCourseLevel, school.BreakMinutes, school.SlotMinutes,

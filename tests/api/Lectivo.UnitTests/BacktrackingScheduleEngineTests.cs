@@ -165,15 +165,17 @@ public class BacktrackingScheduleEngineTests
     {
         var slots = new List<SlotConfig>
         {
-            new(0, IsBreak: false),
-            new(1, IsBreak: false),
-            new(2, IsBreak: true),
-            new(3, IsBreak: false),
-            new(4, IsBreak: false),
-            new(5, IsBreak: false),
+            new(0, IsBreak: false, StartMinute: 0, EndMinute: 60),
+            new(1, IsBreak: false, StartMinute: 60, EndMinute: 120),
+            new(2, IsBreak: true, StartMinute: 120, EndMinute: 150),
+            new(3, IsBreak: false, StartMinute: 150, EndMinute: 210),
+            new(4, IsBreak: false, StartMinute: 210, EndMinute: 270),
+            new(5, IsBreak: false, StartMinute: 270, EndMinute: 330),
         };
 
-        var school = new SchoolConfig(6, 5, [1, 2, 3, 4, 5], slots, new List<ClassroomInfo>
+        var cycles = new List<CycleGrid> { new(1, slots) };
+
+        var school = new SchoolConfig(6, 5, [1, 2, 3, 4, 5], cycles, new List<ClassroomInfo>
         {
             new(TestData.RegularClassroomId, "Aula 1", ClassroomType.Regular)
         });

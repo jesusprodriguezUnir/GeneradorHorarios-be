@@ -13,7 +13,7 @@ public class ConstraintsTests
     public void TeacherNotDoubleBooked_Satisfied_WhenTeacherFree()
     {
         var constraint = new TeacherNotDoubleBooked();
-        var entry = new ProposedEntry(TestData.Session(), 1, 0, TestData.RegularClassroomId);
+        var entry = new ProposedEntry(TestData.Session(), 1, 0, TestData.RegularClassroomId, 0, 60);
 
         constraint.IsSatisfied(entry, _state).Should().BeTrue();
     }
@@ -22,10 +22,10 @@ public class ConstraintsTests
     public void TeacherNotDoubleBooked_NotSatisfied_WhenTeacherBusy()
     {
         var session = TestData.Session();
-        _state.Assign(session, day: 1, slot: 0, classroomId: TestData.RegularClassroomId);
+        _state.Assign(session, day: 1, slot: 0, startMinute: 0, endMinute: 60, classroomId: TestData.RegularClassroomId);
 
         var constraint = new TeacherNotDoubleBooked();
-        var entry = new ProposedEntry(TestData.Session(assignmentId: Guid.NewGuid()), 1, 0, TestData.RegularClassroomId);
+        var entry = new ProposedEntry(TestData.Session(assignmentId: Guid.NewGuid()), 1, 0, TestData.RegularClassroomId, 0, 60);
 
         constraint.IsSatisfied(entry, _state).Should().BeFalse();
     }
@@ -34,7 +34,7 @@ public class ConstraintsTests
     public void ClassroomNotDoubleBooked_Satisfied_WhenClassroomFree()
     {
         var constraint = new ClassroomNotDoubleBooked();
-        var entry = new ProposedEntry(TestData.Session(), 1, 0, TestData.RegularClassroomId);
+        var entry = new ProposedEntry(TestData.Session(), 1, 0, TestData.RegularClassroomId, 0, 60);
 
         constraint.IsSatisfied(entry, _state).Should().BeTrue();
     }
@@ -43,10 +43,10 @@ public class ConstraintsTests
     public void ClassroomNotDoubleBooked_NotSatisfied_WhenClassroomBusy()
     {
         var session = TestData.Session();
-        _state.Assign(session, day: 1, slot: 0, classroomId: TestData.RegularClassroomId);
+        _state.Assign(session, day: 1, slot: 0, startMinute: 0, endMinute: 60, classroomId: TestData.RegularClassroomId);
 
         var constraint = new ClassroomNotDoubleBooked();
-        var entry = new ProposedEntry(TestData.Session(assignmentId: Guid.NewGuid()), 1, 0, TestData.RegularClassroomId);
+        var entry = new ProposedEntry(TestData.Session(assignmentId: Guid.NewGuid()), 1, 0, TestData.RegularClassroomId, 0, 60);
 
         constraint.IsSatisfied(entry, _state).Should().BeFalse();
     }
@@ -55,7 +55,7 @@ public class ConstraintsTests
     public void TeacherAvailability_Satisfied_WhenSlotNotUnavailable()
     {
         var constraint = new TeacherAvailabilityConstraint([]);
-        var entry = new ProposedEntry(TestData.Session(), 1, 0, TestData.RegularClassroomId);
+        var entry = new ProposedEntry(TestData.Session(), 1, 0, TestData.RegularClassroomId, 0, 60);
 
         constraint.IsSatisfied(entry, _state).Should().BeTrue();
     }
@@ -65,7 +65,7 @@ public class ConstraintsTests
     {
         var teacher = TestData.Teacher1Id;
         var constraint = new TeacherAvailabilityConstraint([(teacher, 1, 0)]);
-        var entry = new ProposedEntry(TestData.Session(teacherId: teacher), 1, 0, TestData.RegularClassroomId);
+        var entry = new ProposedEntry(TestData.Session(teacherId: teacher), 1, 0, TestData.RegularClassroomId, 0, 60);
 
         constraint.IsSatisfied(entry, _state).Should().BeFalse();
     }
@@ -79,7 +79,7 @@ public class ConstraintsTests
         var constraint = new MaxConsecutiveSlotsConstraint();
         var entry = new ProposedEntry(
             TestData.Session(allocationId: allocation, groupId: group, maxConsecutiveSlots: 2),
-            1, 0, TestData.RegularClassroomId);
+            1, 0, TestData.RegularClassroomId, 0, 60);
 
         constraint.IsSatisfied(entry, _state).Should().BeTrue();
     }
@@ -90,14 +90,14 @@ public class ConstraintsTests
         var allocation = TestData.Allocation1Id;
         var group = TestData.Group1Id;
         // Ya hay 2 sesiones consecutivas
-        _state.Assign(TestData.Session(allocationId: allocation, groupId: group), day: 1, slot: 0, classroomId: TestData.RegularClassroomId);
-        _state.Assign(TestData.Session(allocationId: allocation, groupId: group), day: 1, slot: 1, classroomId: TestData.RegularClassroomId);
+        _state.Assign(TestData.Session(allocationId: allocation, groupId: group), day: 1, slot: 0, startMinute: 0, endMinute: 60, classroomId: TestData.RegularClassroomId);
+        _state.Assign(TestData.Session(allocationId: allocation, groupId: group), day: 1, slot: 1, startMinute: 60, endMinute: 120, classroomId: TestData.RegularClassroomId);
 
         var constraint = new MaxConsecutiveSlotsConstraint();
         // maxConsecutiveSlots = 2, ya hay 2 consecutivas → la tercera viola
         var entry = new ProposedEntry(
             TestData.Session(allocationId: allocation, groupId: group, maxConsecutiveSlots: 2),
-            1, 2, TestData.RegularClassroomId);
+            1, 2, TestData.RegularClassroomId, 120, 180);
 
         constraint.IsSatisfied(entry, _state).Should().BeFalse();
     }
@@ -107,7 +107,7 @@ public class ConstraintsTests
     {
         var intensiveId = TestData.Allocation1Id;
         var constraint = new NoIntensiveSubjectLastSlot(lastSlotIndex: 4, [intensiveId]);
-        var entry = new ProposedEntry(TestData.Session(allocationId: intensiveId), 1, 2, TestData.RegularClassroomId);
+        var entry = new ProposedEntry(TestData.Session(allocationId: intensiveId), 1, 2, TestData.RegularClassroomId, 120, 180);
 
         constraint.Penalty(entry, _state).Should().Be(0);
     }
@@ -117,7 +117,7 @@ public class ConstraintsTests
     {
         var intensiveId = TestData.Allocation1Id;
         var constraint = new NoIntensiveSubjectLastSlot(lastSlotIndex: 4, [intensiveId]);
-        var entry = new ProposedEntry(TestData.Session(allocationId: intensiveId), 1, 4, TestData.RegularClassroomId);
+        var entry = new ProposedEntry(TestData.Session(allocationId: intensiveId), 1, 4, TestData.RegularClassroomId, 240, 300);
 
         constraint.Penalty(entry, _state).Should().BeGreaterThan(0);
     }
@@ -126,7 +126,7 @@ public class ConstraintsTests
     public void DistributeSubjectAcrossDays_PenaltyZero_WhenFirstSessionOfDay()
     {
         var constraint = new DistributeSubjectAcrossDays();
-        var entry = new ProposedEntry(TestData.Session(), 1, 0, TestData.RegularClassroomId);
+        var entry = new ProposedEntry(TestData.Session(), 1, 0, TestData.RegularClassroomId, 0, 60);
 
         constraint.Penalty(entry, _state).Should().Be(0);
     }
@@ -136,13 +136,13 @@ public class ConstraintsTests
     {
         var allocation = TestData.Allocation1Id;
         var group = TestData.Group1Id;
-        _state.Assign(TestData.Session(allocationId: allocation, groupId: group), day: 1, slot: 0, classroomId: TestData.RegularClassroomId);
-        _state.Assign(TestData.Session(allocationId: allocation, groupId: group), day: 1, slot: 2, classroomId: TestData.RegularClassroomId);
+        _state.Assign(TestData.Session(allocationId: allocation, groupId: group), day: 1, slot: 0, startMinute: 0, endMinute: 60, classroomId: TestData.RegularClassroomId);
+        _state.Assign(TestData.Session(allocationId: allocation, groupId: group), day: 1, slot: 2, startMinute: 120, endMinute: 180, classroomId: TestData.RegularClassroomId);
 
         var constraint = new DistributeSubjectAcrossDays();
         var entry = new ProposedEntry(
             TestData.Session(allocationId: allocation, groupId: group),
-            1, 3, TestData.RegularClassroomId);
+            1, 3, TestData.RegularClassroomId, 180, 240);
 
         constraint.Penalty(entry, _state).Should().BeGreaterThan(0);
     }
@@ -151,7 +151,7 @@ public class ConstraintsTests
     public void TeacherConsecutiveLoad_PenaltyZero_WhenBelowThreshold()
     {
         var constraint = new TeacherConsecutiveLoadConstraint(maxPreferred: 3);
-        var entry = new ProposedEntry(TestData.Session(), 1, 0, TestData.RegularClassroomId);
+        var entry = new ProposedEntry(TestData.Session(), 1, 0, TestData.RegularClassroomId, 0, 60);
 
         constraint.Penalty(entry, _state).Should().Be(0);
     }
@@ -160,14 +160,14 @@ public class ConstraintsTests
     public void TeacherConsecutiveLoad_PenaltyPositive_WhenAtThreshold()
     {
         var teacher = TestData.Teacher1Id;
-        _state.Assign(TestData.Session(teacherId: teacher), day: 1, slot: 0, classroomId: TestData.RegularClassroomId);
-        _state.Assign(TestData.Session(teacherId: teacher), day: 1, slot: 1, classroomId: TestData.RegularClassroomId);
-        _state.Assign(TestData.Session(teacherId: teacher), day: 1, slot: 2, classroomId: TestData.RegularClassroomId);
+        _state.Assign(TestData.Session(teacherId: teacher), day: 1, slot: 0, startMinute: 0, endMinute: 60, classroomId: TestData.RegularClassroomId);
+        _state.Assign(TestData.Session(teacherId: teacher), day: 1, slot: 1, startMinute: 60, endMinute: 120, classroomId: TestData.RegularClassroomId);
+        _state.Assign(TestData.Session(teacherId: teacher), day: 1, slot: 2, startMinute: 120, endMinute: 180, classroomId: TestData.RegularClassroomId);
 
         var constraint = new TeacherConsecutiveLoadConstraint(maxPreferred: 3);
         var entry = new ProposedEntry(
             TestData.Session(teacherId: teacher),
-            1, 3, TestData.RegularClassroomId);
+            1, 3, TestData.RegularClassroomId, 180, 240);
 
         constraint.Penalty(entry, _state).Should().BeGreaterThan(0);
     }
@@ -178,7 +178,7 @@ public class ConstraintsTests
         var constraint = new RequiresSpecialistConstraint();
         var entry = new ProposedEntry(
             TestData.Session(requiresSpecialist: false, teacherSpecialties: ["Generalista"]),
-            1, 0, TestData.RegularClassroomId);
+            1, 0, TestData.RegularClassroomId, 0, 60);
 
         constraint.IsSatisfied(entry, _state).Should().BeTrue();
     }
@@ -189,7 +189,7 @@ public class ConstraintsTests
         var constraint = new RequiresSpecialistConstraint();
         var entry = new ProposedEntry(
             TestData.Session(requiresSpecialist: true, subjectKey: "ing", teacherSpecialties: ["Inglés"]),
-            1, 0, TestData.RegularClassroomId);
+            1, 0, TestData.RegularClassroomId, 0, 60);
 
         constraint.IsSatisfied(entry, _state).Should().BeTrue();
     }
@@ -200,7 +200,7 @@ public class ConstraintsTests
         var constraint = new RequiresSpecialistConstraint();
         var entry = new ProposedEntry(
             TestData.Session(requiresSpecialist: true, subjectKey: "mus", teacherSpecialties: ["Generalista"]),
-            1, 0, TestData.RegularClassroomId);
+            1, 0, TestData.RegularClassroomId, 0, 60);
 
         constraint.IsSatisfied(entry, _state).Should().BeFalse();
     }
@@ -212,7 +212,7 @@ public class ConstraintsTests
         var teacher = TestData.Teacher1Id;
         var entry = new ProposedEntry(
             TestData.Session(teacherId: teacher, teacherMaxWeeklyHours: 5),
-            1, 0, TestData.RegularClassroomId);
+            1, 0, TestData.RegularClassroomId, 0, 60);
 
         constraint.IsSatisfied(entry, _state).Should().BeTrue();
     }
@@ -225,12 +225,12 @@ public class ConstraintsTests
 
         var session1 = TestData.Session(teacherId: teacher, teacherMaxWeeklyHours: 2);
         var session2 = TestData.Session(teacherId: teacher, teacherMaxWeeklyHours: 2);
-        _state.Assign(session1, 1, 0, TestData.RegularClassroomId);
-        _state.Assign(session2, 1, 1, TestData.RegularClassroomId);
+        _state.Assign(session1, 1, 0, 0, 60, TestData.RegularClassroomId);
+        _state.Assign(session2, 1, 1, 60, 120, TestData.RegularClassroomId);
 
         var entry = new ProposedEntry(
             TestData.Session(teacherId: teacher, teacherMaxWeeklyHours: 2),
-            1, 2, TestData.RegularClassroomId);
+            1, 2, TestData.RegularClassroomId, 120, 180);
 
         constraint.IsSatisfied(entry, _state).Should().BeFalse();
     }
@@ -240,7 +240,7 @@ public class ConstraintsTests
     {
         var constraint = new TeacherGapsConstraint();
         var teacher = TestData.Teacher1Id;
-        var entry = new ProposedEntry(TestData.Session(teacherId: teacher), 1, 0, TestData.RegularClassroomId);
+        var entry = new ProposedEntry(TestData.Session(teacherId: teacher), 1, 0, TestData.RegularClassroomId, 0, 60);
 
         constraint.Penalty(entry, _state).Should().Be(0);
     }
@@ -251,8 +251,8 @@ public class ConstraintsTests
         var constraint = new TeacherGapsConstraint();
         var teacher = TestData.Teacher1Id;
 
-        _state.Assign(TestData.Session(teacherId: teacher), 1, 0, TestData.RegularClassroomId);
-        var entry = new ProposedEntry(TestData.Session(teacherId: teacher), 1, 2, TestData.RegularClassroomId);
+        _state.Assign(TestData.Session(teacherId: teacher), 1, 0, 0, 60, TestData.RegularClassroomId);
+        var entry = new ProposedEntry(TestData.Session(teacherId: teacher), 1, 2, TestData.RegularClassroomId, 120, 180);
 
         constraint.Penalty(entry, _state).Should().BeGreaterThan(0);
     }
@@ -263,13 +263,13 @@ public class ConstraintsTests
         var allocation = TestData.Allocation1Id;
         var group = TestData.Group1Id;
 
-        _state.Assign(TestData.Session(allocationId: allocation, groupId: group), day: 1, slot: 0, classroomId: TestData.RegularClassroomId);
-        _state.Assign(TestData.Session(allocationId: allocation, groupId: group), day: 1, slot: 2, classroomId: TestData.RegularClassroomId);
+        _state.Assign(TestData.Session(allocationId: allocation, groupId: group), day: 1, slot: 0, startMinute: 0, endMinute: 60, classroomId: TestData.RegularClassroomId);
+        _state.Assign(TestData.Session(allocationId: allocation, groupId: group), day: 1, slot: 2, startMinute: 120, endMinute: 180, classroomId: TestData.RegularClassroomId);
 
         var constraint = new MaxConsecutiveSlotsConstraint();
         var entry = new ProposedEntry(
             TestData.Session(allocationId: allocation, groupId: group, maxConsecutiveSlots: 2),
-            1, 1, TestData.RegularClassroomId);
+            1, 1, TestData.RegularClassroomId, 60, 120);
 
         constraint.IsSatisfied(entry, _state).Should().BeFalse();
     }
@@ -280,7 +280,7 @@ public class ConstraintsTests
         var constraint = new ConsecutiveBlockPreferenceConstraint();
         var entry = new ProposedEntry(
             TestData.Session(splittableAcrossDays: true),
-            1, 0, TestData.RegularClassroomId);
+            1, 0, TestData.RegularClassroomId, 0, 60);
 
         constraint.Penalty(entry, _state).Should().Be(0);
     }
@@ -292,11 +292,11 @@ public class ConstraintsTests
         var allocation = TestData.Allocation1Id;
         var group = TestData.Group1Id;
 
-        _state.Assign(TestData.Session(allocationId: allocation, groupId: group, splittableAcrossDays: false), day: 1, slot: 0, classroomId: TestData.RegularClassroomId);
+        _state.Assign(TestData.Session(allocationId: allocation, groupId: group, splittableAcrossDays: false), day: 1, slot: 0, startMinute: 0, endMinute: 60, classroomId: TestData.RegularClassroomId);
 
         var entry = new ProposedEntry(
             TestData.Session(allocationId: allocation, groupId: group, splittableAcrossDays: false),
-            2, 0, TestData.RegularClassroomId);
+            2, 0, TestData.RegularClassroomId, 0, 60);
 
         constraint.Penalty(entry, _state).Should().BeGreaterThan(0);
     }
@@ -308,11 +308,11 @@ public class ConstraintsTests
         var allocation = TestData.Allocation1Id;
         var group = TestData.Group1Id;
 
-        _state.Assign(TestData.Session(allocationId: allocation, groupId: group, splittableAcrossDays: false), day: 1, slot: 0, classroomId: TestData.RegularClassroomId);
+        _state.Assign(TestData.Session(allocationId: allocation, groupId: group, splittableAcrossDays: false), day: 1, slot: 0, startMinute: 0, endMinute: 60, classroomId: TestData.RegularClassroomId);
 
         var entry = new ProposedEntry(
             TestData.Session(allocationId: allocation, groupId: group, splittableAcrossDays: false),
-            1, 2, TestData.RegularClassroomId);
+            1, 2, TestData.RegularClassroomId, 120, 180);
 
         constraint.Penalty(entry, _state).Should().BeGreaterThan(0);
     }
@@ -324,11 +324,11 @@ public class ConstraintsTests
         var allocation = TestData.Allocation1Id;
         var group = TestData.Group1Id;
 
-        _state.Assign(TestData.Session(allocationId: allocation, groupId: group, splittableAcrossDays: false), day: 1, slot: 0, classroomId: TestData.RegularClassroomId);
+        _state.Assign(TestData.Session(allocationId: allocation, groupId: group, splittableAcrossDays: false), day: 1, slot: 0, startMinute: 0, endMinute: 60, classroomId: TestData.RegularClassroomId);
 
         var entry = new ProposedEntry(
             TestData.Session(allocationId: allocation, groupId: group, splittableAcrossDays: false),
-            1, 1, TestData.RegularClassroomId);
+            1, 1, TestData.RegularClassroomId, 60, 120);
 
         constraint.Penalty(entry, _state).Should().Be(0);
     }
@@ -392,7 +392,7 @@ public class ConstraintsTests
     {
         var allocationId = TestData.Allocation1Id;
         var session = TestData.Session(allocationId: allocationId);
-        var entry = new ProposedEntry(session, 1, 4, TestData.RegularClassroomId); // slot 4 = último
+        var entry = new ProposedEntry(session, 1, 4, TestData.RegularClassroomId, 240, 300); // slot 4 = último
 
         var constraintLow  = new NoIntensiveSubjectLastSlot(4, [allocationId], weight: 2);
         var constraintHigh = new NoIntensiveSubjectLastSlot(4, [allocationId], weight: 8);

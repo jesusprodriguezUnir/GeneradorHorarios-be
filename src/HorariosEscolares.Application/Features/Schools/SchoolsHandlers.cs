@@ -9,7 +9,8 @@ using HorariosEscolares.Domain.Services;
 namespace HorariosEscolares.Application.Features.Schools;
 
 public record SlotDto(int Index, string StartTime, string EndTime, bool IsBreak);
-public record CycleScheduleDto(int Cycle, string MorningStart, string EndTime, string? AfternoonStart, IReadOnlyList<SlotDto> ComputedSlots);
+public record CycleBreakDto(int AfterSlot, int Minutes);
+public record CycleScheduleDto(int Cycle, string MorningStart, string EndTime, string? AfternoonStart, IReadOnlyList<SlotDto> ComputedSlots, IReadOnlyList<CycleBreakDto> Breaks);
 public record SchoolDto(
     Guid Id, string Name, string Slug,
     string? CenterCode, string? Locality, string Community,
@@ -35,7 +36,7 @@ public record UpdateSchoolCommand(
 public record NormativeCheckQuery : IRequest<NormativeCheckDto>;
 
 public record GetCycleScheduleQuery(int Cycle) : IRequest<CycleScheduleDto?>;
-public record UpdateCycleScheduleCommand(int Cycle, string MorningStart, string EndTime, string? AfternoonStart) : IRequest<CycleScheduleDto>;
+public record UpdateCycleScheduleCommand(int Cycle, string MorningStart, string EndTime, string? AfternoonStart, IReadOnlyList<CycleBreakDto>? Breaks = null) : IRequest<CycleScheduleDto>;
 
 public sealed class GetSchoolHandler(IAppDbContext db, ICurrentUser user)
     : IRequestHandler<GetSchoolQuery, SchoolDto?>
@@ -56,13 +57,14 @@ public sealed class GetSchoolHandler(IAppDbContext db, ICurrentUser user)
         var workingDays = SlotCalculator.ParseWorkingDays(s.WorkingDays);
         var cycleDtos = cycles.OrderBy(c => c.Cycle).Select(c =>
         {
-            var cycleSlots = SlotCalculator.Compute(s, s.SlotsPerDay, c.MorningStart, c.AfternoonStart);
+            var cycleSlots = SlotCalculator.Compute(c, s);
             return new CycleScheduleDto(
                 c.Cycle,
                 c.MorningStart.ToString("HH:mm"),
                 c.EndTime.ToString("HH:mm"),
                 c.AfternoonStart?.ToString("HH:mm"),
-                cycleSlots.Select(sl => new SlotDto(sl.Index, sl.StartTime, sl.EndTime, sl.IsBreak)).ToList());
+                cycleSlots.Select(sl => new SlotDto(sl.Index, sl.StartTime, sl.EndTime, sl.IsBreak)).ToList(),
+                c.Breaks.OrderBy(b => b.AfterSlot).Select(b => new CycleBreakDto(b.AfterSlot, b.Minutes)).ToList());
         }).ToList();
         return new SchoolDto(
             s.Id, s.Name, s.Slug,
@@ -153,16 +155,18 @@ public sealed class GetCycleScheduleHandler(IAppDbContext db, ICurrentUser user)
     public async Task<CycleScheduleDto?> Handle(GetCycleScheduleQuery request, CancellationToken ct)
     {
         var c = await db.CycleSchedules.AsNoTracking()
+            .Include(c => c.Breaks)
             .FirstOrDefaultAsync(x => x.SchoolId == user.SchoolId && x.Cycle == request.Cycle, ct);
         if (c is null) return null;
         var s = await db.Schools.AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == user.SchoolId, ct);
         if (s is null) return null;
-        var slots = SlotCalculator.Compute(s, s.SlotsPerDay, c.MorningStart, c.AfternoonStart);
+        var slots = SlotCalculator.Compute(c, s);
         return new CycleScheduleDto(
             c.Cycle, c.MorningStart.ToString("HH:mm"), c.EndTime.ToString("HH:mm"),
             c.AfternoonStart?.ToString("HH:mm"),
-            slots.Select(sl => new SlotDto(sl.Index, sl.StartTime, sl.EndTime, sl.IsBreak)).ToList());
+            slots.Select(sl => new SlotDto(sl.Index, sl.StartTime, sl.EndTime, sl.IsBreak)).ToList(),
+            c.Breaks.OrderBy(b => b.AfterSlot).Select(b => new CycleBreakDto(b.AfterSlot, b.Minutes)).ToList());
     }
 }
 
@@ -172,33 +176,56 @@ public sealed class UpdateCycleScheduleHandler(IAppDbContext db, ICurrentUser us
     public async Task<CycleScheduleDto> Handle(UpdateCycleScheduleCommand request, CancellationToken ct)
     {
         var c = await db.CycleSchedules
+            .Include(x => x.Breaks)
             .FirstOrDefaultAsync(x => x.SchoolId == user.SchoolId && x.Cycle == request.Cycle, ct);
+
+        var morningStart = TimeOnly.Parse(request.MorningStart);
+        var afternoonStart = request.AfternoonStart is not null ? TimeOnly.Parse(request.AfternoonStart) : (TimeOnly?)null;
+
         if (c is null)
         {
             c = new CycleSchedule
             {
                 SchoolId = user.SchoolId, Cycle = request.Cycle,
-                MorningStart = TimeOnly.Parse(request.MorningStart),
+                MorningStart = morningStart,
                 EndTime = TimeOnly.Parse(request.EndTime),
-                AfternoonStart = request.AfternoonStart is not null ? TimeOnly.Parse(request.AfternoonStart) : null,
+                AfternoonStart = afternoonStart,
             };
             db.CycleSchedules.Add(c);
         }
         else
         {
-            c.MorningStart = TimeOnly.Parse(request.MorningStart);
-            c.EndTime = TimeOnly.Parse(request.EndTime);
-            c.AfternoonStart = request.AfternoonStart is not null ? TimeOnly.Parse(request.AfternoonStart) : null;
+            c.MorningStart = morningStart;
+            c.AfternoonStart = afternoonStart;
         }
-        await db.SaveChangesAsync(ct);
+
+        if (request.Breaks is not null)
+        {
+            db.CycleBreaks.RemoveRange(c.Breaks);
+            c.Breaks = request.Breaks.Select(b => new CycleBreak
+            {
+                CycleScheduleId = c.Id,
+                AfterSlot = b.AfterSlot,
+                Minutes = b.Minutes,
+            }).ToList();
+        }
+
         var s = await db.Schools.AsNoTracking()
             .FirstOrDefaultAsync(x => x.Id == user.SchoolId, ct);
+        if (s is not null)
+        {
+            c.EndTime = SlotCalculator.ComputeEndTime(c, s);
+        }
+
+        await db.SaveChangesAsync(ct);
+
         var slots = s is not null
-            ? SlotCalculator.Compute(s, s.SlotsPerDay, c.MorningStart, c.AfternoonStart)
-            : SlotCalculator.Compute(6, 60, 3, 30, 0, c.MorningStart);
+            ? SlotCalculator.Compute(c, s)
+            : SlotCalculator.Compute(s?.SlotsPerDay ?? 6, 60, [], 0, morningStart);
         return new CycleScheduleDto(
             c.Cycle, c.MorningStart.ToString("HH:mm"), c.EndTime.ToString("HH:mm"),
             c.AfternoonStart?.ToString("HH:mm"),
-            slots.Select(sl => new SlotDto(sl.Index, sl.StartTime, sl.EndTime, sl.IsBreak)).ToList());
+            slots.Select(sl => new SlotDto(sl.Index, sl.StartTime, sl.EndTime, sl.IsBreak)).ToList(),
+            c.Breaks.OrderBy(b => b.AfterSlot).Select(b => new CycleBreakDto(b.AfterSlot, b.Minutes)).ToList());
     }
 }

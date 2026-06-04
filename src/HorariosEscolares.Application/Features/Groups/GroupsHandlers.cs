@@ -7,7 +7,7 @@ using HorariosEscolares.Domain.Groups;
 namespace HorariosEscolares.Application.Features.Groups;
 
 public record GroupDto(Guid Id, int CourseLevel, string GroupLabel, string DisplayName,
-    int StudentCount, Guid? TutorId, string? TutorName, Guid? HomeClassroomId, Dictionary<string, int> SubjectHours);
+    int StudentCount, Guid? TutorId, string? TutorName, Guid? HomeClassroomId, Dictionary<string, int> SubjectHours, int Cycle);
 
 public record GetAllGroupsQuery : IRequest<List<GroupDto>>;
 public record CreateGroupCommand(int CourseLevel, string GroupLabel, int StudentCount,
@@ -37,7 +37,7 @@ public sealed class GetAllGroupsHandler(IAppDbContext db, ICurrentUser user)
         var subjectHours = gr.SubjectHoursList?.ToDictionary(x => x.SubjectKey, x => x.Hours) ?? new();
         return new(gr.Id, gr.CourseLevel, gr.GroupLabel, gr.DisplayName, gr.StudentCount,
             gr.TutorId, gr.TutorId.HasValue && tutorNames.TryGetValue(gr.TutorId.Value, out var n) ? n : null,
-            gr.HomeClassroomId, subjectHours);
+            gr.HomeClassroomId, subjectHours, gr.Cycle);
     }
 }
 
@@ -70,7 +70,7 @@ public sealed class CreateGroupHandler(IGroupRepository repository, ICurrentUser
         var subjectHours = gr.SubjectHoursList?.ToDictionary(x => x.SubjectKey, x => x.Hours) ?? new();
         return new(gr.Id, gr.CourseLevel, gr.GroupLabel, gr.DisplayName, gr.StudentCount,
             gr.TutorId, gr.TutorId.HasValue && tutorNames.TryGetValue(gr.TutorId.Value, out var n) ? n : null,
-            gr.HomeClassroomId, subjectHours);
+            gr.HomeClassroomId, subjectHours, gr.Cycle);
     }
 }
 
@@ -103,7 +103,7 @@ public sealed class UpdateGroupHandler(IAppDbContext db, IGroupRepository reposi
         var subjectHours = gr.SubjectHoursList?.ToDictionary(x => x.SubjectKey, x => x.Hours) ?? new();
         return new(gr.Id, gr.CourseLevel, gr.GroupLabel, gr.DisplayName, gr.StudentCount,
             gr.TutorId, gr.TutorId.HasValue && tutorNames.TryGetValue(gr.TutorId.Value, out var n) ? n : null,
-            gr.HomeClassroomId, subjectHours);
+            gr.HomeClassroomId, subjectHours, gr.Cycle);
     }
 }
 

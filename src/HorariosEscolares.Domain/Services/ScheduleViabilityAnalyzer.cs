@@ -12,7 +12,9 @@ public static class ScheduleViabilityAnalyzer
     {
         var conflicts = new List<ConflictExplanation>();
 
-        int lectiveSlots = school.Slots.Count(s => !s.IsBreak);
+        var refSlots = school.Cycles.FirstOrDefault()?.Slots ?? [];
+        int lectiveSlots = refSlots.Count(s => !s.IsBreak);
+        if (lectiveSlots == 0) lectiveSlots = school.SlotsPerDay;
         int totalLectiveSlots = school.WorkingDays.Count * lectiveSlots;
 
         foreach (var session in sessions.Where(s => s.RequiresSpecialist))
@@ -91,7 +93,7 @@ public static class ScheduleViabilityAnalyzer
             int sessionCount = teacherGroup.Count();
 
             int unavailableCount = school.WorkingDays
-                .SelectMany(day => school.Slots
+                .SelectMany(day => refSlots
                     .Where(s => !s.IsBreak)
                     .Select(s => (teacherId, day, s.Index)))
                 .Count(t => unavailableSlots.Contains(t));

@@ -139,7 +139,7 @@ public class ScheduleViabilityAnalyzerTests
 
         // Bloquear todos los slots del profesor
         var unavailable = school.WorkingDays
-            .SelectMany(day => school.Slots.Select(s => (teacherId, day, s.Index)))
+            .SelectMany(day => school.SlotsFor(1).Select(s => (teacherId, day, s.Index)))
             .ToHashSet();
 
         var result = ScheduleViabilityAnalyzer.Analyze(school, sessions, unavailable);

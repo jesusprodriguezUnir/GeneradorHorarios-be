@@ -44,7 +44,8 @@ public record SessionToAssign(
     IReadOnlyList<string> TeacherSpecialties,
     string SubjectKey,
     int TeacherMaxWeeklyHours,
-    bool SplittableAcrossDays);
+    bool SplittableAcrossDays,
+    int Cycle = 1);
 
 public record ScheduleResult
 {
@@ -64,7 +65,10 @@ public record AssignedSlot(
     Guid AllocationId,
     Guid ClassroomId,
     int DayOfWeek,
-    int SlotIndex);
+    int SlotIndex,
+    int StartMinute = 0,
+    int EndMinute = 0,
+    int Cycle = 1);
 
 public record ConflictExplanation
 {

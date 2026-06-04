@@ -97,6 +97,7 @@ public class CourseGroup
     public Guid? HomeClassroomId { get; set; }
     public ICollection<GroupSubjectHour> SubjectHoursList { get; set; } = new List<GroupSubjectHour>();
     public string DisplayName => $"{CourseLevel}º{GroupLabel}";
+    public int Cycle => (CourseLevel + 1) / 2;
 }
 
 public class GroupSubjectHour
@@ -180,4 +181,14 @@ public class CycleSchedule
     public TimeOnly MorningStart { get; set; } = new(9, 0);
     public TimeOnly EndTime { get; set; } = new(14, 0);
     public TimeOnly? AfternoonStart { get; set; }
+    public ICollection<CycleBreak> Breaks { get; set; } = new List<CycleBreak>();
+}
+
+public class CycleBreak
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public required Guid CycleScheduleId { get; set; }
+    public required int AfterSlot { get; set; }
+    public int Minutes { get; set; } = 30;
+    public CycleSchedule? Cycle { get; set; }
 }

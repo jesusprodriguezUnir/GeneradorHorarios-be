@@ -20,6 +20,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<ScheduleEntry> ScheduleEntries => Set<ScheduleEntry>();
     public DbSet<ScheduleConflictRecord> ScheduleConflicts => Set<ScheduleConflictRecord>();
     public DbSet<CycleSchedule> CycleSchedules => Set<CycleSchedule>();
+    public DbSet<CycleBreak> CycleBreaks => Set<CycleBreak>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -153,6 +154,17 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.MorningStart).HasColumnType("time");
             e.Property(x => x.EndTime).HasColumnType("time");
             e.Property(x => x.AfternoonStart).HasColumnType("time");
+            e.HasMany(x => x.Breaks)
+             .WithOne(x => x.Cycle)
+             .HasForeignKey(x => x.CycleScheduleId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        mb.Entity<CycleBreak>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.CycleScheduleId);
+            e.Property(x => x.Minutes).HasDefaultValue(30);
         });
     }
 }

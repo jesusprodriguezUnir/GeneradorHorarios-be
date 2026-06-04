@@ -93,12 +93,12 @@ public class SlotCalculatorTests
         var slots = SlotCalculator.Compute(school, totalSlots: 5);
 
         slots.Should().HaveCount(6);
-        slots[0].Should().BeEquivalentTo(new SlotInfo(0, "09:00", "10:00", false));
-        slots[1].Should().BeEquivalentTo(new SlotInfo(1, "10:00", "11:00", false));
-        slots[2].Should().BeEquivalentTo(new SlotInfo(-1, "11:00", "11:30", true));
-        slots[3].Should().BeEquivalentTo(new SlotInfo(2, "11:30", "12:30", false));
-        slots[4].Should().BeEquivalentTo(new SlotInfo(3, "15:00", "16:00", false));
-        slots[5].Should().BeEquivalentTo(new SlotInfo(4, "16:00", "17:00", false));
+        slots[0].Should().BeEquivalentTo(new SlotInfo(0, "09:00", "10:00", false, 540, 600));
+        slots[1].Should().BeEquivalentTo(new SlotInfo(1, "10:00", "11:00", false, 600, 660));
+        slots[2].Should().BeEquivalentTo(new SlotInfo(-1, "11:00", "11:30", true, 660, 690));
+        slots[3].Should().BeEquivalentTo(new SlotInfo(2, "11:30", "12:30", false, 690, 750));
+        slots[4].Should().BeEquivalentTo(new SlotInfo(3, "15:00", "16:00", false, 900, 960));
+        slots[5].Should().BeEquivalentTo(new SlotInfo(4, "16:00", "17:00", false, 960, 1020));
     }
 
     [Fact]

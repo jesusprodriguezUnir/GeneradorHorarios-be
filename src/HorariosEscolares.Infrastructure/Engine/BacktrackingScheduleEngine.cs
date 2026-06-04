@@ -94,11 +94,11 @@ public sealed class BacktrackingScheduleEngine : IScheduleEngine
         var session = sessions[index];
         var candidates = GetCandidateSlots(session, state, context);
 
-        foreach (var (day, slot, classroom) in candidates)
+        foreach (var (day, slot, startMin, endMin, classroom) in candidates)
         {
             if (ct.IsCancellationRequested) break;
 
-            state.Assign(session, day, slot, classroom);
+            state.Assign(session, day, slot, startMin, endMin, classroom);
             tracker.Update(state.Assigned);
 
             progress?.Report(new GenerationProgress(
@@ -111,34 +111,36 @@ public sealed class BacktrackingScheduleEngine : IScheduleEngine
             if (!ct.IsCancellationRequested && result.Count == sessions.Count)
                 return result;
 
-            state.Unassign(session, day, slot, classroom);
+            state.Unassign(session, day, slot, startMin, endMin, classroom);
         }
 
         return tracker.Best;
     }
 
-    private static List<(int Day, int Slot, Guid ClassroomId)> GetCandidateSlots(
+    private static List<(int Day, int Slot, int StartMinute, int EndMinute, Guid ClassroomId)> GetCandidateSlots(
         SessionToAssign session,
         AssignmentState state,
         GenerationContext context)
     {
-        var candidates = new List<(int Day, int Slot, Guid ClassroomId, int Penalty)>();
+        var candidates = new List<(int Day, int Slot, int StartMinute, int EndMinute, Guid ClassroomId, int Penalty)>();
+
+        var cycleSlots = context.School.SlotsFor(session.Cycle);
 
         foreach (var day in context.School.WorkingDays)
         {
-            foreach (var slotConfig in context.School.Slots)
+            foreach (var slotConfig in cycleSlots)
             {
                 if (slotConfig.IsBreak) continue;
                 int slot = slotConfig.Index;
 
-                if (state.IsTeacherBusy(session.TeacherId, day, slot)) continue;
+                if (state.IsTeacherBusy(session.TeacherId, day, slotConfig.StartMinute, slotConfig.EndMinute)) continue;
 
                 var availableClassroom = state.FindAvailableClassroom(
-                    day, slot, session.RequiredClassroomType, context.School.Classrooms);
+                    day, slotConfig.StartMinute, slotConfig.EndMinute, session.RequiredClassroomType, context.School.Classrooms);
 
                 if (availableClassroom is null) continue;
 
-                var testEntry = new ProposedEntry(session, day, slot, availableClassroom.Value);
+                var testEntry = new ProposedEntry(session, day, slot, availableClassroom.Value, slotConfig.StartMinute, slotConfig.EndMinute);
                 bool hardViolation = context.HardConstraints
                     .Any(c => !c.IsSatisfied(testEntry, state));
 
@@ -147,13 +149,13 @@ public sealed class BacktrackingScheduleEngine : IScheduleEngine
                 int penalty = context.SoftConstraints
                     .Sum(c => c.Penalty(testEntry, state));
 
-                candidates.Add((day, slot, availableClassroom.Value, penalty));
+                candidates.Add((day, slot, slotConfig.StartMinute, slotConfig.EndMinute, availableClassroom.Value, penalty));
             }
         }
 
         return [.. candidates
             .OrderBy(c => c.Penalty)
-            .Select(c => (c.Day, c.Slot, c.ClassroomId))];
+            .Select(c => (c.Day, c.Slot, c.StartMinute, c.EndMinute, c.ClassroomId))];
     }
 
     public static int ComputeScheduleCost(
@@ -177,11 +179,11 @@ public sealed class BacktrackingScheduleEngine : IScheduleEngine
             if (!sessionIndex.TryGetValue(slot.AssignmentId, out var session))
                 continue;
 
-            var entry = new ProposedEntry(session, slot.DayOfWeek, slot.SlotIndex, slot.ClassroomId);
+            var entry = new ProposedEntry(session, slot.DayOfWeek, slot.SlotIndex, slot.ClassroomId, slot.StartMinute, slot.EndMinute);
 
             totalCost += softConstraints.Sum(c => c.Penalty(entry, state));
 
-            state.Assign(session, slot.DayOfWeek, slot.SlotIndex, slot.ClassroomId);
+            state.Assign(session, slot.DayOfWeek, slot.SlotIndex, slot.StartMinute, slot.EndMinute, slot.ClassroomId);
         }
 
         return totalCost;

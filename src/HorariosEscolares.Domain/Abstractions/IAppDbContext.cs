@@ -19,5 +19,6 @@ public interface IAppDbContext
     DbSet<ScheduleEntry> ScheduleEntries { get; }
     DbSet<ScheduleConflictRecord> ScheduleConflicts { get; }
     DbSet<CycleSchedule> CycleSchedules { get; }
+    DbSet<CycleBreak> CycleBreaks { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

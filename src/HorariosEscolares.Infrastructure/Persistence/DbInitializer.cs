@@ -48,6 +48,8 @@ public static class DbInitializer
         await db.Classrooms.ExecuteDeleteAsync();
         await db.SubjectAllocations.ExecuteDeleteAsync();
         await db.CurriculumTemplates.ExecuteDeleteAsync();
+        await db.CycleBreaks.ExecuteDeleteAsync();
+        await db.CycleSchedules.ExecuteDeleteAsync();
         await db.Schools.ExecuteDeleteAsync();
 
         await SeedAsync(db, options);
@@ -96,25 +98,32 @@ public static class DbInitializer
             SlotsPerDay    = 5,
             AfternoonSlots = isPartida ? 2 : 0,
         };
+        var defaultBreaks = new List<(int AfterSlot, int Minutes)> { (2, LomloeMadrid.MinDailyBreakMinutes) }.AsReadOnly();
         for (int c = 1; c <= 3; c++)
         {
             var cycleEnd = SlotCalculator.ComputeEndTime(
                 totalSlots: 5,
                 slotMinutes: 60,
-                breakAfterSlot: 2,
-                breakMinutes: LomloeMadrid.MinDailyBreakMinutes,
+                breaks: defaultBreaks,
                 afternoonSlots: isPartida ? 2 : 0,
                 morningStart: new TimeOnly(9, 0),
                 afternoonStart: isPartida ? new TimeOnly(15, 0) : null,
                 isPartida: isPartida);
-            db.CycleSchedules.Add(new CycleSchedule
+            var cycleSchedule = new CycleSchedule
             {
                 SchoolId       = SchoolId,
                 Cycle          = c,
                 MorningStart   = new TimeOnly(9, 0),
                 EndTime        = cycleEnd,
                 AfternoonStart = isPartida ? new TimeOnly(15, 0) : null,
+            };
+            cycleSchedule.Breaks.Add(new CycleBreak
+            {
+                CycleScheduleId = cycleSchedule.Id,
+                AfterSlot = 2,
+                Minutes = LomloeMadrid.MinDailyBreakMinutes,
             });
+            db.CycleSchedules.Add(cycleSchedule);
         }
 
         db.AppUsers.Add(new AppUser
