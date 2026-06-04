@@ -245,8 +245,10 @@ public sealed class GenerateScheduleOrchestrator(
         {
             if (!presentCycles.Contains(c))
             {
+                var isPartida = period.ScheduleType == "partida";
+                var afternoonStart = isPartida ? new TimeOnly(15, 0) : (TimeOnly?)null;
                 var fallbackSlots = SlotCalculator.Compute(period.SlotsPerDay, period.SlotMinutes, [], 0,
-                    TimeOnly.FromTimeSpan(TimeSpan.FromMinutes(0)));
+                    new TimeOnly(9, 0), afternoonStart, isPartida);
                 grids.Add(new CycleGrid(c,
                     fallbackSlots.Select(s => new SlotConfig(s.Index, s.IsBreak, s.StartMinute, s.EndMinute)).ToList()));
             }

@@ -50,7 +50,8 @@ public static class TestData
         IReadOnlyList<string>? teacherSpecialties = null,
         string subjectKey = "tut",
         int teacherMaxWeeklyHours = 25,
-        bool splittableAcrossDays = true)
+        bool splittableAcrossDays = true,
+        int cycle = 1)
         => new(
             assignmentId ?? Guid.NewGuid(),
             groupId ?? Group1Id,
@@ -65,7 +66,8 @@ public static class TestData
             teacherSpecialties ?? new List<string> { "Generalista" },
             subjectKey,
             teacherMaxWeeklyHours,
-            splittableAcrossDays);
+            splittableAcrossDays,
+            cycle);
 
     public static GenerationContext Context(
         IReadOnlyList<SessionToAssign>? sessions = null,

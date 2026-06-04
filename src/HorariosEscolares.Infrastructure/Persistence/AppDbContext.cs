@@ -96,6 +96,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasIndex(x => new { x.SchoolId, x.CourseLevel, x.GroupLabel }).IsUnique();
             e.Property(x => x.GroupLabel).HasMaxLength(5).IsRequired();
             e.Ignore(x => x.DisplayName);
+            e.Ignore(x => x.Cycle);
         });
 
         mb.Entity<GroupSubjectHour>(e =>

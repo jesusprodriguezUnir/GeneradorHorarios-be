@@ -172,4 +172,100 @@ public class SlotCalculatorTests
         result.Should().BeEquivalentTo([1, 2, 4, 5]);
         result.Should().NotContain(3);
     }
+
+    [Fact]
+    public void Compute_MultipleBreaks_InsertsAllBreaks()
+    {
+        var breaks = new List<(int AfterSlot, int Minutes)> { (2, 15), (4, 20) };
+        var slots = SlotCalculator.Compute(
+            totalSlots: 5, slotMinutes: 60, breaks: breaks,
+            afternoonSlots: 0, morningStart: new TimeOnly(9, 0));
+
+        slots.Should().HaveCount(7);
+        slots[0].Should().BeEquivalentTo(new SlotInfo(0, "09:00", "10:00", false, 540, 600));
+        slots[1].Should().BeEquivalentTo(new SlotInfo(1, "10:00", "11:00", false, 600, 660));
+        slots[2].IsBreak.Should().BeTrue();
+        slots[2].StartTime.Should().Be("11:00");
+        slots[2].EndTime.Should().Be("11:15");
+        slots[2].StartMinute.Should().Be(660);
+        slots[2].EndMinute.Should().Be(675);
+        slots[3].Should().BeEquivalentTo(new SlotInfo(2, "11:15", "12:15", false, 675, 735));
+        slots[4].Should().BeEquivalentTo(new SlotInfo(3, "12:15", "13:15", false, 735, 795));
+        slots[5].IsBreak.Should().BeTrue();
+        slots[5].StartTime.Should().Be("13:15");
+        slots[5].EndTime.Should().Be("13:35");
+        slots[5].StartMinute.Should().Be(795);
+        slots[5].EndMinute.Should().Be(815);
+        slots[6].Should().BeEquivalentTo(new SlotInfo(4, "13:35", "14:35", false, 815, 875));
+    }
+
+    [Fact]
+    public void ComputeEndTime_MultipleBreaks_ReturnsCorrectEnd()
+    {
+        var breaks = new List<(int AfterSlot, int Minutes)> { (2, 15), (4, 20) };
+        var end = SlotCalculator.ComputeEndTime(
+            totalSlots: 5, slotMinutes: 60, breaks: breaks,
+            afternoonSlots: 0, morningStart: new TimeOnly(9, 0));
+
+        end.Should().Be(new TimeOnly(14, 35));
+    }
+
+    [Fact]
+    public void Compute_FromCycleSchedule_IncludesBreaks()
+    {
+        var school = new School
+        {
+            Name = "Test", Slug = "test",
+            SlotMinutes = 60, SlotsPerDay = 5,
+            ScheduleType = "continua",
+        };
+        var cycle = new CycleSchedule
+        {
+            SchoolId = Guid.NewGuid(), PeriodId = Guid.NewGuid(), Cycle = 1,
+            MorningStart = new TimeOnly(9, 0),
+        };
+        cycle.Breaks.Add(new CycleBreak { CycleScheduleId = cycle.Id, AfterSlot = 2, Minutes = 30 });
+
+        var slots = SlotCalculator.Compute(cycle, school);
+
+        slots.Should().HaveCount(6);
+        slots.Count(s => s.IsBreak).Should().Be(1);
+        slots.First(s => s.IsBreak).StartTime.Should().Be("11:00");
+        slots.First(s => s.IsBreak).EndTime.Should().Be("11:30");
+    }
+
+    [Fact]
+    public void Compute_NoBreaks_ReturnsOnlyLectivoSlots()
+    {
+        var breaks = Array.Empty<(int AfterSlot, int Minutes)>();
+        var slots = SlotCalculator.Compute(
+            totalSlots: 5, slotMinutes: 60, breaks: breaks,
+            afternoonSlots: 0, morningStart: new TimeOnly(9, 0));
+
+        slots.Should().HaveCount(5);
+        slots.Should().AllSatisfy(s => s.IsBreak.Should().BeFalse());
+    }
+
+    [Fact]
+    public void Compute_StartMinuteEndMinute_AreCorrect()
+    {
+        var school = new School
+        {
+            Name = "Test", Slug = "test",
+            MorningStart = new TimeOnly(8, 0),
+            SlotMinutes = 45, BreakAfterSlot = 2, BreakMinutes = 15,
+        };
+
+        var slots = SlotCalculator.Compute(school, totalSlots: 4);
+
+        slots.First(s => s.Index == 0).StartMinute.Should().Be(480);  // 8:00 = 480 min
+        slots.First(s => s.Index == 0).EndMinute.Should().Be(525);    // 8:45 = 525 min
+        slots.First(s => s.Index == 1).StartMinute.Should().Be(525);  // 8:45
+        slots.First(s => s.Index == 1).EndMinute.Should().Be(570);    // 9:30
+        var breakSlot = slots.First(s => s.IsBreak);
+        breakSlot.StartMinute.Should().Be(570);                       // 9:30
+        breakSlot.EndMinute.Should().Be(585);                         // 9:45
+        slots.First(s => s.Index == 2).StartMinute.Should().Be(585);  // 9:45
+        slots.First(s => s.Index == 2).EndMinute.Should().Be(630);    // 10:30
+    }
 }

@@ -161,6 +161,133 @@ public class BacktrackingScheduleEngineTests
     }
 
     [Fact]
+    public async Task GenerateAsync_MultiCycle_DisjointSchedules_SameTeacherAllowed()
+    {
+        var teacher = TestData.Teacher1Id;
+        var group1 = TestData.Group1Id;
+        var group2 = Guid.Parse("00000000-0000-0000-0003-000000000002");
+
+        var cycle1Slots = new List<SlotConfig>
+        {
+            new(0, false, 540, 600),  // 09:00-10:00
+            new(1, false, 600, 660),  // 10:00-11:00
+            new(2, false, 660, 720),  // 11:00-12:00
+        };
+        var cycle2Slots = new List<SlotConfig>
+        {
+            new(0, false, 900, 960),  // 15:00-16:00 (disjoint)
+            new(1, false, 960, 1020), // 16:00-17:00
+            new(2, false, 1020, 1080),// 17:00-18:00
+        };
+
+        var cycles = new List<CycleGrid>
+        {
+            new(1, cycle1Slots),
+            new(2, cycle2Slots),
+        };
+
+        var school = new SchoolConfig(3, 5, [1, 2, 3, 4, 5], cycles,
+        [
+            new(TestData.RegularClassroomId, "Aula 1", ClassroomType.Regular),
+            new(Guid.NewGuid(), "Aula 2", ClassroomType.Regular),
+        ]);
+
+        var sessions = new List<SessionToAssign>
+        {
+            TestData.Session(assignmentId: Guid.NewGuid(), groupId: group1, teacherId: teacher, subjectName: "A", cycle: 1),
+            TestData.Session(assignmentId: Guid.NewGuid(), groupId: group2, teacherId: teacher, subjectName: "B", cycle: 2),
+            TestData.Session(assignmentId: Guid.NewGuid(), groupId: group1, teacherId: teacher, subjectName: "C", cycle: 1),
+        };
+
+        var context = TestData.Context(sessions: sessions, school: school);
+
+        var result = await _engine.GenerateAsync(context, CancellationToken.None);
+
+        result.Status.Should().Be(GenerationStatus.Complete);
+        result.TotalAssigned.Should().Be(3);
+
+        var teacherSlots = result.AssignedSlots
+            .Where(a => a.TeacherId == teacher)
+            .ToList();
+
+        var overlap = teacherSlots
+            .GroupBy(a => a.DayOfWeek)
+            .Any(g =>
+            {
+                var times = g.Select(a => (a.StartMinute, a.EndMinute)).OrderBy(t => t.StartMinute).ToList();
+                for (int i = 1; i < times.Count; i++)
+                {
+                    if (times[i].StartMinute < times[i - 1].EndMinute)
+                        return true;
+                }
+                return false;
+            });
+
+        overlap.Should().BeFalse("teacher should not have overlapping time intervals across cycles");
+    }
+
+    [Fact]
+    public async Task GenerateAsync_MultiCycle_OverlappingSlots_TeacherConflictDetected()
+    {
+        var teacher = TestData.Teacher1Id;
+        var group1 = TestData.Group1Id;
+        var group2 = Guid.Parse("00000000-0000-0000-0003-000000000002");
+
+        var cycleSlots = new List<SlotConfig>
+        {
+            new(0, false, 540, 600),  // 09:00-10:00
+            new(1, false, 600, 660),  // 10:00-11:00
+            new(2, false, 660, 720),  // 11:00-12:00
+        };
+
+        var cycles = new List<CycleGrid>
+        {
+            new(1, cycleSlots),
+            new(2, cycleSlots), // same timing → all slots overlap
+        };
+
+        // A single regular classroom can only hold one session at a time
+        var school = new SchoolConfig(3, 2, [1, 2], cycles,
+        [
+            new(TestData.RegularClassroomId, "Aula 1", ClassroomType.Regular),
+        ]);
+
+        // More sessions than available (teacher can only teach 1 session per time slot,
+        // and there's only 1 classroom for 6 sessions over 2 days × 3 slots = 6 available)
+        var sessions = new List<SessionToAssign>
+        {
+            TestData.Session(assignmentId: Guid.NewGuid(), groupId: group1, teacherId: teacher, subjectName: "A", cycle: 1),
+            TestData.Session(assignmentId: Guid.NewGuid(), groupId: group1, teacherId: teacher, subjectName: "B", cycle: 1),
+            TestData.Session(assignmentId: Guid.NewGuid(), groupId: group1, teacherId: teacher, subjectName: "C", cycle: 1),
+            TestData.Session(assignmentId: Guid.NewGuid(), groupId: group2, teacherId: teacher, subjectName: "D", cycle: 2),
+            TestData.Session(assignmentId: Guid.NewGuid(), groupId: group2, teacherId: teacher, subjectName: "E", cycle: 2),
+            TestData.Session(assignmentId: Guid.NewGuid(), groupId: group2, teacherId: teacher, subjectName: "F", cycle: 2),
+        };
+
+        var context = TestData.Context(sessions: sessions, school: school);
+
+        var result = await _engine.GenerateAsync(context, CancellationToken.None);
+
+        result.TotalAssigned.Should().Be(6);
+
+        var overlaps = result.AssignedSlots
+            .Where(a => a.TeacherId == teacher)
+            .GroupBy(a => a.DayOfWeek)
+            .Any(g =>
+            {
+                var times = g.Select(a => (a.StartMinute, a.EndMinute)).OrderBy(t => t.StartMinute).ToList();
+                for (int i = 1; i < times.Count; i++)
+                {
+                    if (times[i].StartMinute < times[i - 1].EndMinute)
+                        return true;
+                }
+                return false;
+            });
+
+        overlaps.Should().BeFalse("no overlapping teacher assignments should exist across cycles");
+    }
+
+    [Fact]
     public async Task GenerateAsync_WithBreakSlot_DoesNotScheduleOnBreak()
     {
         var slots = new List<SlotConfig>

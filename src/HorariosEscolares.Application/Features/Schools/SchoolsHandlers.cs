@@ -174,7 +174,7 @@ public sealed class GetCycleScheduleHandler(IAppDbContext db, ICurrentUser user)
     }
 }
 
-public sealed class UpdateCycleScheduleHandler(IAppDbContext db, ICurrentUser user)
+public sealed class UpdateCycleScheduleHandler(IAppDbContext db, ICurrentUser user, ICycleScheduleRepository repository)
     : IRequestHandler<UpdateCycleScheduleCommand, CycleScheduleDto>
 {
     public async Task<CycleScheduleDto> Handle(UpdateCycleScheduleCommand request, CancellationToken ct)
@@ -183,9 +183,7 @@ public sealed class UpdateCycleScheduleHandler(IAppDbContext db, ICurrentUser us
             .FirstOrDefaultAsync(x => x.SchoolId == user.SchoolId && x.IsDefault, ct)
             ?? throw new NotFoundException("No hay un periodo ordinario configurado.");
 
-        var c = await db.CycleSchedules
-            .Include(x => x.Breaks)
-            .FirstOrDefaultAsync(x => x.PeriodId == period.Id && x.Cycle == request.Cycle, ct);
+        var c = await repository.GetByPeriodAndCycleAsync(period.Id, request.Cycle, ct);
 
         var morningStart = TimeOnly.Parse(request.MorningStart);
         var afternoonStart = request.AfternoonStart is not null ? TimeOnly.Parse(request.AfternoonStart) : (TimeOnly?)null;
@@ -414,7 +412,7 @@ public sealed class UpdatePeriodHandler(
 }
 
 public sealed class DeletePeriodHandler(
-    IAppDbContext db, ISchoolPeriodRepository repository, ICurrentUser user)
+    ISchoolPeriodRepository repository, ICurrentUser user)
     : IRequestHandler<DeletePeriodCommand>
 {
     public async Task Handle(DeletePeriodCommand request, CancellationToken ct)
