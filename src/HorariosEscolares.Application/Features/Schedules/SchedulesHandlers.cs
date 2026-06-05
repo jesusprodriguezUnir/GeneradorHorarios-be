@@ -62,6 +62,29 @@ public sealed class GetSchedulesListHandler(IAppDbContext db, ICurrentUser user)
     {
         var query = db.Schedules.AsNoTracking()
             .Where(s => s.SchoolId == user.SchoolId);
+
+        if (user.IsTeacher)
+        {
+            var teacherId = await db.Teachers.AsNoTracking()
+                .Where(t => t.UserId == user.UserId)
+                .Select(t => t.Id)
+                .FirstOrDefaultAsync(ct);
+
+            if (teacherId != Guid.Empty)
+            {
+                var assignedStageIds = await db.TeacherStageAssignments.AsNoTracking()
+                    .Where(tsa => tsa.TeacherId == teacherId)
+                    .Select(tsa => tsa.StageId)
+                    .ToListAsync(ct);
+
+                query = query.Where(s => assignedStageIds.Contains(s.StageId));
+            }
+            else
+            {
+                return [];
+            }
+        }
+
         if (request.StageId.HasValue)
             query = query.Where(s => s.StageId == request.StageId.Value);
 
@@ -210,8 +233,13 @@ public sealed class GetMyScheduleHandler(IAppDbContext db, ICurrentUser user)
             .FirstOrDefaultAsync(t => t.Id == appUser.TeacherId, ct);
         if (teacher is null) return null;
 
+        var teacherStageIds = await db.TeacherStageAssignments.AsNoTracking()
+            .Where(tsa => tsa.TeacherId == teacher.Id)
+            .Select(tsa => tsa.StageId)
+            .ToListAsync(ct);
+
         var schedule = await db.Schedules.AsNoTracking()
-            .Where(s => s.SchoolId == user.SchoolId && s.Status == "published")
+            .Where(s => s.SchoolId == user.SchoolId && s.Status == "published" && teacherStageIds.Contains(s.StageId))
             .OrderByDescending(s => s.PublishedAt)
             .FirstOrDefaultAsync(ct);
         if (schedule is null) return null;

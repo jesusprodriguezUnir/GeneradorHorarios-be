@@ -10,7 +10,7 @@ public record CurrentUserResponse(
     Guid UserId, Guid SchoolId, string Role,
     CurrentUserSchool? School, CurrentUserTeacher? Teacher);
 public record CurrentUserSchool(Guid Id, string Name, string Slug);
-public record CurrentUserTeacher(Guid Id, string FullName, string ColorKey);
+public record CurrentUserTeacher(Guid Id, string FullName, string ColorKey, List<string> AssignedStageTypes);
 
 public sealed class GetCurrentUserHandler(IAppDbContext db, ICurrentUser currentUser)
     : IRequestHandler<GetCurrentUserQuery, CurrentUserResponse?>
@@ -28,7 +28,11 @@ public sealed class GetCurrentUserHandler(IAppDbContext db, ICurrentUser current
         {
             teacher = await db.Teachers.AsNoTracking()
                 .Where(t => t.UserId == user.UserId)
-                .Select(t => new CurrentUserTeacher(t.Id, t.FullName, t.ColorKey))
+                .Select(t => new CurrentUserTeacher(
+                    t.Id, 
+                    t.FullName, 
+                    t.ColorKey, 
+                    t.StageAssignments.Select(sa => sa.Stage!.StageType).ToList()))
                 .FirstOrDefaultAsync(ct);
         }
 

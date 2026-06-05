@@ -355,8 +355,32 @@ public sealed class GetStagesHandler(IAppDbContext db, ICurrentUser user)
 {
     public async Task<List<SchoolStageDto>> Handle(GetStagesQuery request, CancellationToken ct)
     {
-        var stages = await db.SchoolStages.AsNoTracking()
-            .Where(s => s.SchoolId == user.SchoolId)
+        var query = db.SchoolStages.AsNoTracking()
+            .Where(s => s.SchoolId == user.SchoolId);
+
+        if (user.IsTeacher)
+        {
+            var teacherId = await db.Teachers.AsNoTracking()
+                .Where(t => t.UserId == user.UserId)
+                .Select(t => t.Id)
+                .FirstOrDefaultAsync(ct);
+
+            if (teacherId != Guid.Empty)
+            {
+                var assignedStageIds = await db.TeacherStageAssignments.AsNoTracking()
+                    .Where(tsa => tsa.TeacherId == teacherId)
+                    .Select(tsa => tsa.StageId)
+                    .ToListAsync(ct);
+
+                query = query.Where(s => assignedStageIds.Contains(s.Id));
+            }
+            else
+            {
+                return [];
+            }
+        }
+
+        var stages = await query
             .OrderBy(s => s.SortOrder)
             .ToListAsync(ct);
 
@@ -477,6 +501,29 @@ public sealed class GetPeriodsHandler(IAppDbContext db, ICurrentUser user)
         var query = db.SchoolPeriods.AsNoTracking()
             .Include(p => p.Cycles).ThenInclude(c => c.Breaks)
             .Where(p => p.SchoolId == user.SchoolId);
+
+        if (user.IsTeacher)
+        {
+            var teacherId = await db.Teachers.AsNoTracking()
+                .Where(t => t.UserId == user.UserId)
+                .Select(t => t.Id)
+                .FirstOrDefaultAsync(ct);
+
+            if (teacherId != Guid.Empty)
+            {
+                var assignedStageIds = await db.TeacherStageAssignments.AsNoTracking()
+                    .Where(tsa => tsa.TeacherId == teacherId)
+                    .Select(tsa => tsa.StageId)
+                    .ToListAsync(ct);
+
+                query = query.Where(p => assignedStageIds.Contains(p.StageId));
+            }
+            else
+            {
+                return [];
+            }
+        }
+
         if (request.StageId.HasValue)
             query = query.Where(p => p.StageId == request.StageId.Value);
 
