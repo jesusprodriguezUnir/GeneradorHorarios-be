@@ -47,6 +47,22 @@ public class Teacher
     public int MaxDailyConsecutive { get; set; } = 4;
     public string Specialties { get; set; } = "[]";
     public string ColorKey { get; set; } = "mat";
+    public ICollection<TeacherStageAssignment> StageAssignments { get; set; } = new List<TeacherStageAssignment>();
+}
+
+/// <summary>
+/// Asociación de un profesor con una etapa educativa y (opcionalmente) un ciclo concreto.
+/// Si <see cref="Cycle"/> es null, el profesor puede dar clase en cualquier ciclo de la etapa.
+/// </summary>
+public class TeacherStageAssignment
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public required Guid TeacherId { get; set; }
+    public required Guid StageId { get; set; }
+    /// <summary>Ciclo educativo (1, 2, 3…). Null = toda la etapa.</summary>
+    public int? Cycle { get; set; }
+    public Teacher? Teacher { get; set; }
+    public SchoolStage? Stage { get; set; }
 }
 
 public class Classroom

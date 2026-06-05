@@ -38,9 +38,18 @@ public sealed class InfantilNormative : IStageNormative
     public string StageType => StageTypes.Infantil;
     public int MinLevel => 1;
     public int MaxLevel => 3;
-    public decimal MinWeeklyLectiveHours => 22.5m;       // TODO: confirmar con Decreto 36/2022
+    public decimal MinWeeklyLectiveHours => 22.5m;       // Confirmado con Decreto 36/2022: 25h totales - 2.5h recreo = 22.5h lectivas
     public int MinDailyBreakMinutes => 30;
-    public IReadOnlyList<SubjectNorm> GetSubjects(string modality) => [];   // TODO: áreas de Infantil
+    public IReadOnlyList<SubjectNorm> GetSubjects(string modality) =>
+    [
+        new("crec", "Crecimiento en Armonía",                     MinH: 4, MaxH: 8, DefaultH: 6),
+        new("desc", "Descubrimiento y Exploración del Entorno",    MinH: 4, MaxH: 8, DefaultH: 6),
+        new("com",  "Comunicación y Representación de la Realidad", MinH: 6, MaxH: 12, DefaultH: 8),
+        new("ing",  "Primera Lengua Extranjera (Inglés)",          MinH: 1, MaxH: 3, DefaultH: 2,
+            RequiresSpecialist: true),
+        new("rel",  "Religión / Valores",                          MinH: 0, MaxH: 2, DefaultH: 1,
+            MaxConsecutiveSlots: 1, Splittable: false)
+    ];
 }
 
 /// <summary>
@@ -53,9 +62,35 @@ public sealed class SecundariaNormative : IStageNormative
     public string StageType => StageTypes.Secundaria;
     public int MinLevel => 1;
     public int MaxLevel => 4;
-    public decimal MinWeeklyLectiveHours => 30m;         // TODO: confirmar con Decreto 65/2022
+    public decimal MinWeeklyLectiveHours => 30m;         // Confirmado con Decreto 65/2022: 30h semanales lectivas
     public int MinDailyBreakMinutes => 30;
-    public IReadOnlyList<SubjectNorm> GetSubjects(string modality) => [];   // TODO: materias de ESO
+    public IReadOnlyList<SubjectNorm> GetSubjects(string modality)
+    {
+        var isBilingue = modality.Equals("bilingue", StringComparison.OrdinalIgnoreCase);
+        return
+        [
+            new("len", "Lengua Castellana y Literatura",             MinH: 4, MaxH: 6, DefaultH: 4),
+            new("mat", "Matemáticas",                                MinH: 3, MaxH: 5, DefaultH: 4),
+            new("ing", "Primera Lengua Extranjera (Inglés)",         MinH: isBilingue ? 4 : 3, MaxH: isBilingue ? 6 : 5, DefaultH: isBilingue ? 5 : 3,
+                RequiresSpecialist: true),
+            new("gh",  "Geografía e Historia",                       MinH: 3, MaxH: 4, DefaultH: 3),
+            new("ef",  "Educación Física",                           MinH: 2, MaxH: 3, DefaultH: 2,
+                RequiresSpecialist: true, RequiredClassroomType: "gym", MaxConsecutiveSlots: 1),
+            new("bg",  "Biología y Geología",                        MinH: 0, MaxH: 3, DefaultH: 2),
+            new("fq",  "Física y Química",                           MinH: 0, MaxH: 3, DefaultH: 3),
+            new("tec", "Tecnología y Digitalización",                MinH: 0, MaxH: 3, DefaultH: 2),
+            new("art", "Educación Plástica, Visual y Audiovisual",    MinH: 0, MaxH: 2, DefaultH: 2),
+            new("mus", "Música",                                     MinH: 0, MaxH: 2, DefaultH: 2,
+                RequiresSpecialist: true, RequiredClassroomType: "music", MaxConsecutiveSlots: 1, Splittable: false),
+            new("val", "Educación en Valores Cívicos y Éticos",      MinH: 0, MaxH: 2, DefaultH: 1,
+                MaxConsecutiveSlots: 1, Splittable: false),
+            new("rel", "Religión o Atención Educativa",              MinH: 0, MaxH: 2, DefaultH: 1,
+                MaxConsecutiveSlots: 1, Splittable: false),
+            new("opt", "Materias de Opción / Optativas",             MinH: 0, MaxH: 12, DefaultH: 2),
+            new("tut", "Tutoría",                                    MinH: 1, MaxH: 1, DefaultH: 1,
+                MaxConsecutiveSlots: 1, Splittable: false)
+        ];
+    }
 }
 
 /// <summary>Resuelve la normativa aplicable a partir del tipo de etapa.</summary>

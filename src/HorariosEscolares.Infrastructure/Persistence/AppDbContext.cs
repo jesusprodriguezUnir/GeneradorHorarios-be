@@ -24,6 +24,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<CycleBreak> CycleBreaks => Set<CycleBreak>();
     public DbSet<SchoolPeriod> SchoolPeriods => Set<SchoolPeriod>();
     public DbSet<PeriodAssignmentHours> PeriodAssignmentHours => Set<PeriodAssignmentHours>();
+    public DbSet<TeacherStageAssignment> TeacherStageAssignments => Set<TeacherStageAssignment>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -228,6 +229,20 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.CycleScheduleId);
             e.Property(x => x.Minutes).HasDefaultValue(30);
+        });
+
+        mb.Entity<TeacherStageAssignment>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.TeacherId, x.StageId, x.Cycle }).IsUnique();
+            e.HasOne(x => x.Teacher)
+             .WithMany(x => x.StageAssignments)
+             .HasForeignKey(x => x.TeacherId)
+             .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Stage)
+             .WithMany()
+             .HasForeignKey(x => x.StageId)
+             .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

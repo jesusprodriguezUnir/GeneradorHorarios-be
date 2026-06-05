@@ -23,5 +23,6 @@ public interface IAppDbContext
     DbSet<CycleBreak> CycleBreaks { get; }
     DbSet<SchoolPeriod> SchoolPeriods { get; }
     DbSet<PeriodAssignmentHours> PeriodAssignmentHours { get; }
+    DbSet<TeacherStageAssignment> TeacherStageAssignments { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
