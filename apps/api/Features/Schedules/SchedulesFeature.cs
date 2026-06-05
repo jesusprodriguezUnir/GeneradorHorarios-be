@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.SignalR;
+using Microsoft.AspNetCore.SignalR;
 using MediatR;
 using Hangfire;
 using HorariosEscolares.Application.Features.Schedules;
@@ -6,6 +6,8 @@ using HorariosEscolares.Application.Features.Schedules.Commands.GenerateSchedule
 using HorariosEscolares.Domain.Services;
 using HorariosEscolares.Features.Auth;
 using HorariosEscolares.BackgroundJobs;
+using HorariosEscolares.Domain.Abstractions;
+using Microsoft.EntityFrameworkCore;
 
 namespace HorariosEscolares.Features.Schedules;
 
@@ -49,19 +51,47 @@ public static class ScheduleEndpoints
         });
 
         // POST /api/schedules/generate — encola job en background
-        g.MapPost("/generate", (
+        g.MapPost("/generate", async (
             HttpContext ctx,
             IBackgroundJobClient backgroundJobs,
+            IAppDbContext db,
             GenerateRequest req) =>
         {
             var user = ctx.GetCurrentUserOrFail();
             if (!user.IsAdmin) return Results.StatusCode(403);
 
+            var stageId = req.StageId;
+            var periodId = req.PeriodId;
+
+            if (stageId == Guid.Empty)
+            {
+                var firstStage = await db.SchoolStages.AsNoTracking()
+                    .Where(s => s.SchoolId == user.SchoolId)
+                    .OrderBy(s => s.SortOrder)
+                    .FirstOrDefaultAsync();
+                if (firstStage is not null)
+                {
+                    stageId = firstStage.Id;
+                }
+            }
+
+            if (periodId == Guid.Empty && stageId != Guid.Empty)
+            {
+                var firstPeriod = await db.SchoolPeriods.AsNoTracking()
+                    .Where(p => p.StageId == stageId)
+                    .OrderByDescending(p => p.IsDefault)
+                    .FirstOrDefaultAsync();
+                if (firstPeriod is not null)
+                {
+                    periodId = firstPeriod.Id;
+                }
+            }
+
             var jobId = backgroundJobs.Enqueue<ScheduleGenerationJob>(job =>
                 job.ExecuteAsync(
                     user.SchoolId,
-                    req.StageId,
-                    req.PeriodId,
+                    stageId,
+                    periodId,
                     req.AcademicYear,
                     req.TimeoutSeconds,
                     user.SchoolId.ToString(),

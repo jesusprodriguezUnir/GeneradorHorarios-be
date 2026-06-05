@@ -105,7 +105,195 @@ public sealed class UpdateSchoolHandler(IAppDbContext db, ISchoolRepository repo
         if (request.CenterCode is not null) s.CenterCode = request.CenterCode;
         if (request.Locality is not null) s.Locality = request.Locality;
         if (request.Community is not null) s.Community = request.Community;
-        if (request.Stage is not null) s.Stage = request.Stage;
+        if (request.Stage is not null)
+        {
+            s.Stage = request.Stage;
+
+            var requestedStages = request.Stage
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(x => x.ToLowerInvariant())
+                .ToList();
+
+            var currentStages = await db.SchoolStages
+                .Where(st => st.SchoolId == user.SchoolId)
+                .ToListAsync(ct);
+
+            var currentStageTypes = currentStages.Select(st => st.StageType.ToLowerInvariant()).ToList();
+
+            // Identificar etapas a añadir
+            var stagesToAdd = requestedStages.Except(currentStageTypes).ToList();
+            foreach (var stageType in stagesToAdd)
+            {
+                string name;
+                int minLevel;
+                int maxLevel;
+                int sortOrder;
+                int slotsPerDay;
+                TimeOnly morningStart;
+                int breakAfterSlot;
+
+                switch (stageType)
+                {
+                    case StageTypes.Infantil:
+                        name = "Educación Infantil";
+                        minLevel = 1;
+                        maxLevel = 3;
+                        sortOrder = 0;
+                        slotsPerDay = 5;
+                        morningStart = new TimeOnly(9, 0);
+                        breakAfterSlot = 2;
+                        break;
+                    case StageTypes.Primaria:
+                        name = "Educación Primaria";
+                        minLevel = 1;
+                        maxLevel = 6;
+                        sortOrder = 1;
+                        slotsPerDay = 5;
+                        morningStart = new TimeOnly(9, 0);
+                        breakAfterSlot = 2;
+                        break;
+                    case StageTypes.Secundaria:
+                        name = "Educación Secundaria (ESO)";
+                        minLevel = 1;
+                        maxLevel = 4;
+                        sortOrder = 2;
+                        slotsPerDay = 6;
+                        morningStart = new TimeOnly(8, 30);
+                        breakAfterSlot = 3;
+                        break;
+                    default:
+                        name = char.ToUpper(stageType[0]) + stageType[1..];
+                        minLevel = 1;
+                        maxLevel = 6;
+                        sortOrder = 3;
+                        slotsPerDay = 5;
+                        morningStart = new TimeOnly(9, 0);
+                        breakAfterSlot = 2;
+                        break;
+                }
+
+                var newStage = new SchoolStage
+                {
+                    SchoolId = user.SchoolId,
+                    StageType = stageType,
+                    Name = name,
+                    MinLevel = minLevel,
+                    MaxLevel = maxLevel,
+                    SortOrder = sortOrder,
+                    SlotsPerDay = slotsPerDay,
+                    MorningStart = morningStart,
+                    BreakAfterSlot = breakAfterSlot,
+                    ScheduleType = "continua",
+                    AfternoonStart = null,
+                    SlotMinutes = 60,
+                    BreakMinutes = 30,
+                    DaysPerWeek = 5,
+                    WorkingDays = "[1,2,3,4,5]"
+                };
+
+                db.SchoolStages.Add(newStage);
+
+                // Crear un periodo escolar ordinario por defecto
+                var newPeriod = new SchoolPeriod
+                {
+                    SchoolId = user.SchoolId,
+                    StageId = newStage.Id,
+                    Key = "ordinario",
+                    Name = "Jornada ordinaria",
+                    Months = "[10,11,12,1,2,3,4,5]",
+                    ScheduleType = newStage.ScheduleType,
+                    SlotMinutes = newStage.SlotMinutes,
+                    SlotsPerDay = newStage.SlotsPerDay,
+                    AfternoonSlots = newStage.AfternoonSlots,
+                    IsDefault = true,
+                    SortOrder = 0
+                };
+
+                // Crear tres registros CycleSchedule (ciclos del 1 al 3) asociados al periodo creado
+                var breaksList = newStage.BreakAfterSlot >= 0 && newStage.BreakMinutes > 0
+                    ? new[] { (newStage.BreakAfterSlot, newStage.BreakMinutes) }
+                    : Array.Empty<(int, int)>();
+
+                var cycleEnd = SlotCalculator.ComputeEndTime(
+                    totalSlots: newPeriod.SlotsPerDay,
+                    slotMinutes: newPeriod.SlotMinutes,
+                    breaks: breaksList,
+                    afternoonSlots: newPeriod.AfternoonSlots,
+                    morningStart: newStage.MorningStart,
+                    afternoonStart: null,
+                    isPartida: false);
+
+                for (int c = 1; c <= 3; c++)
+                {
+                    var cycleSchedule = new CycleSchedule
+                    {
+                        SchoolId = user.SchoolId,
+                        StageId = newStage.Id,
+                        PeriodId = newPeriod.Id,
+                        Cycle = c,
+                        MorningStart = newStage.MorningStart,
+                        EndTime = cycleEnd,
+                        AfternoonStart = null
+                    };
+
+                    if (newStage.BreakAfterSlot >= 0 && newStage.BreakMinutes > 0)
+                    {
+                        cycleSchedule.Breaks.Add(new CycleBreak
+                        {
+                            CycleScheduleId = cycleSchedule.Id,
+                            AfterSlot = newStage.BreakAfterSlot,
+                            Minutes = newStage.BreakMinutes
+                        });
+                    }
+
+                    newPeriod.Cycles.Add(cycleSchedule);
+                }
+
+                db.SchoolPeriods.Add(newPeriod);
+            }
+
+            // Identificar etapas a eliminar
+            var stagesToRemove = currentStages
+                .Where(st => !requestedStages.Contains(st.StageType.ToLowerInvariant()))
+                .ToList();
+
+            foreach (var stage in stagesToRemove)
+            {
+                // Comprobar dependencias restrictivas
+                var hasGroups = await db.CourseGroups.AnyAsync(cg => cg.StageId == stage.Id, ct);
+                var hasTeacherAssignments = await db.TeacherStageAssignments.AnyAsync(tsa => tsa.StageId == stage.Id, ct);
+                var hasSchedules = await db.Schedules.AnyAsync(s => s.StageId == stage.Id, ct);
+
+                if (hasGroups || hasTeacherAssignments || hasSchedules)
+                {
+                    var reasons = new List<string>();
+                    if (hasGroups) reasons.Add("grupos de alumnos (CourseGroups)");
+                    if (hasTeacherAssignments) reasons.Add("profesores asignados (TeacherStageAssignments)");
+                    if (hasSchedules) reasons.Add("horarios generados (Schedules)");
+
+                    throw new InvalidOperationException($"No se puede eliminar la etapa '{stage.StageType}' porque tiene dependencias activas: {string.Join(", ", reasons)}.");
+                }
+
+                // Borrar en cascada
+                var templates = await db.CurriculumTemplates.Where(t => t.StageId == stage.Id).ToListAsync(ct);
+                foreach (var template in templates)
+                {
+                    template.StageId = null;
+                }
+
+                var stageCycles = await db.CycleSchedules.Include(c => c.Breaks).Where(c => c.StageId == stage.Id).ToListAsync(ct);
+                foreach (var cycle in stageCycles)
+                {
+                    db.CycleBreaks.RemoveRange(cycle.Breaks);
+                }
+                db.CycleSchedules.RemoveRange(stageCycles);
+
+                var periods = await db.SchoolPeriods.Where(p => p.StageId == stage.Id).ToListAsync(ct);
+                db.SchoolPeriods.RemoveRange(periods);
+
+                db.SchoolStages.Remove(stage);
+            }
+        }
         if (request.MinCourseLevel.HasValue) s.MinCourseLevel = request.MinCourseLevel.Value;
         if (request.MaxCourseLevel.HasValue) s.MaxCourseLevel = request.MaxCourseLevel.Value;
         if (request.AcademicYear is not null) s.AcademicYear = request.AcademicYear;
