@@ -68,8 +68,27 @@ Cada feature en `apps/api/Features/` es un slice autónomo con sus propios endpo
 
 | Email | Rol |
 |-------|-----|
-| `elena.castro@ceip-miguel-hernandez.es` | Jefatura / admin |
-| `laura.fernandez@ceip-miguel-hernandez.es` | Profesora / teacher |
+| `elena.castro@ceip-miguel-hernandez.es` | Director (Admin) |
+| `maria.garcia@ceip-miguel-hernandez.es` | Jefe de Estudios (Admin) |
+| `antonio.lopez@ceip-miguel-hernandez.es` | Secretario (Admin) |
+| `laura.fernandez@ceip-miguel-hernandez.es` | Profesor (Teacher) |
+| `ana.garcia@ceip-miguel-hernandez.es` | Tutor (Teacher) |
+| `beatriz.lopez@ceip-miguel-hernandez.es` | Coordinador de ciclo (Teacher) |
+| `lucia.martin@ceip-miguel-hernandez.es` | Orientador (Other) |
+
+### Roles disponibles (catálogo global)
+
+| Code | Name | Kind | Descripción |
+|------|------|------|-------------|
+| `director` | Director | Admin | Máxima responsabilidad del centro |
+| `jefe_estudios` | Jefe de Estudios | Admin | Coordinación académica y horarios |
+| `secretario` | Secretario | Admin | Gestión administrativa y documental |
+| `profesor` | Profesor | Teacher | Docencia general |
+| `tutor` | Tutor | Teacher | Profesor con tutoría de un grupo |
+| `coordinador_ciclo` | Coordinador de ciclo | Teacher | Coordinación pedagógica de un ciclo |
+| `orientador` | Orientador | Other | Orientación educativa y psicopedagógica |
+
+Los usuarios demo actuales (`elena.castro@...` → `RoleId = Director`, `laura.fernandez@...` → `RoleId = Profesor`) se migran automáticamente desde el antiguo string `Role` via la migración `AddRolesTable`. `ICurrentUser` expone `IsAdmin`/`IsTeacher` derivados de `RoleKind`.
 
 ## Decisiones de diseño relevantes
 

@@ -91,7 +91,10 @@ public class DeleteScheduleHandlerTests
     {
         public Guid UserId => Guid.Empty;
         public Guid SchoolId { get; } = schoolId ?? DeleteScheduleHandlerTests.SchoolId;
-        public string Role => "school_admin";
+        public Guid RoleId => RoleIds.Director;
+        public string RoleCode => RoleCodes.Director;
+        public string RoleName => "Director";
+        public RoleKind RoleKind => RoleKind.Admin;
         public bool IsAdmin => true;
         public bool IsTeacher => false;
     }

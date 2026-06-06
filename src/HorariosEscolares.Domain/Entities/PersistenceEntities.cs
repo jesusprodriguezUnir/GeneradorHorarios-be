@@ -8,7 +8,6 @@ public class School
     public string? CenterCode { get; set; }
     public string? Locality { get; set; }
     public string Community { get; set; } = "madrid";
-    public string Stage { get; set; } = "primaria";
     public int MinCourseLevel { get; set; } = 1;
     public int MaxCourseLevel { get; set; } = 6;
     public string AcademicYear { get; set; } = "2025/2026";
@@ -31,8 +30,44 @@ public class AppUser
     public required string Email { get; set; }
     public required string FullName { get; set; }
     public required Guid SchoolId { get; set; }
-    public required string Role { get; set; }
+    public required Guid RoleId { get; set; }
+    public Role? Role { get; set; }
     public Guid? TeacherId { get; set; }
+}
+
+public enum RoleKind { Admin, Teacher, Other }
+
+public class Role
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public required string Code { get; set; }
+    public required string Name { get; set; }
+    public required RoleKind Kind { get; set; }
+    public string? Description { get; set; }
+    public int SortOrder { get; set; }
+    public bool IsSystem { get; set; } = true;
+}
+
+public static class RoleIds
+{
+    public static readonly Guid Director         = Guid.Parse("00000000-0000-0000-0000-0000000000A1");
+    public static readonly Guid JefeEstudios     = Guid.Parse("00000000-0000-0000-0000-0000000000A2");
+    public static readonly Guid Secretario       = Guid.Parse("00000000-0000-0000-0000-0000000000A3");
+    public static readonly Guid Profesor         = Guid.Parse("00000000-0000-0000-0000-0000000000B1");
+    public static readonly Guid Tutor            = Guid.Parse("00000000-0000-0000-0000-0000000000B2");
+    public static readonly Guid CoordinadorCiclo = Guid.Parse("00000000-0000-0000-0000-0000000000B3");
+    public static readonly Guid Orientador       = Guid.Parse("00000000-0000-0000-0000-0000000000C1");
+}
+
+public static class RoleCodes
+{
+    public const string Director         = "director";
+    public const string JefeEstudios     = "jefe_estudios";
+    public const string Secretario       = "secretario";
+    public const string Profesor         = "profesor";
+    public const string Tutor            = "tutor";
+    public const string CoordinadorCiclo = "coordinador_ciclo";
+    public const string Orientador       = "orientador";
 }
 
 public class Teacher

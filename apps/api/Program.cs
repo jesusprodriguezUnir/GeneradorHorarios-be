@@ -14,6 +14,7 @@ using HorariosEscolares.Features.Subjects;
 using HorariosEscolares.Features.Assignments;
 using HorariosEscolares.Features.Constraints;
 using HorariosEscolares.Features.Dev;
+using HorariosEscolares.Features.Roles;
 using HorariosEscolares.Features.Schedules;
 using Serilog;
 
@@ -138,6 +139,7 @@ app.MapGroupEndpoints();
 app.MapClassroomEndpoints();
 app.MapSubjectEndpoints();
 app.MapAssignmentEndpoints();
+app.MapRoleEndpoints();
 app.MapConstraintEndpoints();
 app.MapScheduleEndpoints();
 

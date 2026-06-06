@@ -11,8 +11,13 @@ public static class DbInitializer
     private static readonly Guid TemplateId  = Guid.Parse("00000000-0000-0000-0000-000000000002");
     private static readonly Guid InfantilTemplateId   = Guid.Parse("00000000-0000-0000-0000-000000000003");
     private static readonly Guid SecundariaTemplateId = Guid.Parse("00000000-0000-0000-0000-000000000004");
-    private static readonly Guid AdminUserId = Guid.Parse("00000000-0000-0000-0000-000000000010");
-    private static readonly Guid ProfUserId  = Guid.Parse("00000000-0000-0000-0000-000000000011");
+    private static readonly Guid AdminUserId          = Guid.Parse("00000000-0000-0000-0000-000000000010");
+    private static readonly Guid ProfUserId           = Guid.Parse("00000000-0000-0000-0000-000000000011");
+    private static readonly Guid JefeEstudiosUserId    = Guid.Parse("00000000-0000-0000-0000-000000000012");
+    private static readonly Guid SecretarioUserId      = Guid.Parse("00000000-0000-0000-0000-000000000013");
+    private static readonly Guid TutorUserId           = Guid.Parse("00000000-0000-0000-0000-000000000014");
+    private static readonly Guid CoordinadorCicloUserId = Guid.Parse("00000000-0000-0000-0000-000000000015");
+    private static readonly Guid OrientadorUserId      = Guid.Parse("00000000-0000-0000-0000-000000000016");
     private static readonly Guid InfantilStageId   = Guid.Parse("00000000-0000-0000-0000-000000000030");
     private static readonly Guid PrimariaStageId   = Guid.Parse("00000000-0000-0000-0000-000000000031");
     private static readonly Guid SecundariaStageId = Guid.Parse("00000000-0000-0000-0000-000000000032");
@@ -59,6 +64,7 @@ public static class DbInitializer
         await db.Assignments.ExecuteDeleteAsync();
         await db.TeacherConstraints.ExecuteDeleteAsync();
         await db.AppUsers.ExecuteDeleteAsync();
+        await db.Roles.ExecuteDeleteAsync();
         await db.CourseGroups.ExecuteDeleteAsync();
         await db.TeacherStageAssignments.ExecuteDeleteAsync();
         await db.Teachers.ExecuteDeleteAsync();
@@ -81,6 +87,8 @@ public static class DbInitializer
         var isPartida  = opts.ScheduleType.Equals("partida", StringComparison.OrdinalIgnoreCase);
         var totalGroups = opts.Levels * opts.LinesPerLevel;
 
+        SeedRoles(db);
+
         db.Schools.Add(new School
         {
             Id             = SchoolId,
@@ -89,7 +97,6 @@ public static class DbInitializer
             CenterCode     = "28013291",
             Locality       = "Madrid",
             Community      = "madrid",
-            Stage          = "primaria",
             MinCourseLevel = 1,
             MaxCourseLevel = opts.Levels,
             AcademicYear   = "2025/2026",
@@ -249,7 +256,7 @@ public static class DbInitializer
             Email    = "elena.castro@ceip-miguel-hernandez.es",
             FullName = "Elena Castro",
             SchoolId = SchoolId,
-            Role     = "school_admin",
+            RoleId   = RoleIds.Director,
         });
 
         // --- Primaria Template & Allocations ---
@@ -445,8 +452,55 @@ public static class DbInitializer
             Email     = "laura.fernandez@ceip-miguel-hernandez.es",
             FullName  = "Laura Fernández",
             SchoolId  = SchoolId,
-            Role      = "teacher",
+            RoleId    = RoleIds.Profesor,
             TeacherId = ingTeachers[0].Id,
+        });
+
+        db.AppUsers.Add(new AppUser
+        {
+            Id        = JefeEstudiosUserId,
+            Email     = "maria.garcia@ceip-miguel-hernandez.es",
+            FullName  = "María García",
+            SchoolId  = SchoolId,
+            RoleId    = RoleIds.JefeEstudios,
+        });
+
+        db.AppUsers.Add(new AppUser
+        {
+            Id        = SecretarioUserId,
+            Email     = "antonio.lopez@ceip-miguel-hernandez.es",
+            FullName  = "Antonio López",
+            SchoolId  = SchoolId,
+            RoleId    = RoleIds.Secretario,
+        });
+
+        db.AppUsers.Add(new AppUser
+        {
+            Id        = TutorUserId,
+            Email     = "ana.garcia@ceip-miguel-hernandez.es",
+            FullName  = "Ana García",
+            SchoolId  = SchoolId,
+            RoleId    = RoleIds.Tutor,
+            TeacherId = tutors[0].Id,
+        });
+
+        db.AppUsers.Add(new AppUser
+        {
+            Id        = CoordinadorCicloUserId,
+            Email     = "beatriz.lopez@ceip-miguel-hernandez.es",
+            FullName  = "Beatriz López",
+            SchoolId  = SchoolId,
+            RoleId    = RoleIds.CoordinadorCiclo,
+            TeacherId = tutors[1].Id,
+        });
+
+        db.AppUsers.Add(new AppUser
+        {
+            Id        = OrientadorUserId,
+            Email     = "lucia.martin@ceip-miguel-hernandez.es",
+            FullName  = "Lucía Martín",
+            SchoolId  = SchoolId,
+            RoleId    = RoleIds.Orientador,
         });
 
         var efNames = new[]
@@ -619,7 +673,7 @@ public static class DbInitializer
     }
 
     /// <summary>
-    /// Crea la estructura, aulas, profesores y asignaciones para el 1.er ciclo de Infantil (0-3 años).
+    /// Crea la estructura, aulas, profesores y asignaciones para el 2.º ciclo de Infantil (3-6 años) basados en la normativa de Madrid.
     /// </summary>
     private static void SeedInfantilStage(AppDbContext db, SchoolStage stage, List<SubjectAllocation> allocations, List<Teacher> ingTeachers, SeedOptions opts)
     {
@@ -664,49 +718,103 @@ public static class DbInitializer
         period.Cycles.Add(cs);
         db.SchoolPeriods.Add(period);
 
-        // Aulas de Infantil — 1.er ciclo (0-3 años): 2 aulas de 1-2 años + 2 aulas de 2-3 años
-        var classrooms = new List<Classroom>
+        // Aulas de Infantil: 3 niveles (3, 4, 5 años) × LinesPerLevel
+        var classrooms = new List<Classroom>();
+        char[] lineLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+        for (int level = 1; level <= 3; level++)
         {
-            new() { Id = Guid.NewGuid(), SchoolId = SchoolId, Name = "Aula 1-2 años A", ClassroomType = "regular", Capacity = 13 },
-            new() { Id = Guid.NewGuid(), SchoolId = SchoolId, Name = "Aula 1-2 años B", ClassroomType = "regular", Capacity = 13 },
-            new() { Id = Guid.NewGuid(), SchoolId = SchoolId, Name = "Aula 2-3 años A", ClassroomType = "regular", Capacity = 18 },
-            new() { Id = Guid.NewGuid(), SchoolId = SchoolId, Name = "Aula 2-3 años B", ClassroomType = "regular", Capacity = 18 },
-        };
+            for (int li = 0; li < opts.LinesPerLevel; li++)
+            {
+                classrooms.Add(new Classroom
+                {
+                    Id            = Guid.NewGuid(),
+                    SchoolId      = SchoolId,
+                    Name          = $"Aula Infantil {level + 2} años {lineLabels[li]}",
+                    ClassroomType = "regular",
+                    Capacity      = 22,
+                });
+            }
+        }
         db.Classrooms.AddRange(classrooms);
 
         // Profesores tutores de Infantil (1 por aula)
         var infantilTutorNames = new[]
         {
-            ("Carmen Ruiz",     "carmen.ruiz"),
-            ("Rocío Gómez",     "rocio.gomez"),
-            ("Silvia Muñoz",    "silvia.munoz"),
-            ("Isabel Castro",   "isabel.castro"),
+            ("Carmen Ruiz",      "carmen.ruiz"),
+            ("Rocío Gómez",      "rocio.gomez"),
+            ("Silvia Muñoz",     "silvia.munoz"),
+            ("Isabel Ortega",    "isabel.ortega"),
+            ("Clara Benítez",    "clara.benitez"),
+            ("Alicia Soler",     "alicia.soler"),
+            ("Cristina Merino",  "cristina.merino"),
+            ("Pilar Rubio",      "pilar.rubio"),
+            ("Teresa Montes",    "teresa.montes"),
+            ("Nuria Gil",        "nuria.gil"),
+            ("Paula Marín",      "paula.marin"),
+            ("Rosa Moya",        "rosa.moya"),
+            ("Sofía Medina",     "sofia.medina"),
+            ("Ángela Guerrero",  "angela.guerrero"),
+            ("Margarita Cruz",   "margarita.cruz"),
+            ("Estela Ortiz",     "estela.ortiz"),
+            ("Inés Pastor",      "ines.pastor"),
+            ("Olga Flores",      "olga.flores"),
+            ("Gloria Cano",      "gloria.cano"),
+            ("Marina Herranz",   "marina.herranz"),
+            ("Victoria León",    "victoria.leon"),
+            ("Sonia Gallego",    "sonia.gallego"),
+            ("Raquel Peña",      "raquel.pena"),
+            ("Esther Blanco",    "esther.blanco")
         };
 
-        var teachers = infantilTutorNames.Select((t, i) => new Teacher
+        var teachers = new List<Teacher>();
+        int totalInfantilTutors = 3 * opts.LinesPerLevel;
+        for (int i = 0; i < totalInfantilTutors; i++)
         {
-            Id             = Guid.NewGuid(),
-            SchoolId       = SchoolId,
-            FullName       = t.Item1,
-            Email          = $"{t.Item2}@ceip-miguel-hernandez.es",
-            TeacherType    = "definitivo",
-            MaxWeeklyHours = 25,
-            Specialties    = "[\"Generalista Infantil\"]",
-            ColorKey       = TutorColorKeys[i % TutorColorKeys.Length],
-        }).ToList();
+            var (name, email) = i < infantilTutorNames.Length
+                ? infantilTutorNames[i]
+                : ($"Profesor/a Infantil {i + 1}", $"profesor.infantil.{i + 1}");
+
+            teachers.Add(new Teacher
+            {
+                Id             = Guid.NewGuid(),
+                SchoolId       = SchoolId,
+                FullName       = name,
+                Email          = $"{email}@ceip-miguel-hernandez.es",
+                TeacherType    = "definitivo",
+                MaxWeeklyHours = 25,
+                Specialties    = "[\"Generalista Infantil\"]",
+                ColorKey       = TutorColorKeys[i % TutorColorKeys.Length],
+            });
+        }
         db.Teachers.AddRange(teachers);
 
-        // Grupos de Infantil: 4 grupos (2 × 1-2 años + 2 × 2-3 años)
-        var groups = new List<CourseGroup>
+        // Grupos de Infantil: 3 niveles (3, 4, 5 años) × LinesPerLevel
+        var groups = new List<CourseGroup>();
+        int groupIdx = 0;
+        for (int level = 1; level <= 3; level++)
         {
-            new() { Id = Guid.NewGuid(), SchoolId = SchoolId, StageId = stage.Id, CourseLevel = 1, GroupLabel = "A", StudentCount = 13, TutorId = teachers[0].Id, HomeClassroomId = classrooms[0].Id },
-            new() { Id = Guid.NewGuid(), SchoolId = SchoolId, StageId = stage.Id, CourseLevel = 1, GroupLabel = "B", StudentCount = 13, TutorId = teachers[1].Id, HomeClassroomId = classrooms[1].Id },
-            new() { Id = Guid.NewGuid(), SchoolId = SchoolId, StageId = stage.Id, CourseLevel = 2, GroupLabel = "A", StudentCount = 18, TutorId = teachers[2].Id, HomeClassroomId = classrooms[2].Id },
-            new() { Id = Guid.NewGuid(), SchoolId = SchoolId, StageId = stage.Id, CourseLevel = 2, GroupLabel = "B", StudentCount = 18, TutorId = teachers[3].Id, HomeClassroomId = classrooms[3].Id },
-        };
+            for (int li = 0; li < opts.LinesPerLevel; li++)
+            {
+                var tutor = teachers[groupIdx];
+                var classroom = classrooms[groupIdx];
+
+                groups.Add(new CourseGroup
+                {
+                    Id              = Guid.NewGuid(),
+                    SchoolId        = SchoolId,
+                    StageId         = stage.Id,
+                    CourseLevel     = level,
+                    GroupLabel      = lineLabels[li].ToString(),
+                    StudentCount    = 20,
+                    TutorId         = tutor.Id,
+                    HomeClassroomId = classroom.Id,
+                });
+                groupIdx++;
+            }
+        }
         db.CourseGroups.AddRange(groups);
 
-        // Asignaciones de Infantil (solo las 3 áreas: crec, desc, com)
+        // Asignaciones de Infantil (crec, desc, com, ing, rel)
         var allocByKey = allocations.ToDictionary(a => a.SubjectKey);
         var assignments = new List<Assignment>();
 
@@ -726,18 +834,35 @@ public static class DbInitializer
             var group = groups[i];
             var tutor = teachers[i];
 
-            if (allocByKey.TryGetValue("crec", out var crecAlloc)) AddAssignment(tutor.Id, group.Id, crecAlloc, 8);
-            if (allocByKey.TryGetValue("desc", out var descAlloc)) AddAssignment(tutor.Id, group.Id, descAlloc, 7);
+            if (allocByKey.TryGetValue("crec", out var crecAlloc)) AddAssignment(tutor.Id, group.Id, crecAlloc, 6);
+            if (allocByKey.TryGetValue("desc", out var descAlloc)) AddAssignment(tutor.Id, group.Id, descAlloc, 6);
             if (allocByKey.TryGetValue("com",  out var comAlloc))  AddAssignment(tutor.Id, group.Id, comAlloc, 8);
+            if (allocByKey.TryGetValue("ing",  out var ingAlloc))
+            {
+                var ingTeacher = ingTeachers[i % ingTeachers.Count];
+                AddAssignment(ingTeacher.Id, group.Id, ingAlloc, 2);
+            }
+            if (allocByKey.TryGetValue("rel",  out var relAlloc)) AddAssignment(tutor.Id, group.Id, relAlloc, 1);
         }
         db.Assignments.AddRange(assignments);
 
-        // Asociar profesores a la etapa
+        // Asociar profesores tutores a la etapa
         foreach (var teacher in teachers)
         {
             db.TeacherStageAssignments.Add(new TeacherStageAssignment
             {
                 TeacherId = teacher.Id,
+                StageId   = stage.Id,
+                Cycle     = null,
+            });
+        }
+
+        // También asociar profesores especialistas de inglés compartidos con Infantil
+        foreach (var ingTeacher in ingTeachers)
+        {
+            db.TeacherStageAssignments.Add(new TeacherStageAssignment
+            {
+                TeacherId = ingTeacher.Id,
                 StageId   = stage.Id,
                 Cycle     = null,
             });
@@ -927,5 +1052,20 @@ public static class DbInitializer
         // Asociar profesores de Música y Religión (compartidos) con Secundaria
         db.TeacherStageAssignments.Add(new TeacherStageAssignment { TeacherId = musicTeacher.Id, StageId = stage.Id, Cycle = null });
         db.TeacherStageAssignments.Add(new TeacherStageAssignment { TeacherId = relTeacher.Id, StageId = stage.Id, Cycle = null });
+    }
+
+    private static void SeedRoles(AppDbContext db)
+    {
+        if (db.Roles.Any()) return;
+
+        db.Roles.AddRange(
+            new Role { Id = RoleIds.Director,         Code = RoleCodes.Director,         Name = "Director",         Kind = RoleKind.Admin,   Description = "Máxima responsabilidad del centro",         SortOrder = 1, IsSystem = true },
+            new Role { Id = RoleIds.JefeEstudios,     Code = RoleCodes.JefeEstudios,     Name = "Jefe de Estudios", Kind = RoleKind.Admin,   Description = "Coordinación académica y horarios",            SortOrder = 2, IsSystem = true },
+            new Role { Id = RoleIds.Secretario,       Code = RoleCodes.Secretario,       Name = "Secretario",       Kind = RoleKind.Admin,   Description = "Gestión administrativa y documental",          SortOrder = 3, IsSystem = true },
+            new Role { Id = RoleIds.Profesor,         Code = RoleCodes.Profesor,         Name = "Profesor",         Kind = RoleKind.Teacher, Description = "Docencia general",                            SortOrder = 4, IsSystem = true },
+            new Role { Id = RoleIds.Tutor,            Code = RoleCodes.Tutor,            Name = "Tutor",            Kind = RoleKind.Teacher, Description = "Profesor con tutoría de un grupo",             SortOrder = 5, IsSystem = true },
+            new Role { Id = RoleIds.CoordinadorCiclo, Code = RoleCodes.CoordinadorCiclo, Name = "Coordinador de ciclo", Kind = RoleKind.Teacher, Description = "Coordinación pedagógica de un ciclo educativo", SortOrder = 6, IsSystem = true },
+            new Role { Id = RoleIds.Orientador,       Code = RoleCodes.Orientador,       Name = "Orientador",       Kind = RoleKind.Other,   Description = "Orientación educativa y psicopedagógica",      SortOrder = 7, IsSystem = true }
+        );
     }
 }

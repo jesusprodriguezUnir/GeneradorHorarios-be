@@ -19,7 +19,6 @@ public class NormativeValidatorTests
 
     /// <summary>Crea un School con configuración mínima válida.</summary>
     private static School MakeSchool(
-        string stage            = "primaria",
         int breakMinutes        = 30,
         int slotsPerDay         = 5,
         int slotMinutes         = 60,
@@ -32,7 +31,6 @@ public class NormativeValidatorTests
             Id             = Guid.NewGuid(),
             Name           = "CEIP Test",
             Slug           = "test",
-            Stage          = stage,
             BreakMinutes   = breakMinutes,
             SlotsPerDay    = slotsPerDay,
             SlotMinutes    = slotMinutes,
@@ -75,7 +73,7 @@ public class NormativeValidatorTests
         return (assignment, alloc);
     }
 
-    private static NormativeValidationData BuildValidationData(School school, IReadOnlyList<(Assignment Assignment, SubjectAllocation Allocation)> data)
+    private static NormativeValidationData BuildValidationData(School school, string stage, IReadOnlyList<(Assignment Assignment, SubjectAllocation Allocation)> data)
     {
         var slots = SlotCalculator.Compute(school, school.SlotsPerDay)
             .Select(s => new SlotConfig(s.Index, s.IsBreak, s.StartMinute, s.EndMinute)).ToList();
@@ -87,7 +85,7 @@ public class NormativeValidatorTests
         return new NormativeValidationData
         {
             SchoolConfig = schoolConfig,
-            Stage = school.Stage,
+            Stage = stage,
             MinCourseLevel = school.MinCourseLevel,
             MaxCourseLevel = school.MaxCourseLevel,
             BreakMinutes = school.BreakMinutes,
@@ -127,7 +125,7 @@ public class NormativeValidatorTests
         var groupId = Guid.NewGuid();
         var data = StandardGroupAssignments(groupId);
 
-        var issues = await Validator.ValidateAsync(BuildValidationData(school, data));
+        var issues = await Validator.ValidateAsync(BuildValidationData(school, "primaria", data));
 
         issues.Should().BeEmpty();
     }
@@ -139,7 +137,7 @@ public class NormativeValidatorTests
         var groupId = Guid.NewGuid();
         var data = StandardGroupAssignments(groupId);
 
-        var issues = await Validator.ValidateAsync(BuildValidationData(school, data));
+        var issues = await Validator.ValidateAsync(BuildValidationData(school, "primaria", data));
 
         issues.Should().ContainSingle(i =>
             i.Severity == ConflictSeverity.Error &&
@@ -154,7 +152,7 @@ public class NormativeValidatorTests
         var groupId = Guid.NewGuid();
         var data = StandardGroupAssignments(groupId);
 
-        var issues = await Validator.ValidateAsync(BuildValidationData(school, data));
+        var issues = await Validator.ValidateAsync(BuildValidationData(school, "primaria", data));
         issues.Should().NotContain(i => i.Description.Contains("recreo"));
     }
 
@@ -166,7 +164,7 @@ public class NormativeValidatorTests
         var groupId = Guid.NewGuid();
         var data = StandardGroupAssignments(groupId);
 
-        var issues = await Validator.ValidateAsync(BuildValidationData(school, data));
+        var issues = await Validator.ValidateAsync(BuildValidationData(school, "primaria", data));
 
         issues.Should().Contain(i =>
             i.Severity == ConflictSeverity.Error &&
@@ -179,7 +177,7 @@ public class NormativeValidatorTests
         var school = MakeSchool(maxCourseLevel: 7);
         var data = Array.Empty<(Assignment, SubjectAllocation)>();
 
-        var issues = await Validator.ValidateAsync(BuildValidationData(school, data));
+        var issues = await Validator.ValidateAsync(BuildValidationData(school, "primaria", data));
 
         issues.Should().Contain(i =>
             i.Severity == ConflictSeverity.Error &&
@@ -190,10 +188,10 @@ public class NormativeValidatorTests
     public async Task ValidateAsync_UnregisteredStage_ReturnsWarning()
     {
         // 'bachillerato' no tiene normativa registrada → aviso de etapa no soportada.
-        var school = MakeSchool(stage: "bachillerato");
+        var school = MakeSchool();
         var data = Array.Empty<(Assignment, SubjectAllocation)>();
 
-        var issues = await Validator.ValidateAsync(BuildValidationData(school, data));
+        var issues = await Validator.ValidateAsync(BuildValidationData(school, "bachillerato", data));
 
         issues.Should().Contain(i =>
             i.Severity == ConflictSeverity.Warning &&
@@ -215,7 +213,7 @@ public class NormativeValidatorTests
             MakeAssignment(groupId, "mat", 5),
         };
 
-        var issues = await Validator.ValidateAsync(BuildValidationData(school, data));
+        var issues = await Validator.ValidateAsync(BuildValidationData(school, "primaria", data));
 
         issues.Should().Contain(i =>
             i.Severity == ConflictSeverity.Error &&
@@ -236,7 +234,7 @@ public class NormativeValidatorTests
             MakeAssignment(groupId, "ing", 5, minH: 3, maxH: 5),
         };
 
-        var issues = await Validator.ValidateAsync(BuildValidationData(school, data));
+        var issues = await Validator.ValidateAsync(BuildValidationData(school, "primaria", data));
 
         issues.Should().Contain(i =>
             i.Severity == ConflictSeverity.Warning &&
@@ -255,7 +253,7 @@ public class NormativeValidatorTests
         data = data.Where(d => d.Item2.SubjectKey != "ing").ToList();
         data.Add(MakeAssignment(groupId, "ing", 2, minH: 3, maxH: 5));
 
-        var issues = await Validator.ValidateAsync(BuildValidationData(school, data));
+        var issues = await Validator.ValidateAsync(BuildValidationData(school, "primaria", data));
 
         issues.Should().Contain(i =>
             i.Severity == ConflictSeverity.Warning &&
@@ -276,7 +274,7 @@ public class NormativeValidatorTests
             data.AddRange(StandardGroupAssignments(gId));
         }
 
-        var issues = await Validator.ValidateAsync(BuildValidationData(school, data));
+        var issues = await Validator.ValidateAsync(BuildValidationData(school, "primaria", data));
 
         // No debe haber ningún error
         var errors = issues.Where(i => i.Severity == ConflictSeverity.Error).ToList();

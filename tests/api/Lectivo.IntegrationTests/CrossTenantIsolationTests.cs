@@ -36,6 +36,14 @@ public class CrossTenantIsolationTests : IAsyncLifetime
         // Insertar centro 2 completo si no existe (idempotente)
         if (!await db.Schools.AnyAsync(s => s.Id == School2Id))
         {
+            // Seed roles globals if needed
+            if (!await db.Roles.AnyAsync())
+            {
+                db.Roles.AddRange(
+                    new Role { Id = RoleIds.Director,         Code = RoleCodes.Director,         Name = "Director",         Kind = RoleKind.Admin },
+                    new Role { Id = RoleIds.Profesor,         Code = RoleCodes.Profesor,         Name = "Profesor",         Kind = RoleKind.Teacher });
+            }
+
             db.Schools.Add(new School
             {
                 Id   = School2Id,
@@ -48,7 +56,7 @@ public class CrossTenantIsolationTests : IAsyncLifetime
                 Email    = "admin@ceip-prueba-aislamiento.es",
                 FullName = "Admin Otro Centro",
                 SchoolId = School2Id,
-                Role     = "school_admin",
+                RoleId   = RoleIds.Director,
             });
             db.CurriculumTemplates.Add(new CurriculumTemplate
             {

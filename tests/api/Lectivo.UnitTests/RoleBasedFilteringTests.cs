@@ -23,6 +23,15 @@ public class RoleBasedFilteringTests
 
     private static async Task SeedDatabaseAsync(AppDbContext db)
     {
+        // 0. Roles
+        if (!db.Roles.Any())
+        {
+            db.Roles.AddRange(
+                new Role { Id = RoleIds.Director,         Code = RoleCodes.Director,         Name = "Director",         Kind = RoleKind.Admin },
+                new Role { Id = RoleIds.JefeEstudios,     Code = RoleCodes.JefeEstudios,     Name = "Jefe de Estudios", Kind = RoleKind.Admin },
+                new Role { Id = RoleIds.Profesor,         Code = RoleCodes.Profesor,         Name = "Profesor",         Kind = RoleKind.Teacher });
+        }
+
         // 1. School
         db.Schools.Add(new School { Id = SchoolId, Name = "Test School", Slug = "test" });
 
@@ -38,7 +47,7 @@ public class RoleBasedFilteringTests
             Email = "teacher@school.com",
             FullName = "Teacher One",
             SchoolId = SchoolId,
-            Role = "teacher",
+            RoleId = RoleIds.Profesor,
             TeacherId = TeacherId
         });
 
@@ -78,7 +87,7 @@ public class RoleBasedFilteringTests
         await using var db = CreateDb();
         await SeedDatabaseAsync(db);
 
-        var currentUser = new FakeCurrentUser(SchoolId, TeacherUserId, "teacher", isAdmin: false, isTeacher: true);
+        var currentUser = new FakeCurrentUser(SchoolId, TeacherUserId, RoleKind.Teacher);
         var handler = new GetCurrentUserHandler(db, currentUser);
 
         var response = await handler.Handle(new GetCurrentUserQuery(), CancellationToken.None);
@@ -95,7 +104,7 @@ public class RoleBasedFilteringTests
         await SeedDatabaseAsync(db);
 
         // Act as Teacher (assigned to Stage1/primaria only)
-        var currentUser = new FakeCurrentUser(SchoolId, TeacherUserId, "teacher", isAdmin: false, isTeacher: true);
+        var currentUser = new FakeCurrentUser(SchoolId, TeacherUserId, RoleKind.Teacher);
         var handler = new GetStagesHandler(db, currentUser);
 
         var result = await handler.Handle(new GetStagesQuery(), CancellationToken.None);
@@ -112,7 +121,7 @@ public class RoleBasedFilteringTests
         await SeedDatabaseAsync(db);
 
         // Act as Admin (Director)
-        var currentUser = new FakeCurrentUser(SchoolId, Guid.NewGuid(), "school_admin", isAdmin: true, isTeacher: false);
+        var currentUser = new FakeCurrentUser(SchoolId, Guid.NewGuid(), RoleKind.Admin);
         var handler = new GetStagesHandler(db, currentUser);
 
         var result = await handler.Handle(new GetStagesQuery(), CancellationToken.None);
@@ -126,7 +135,7 @@ public class RoleBasedFilteringTests
         await using var db = CreateDb();
         await SeedDatabaseAsync(db);
 
-        var currentUser = new FakeCurrentUser(SchoolId, TeacherUserId, "teacher", isAdmin: false, isTeacher: true);
+        var currentUser = new FakeCurrentUser(SchoolId, TeacherUserId, RoleKind.Teacher);
         var handler = new GetPeriodsHandler(db, currentUser);
 
         var result = await handler.Handle(new GetPeriodsQuery(), CancellationToken.None);
@@ -142,7 +151,7 @@ public class RoleBasedFilteringTests
         await using var db = CreateDb();
         await SeedDatabaseAsync(db);
 
-        var currentUser = new FakeCurrentUser(SchoolId, TeacherUserId, "teacher", isAdmin: false, isTeacher: true);
+        var currentUser = new FakeCurrentUser(SchoolId, TeacherUserId, RoleKind.Teacher);
         var handler = new GetSchedulesListHandler(db, currentUser);
 
         var result = await handler.Handle(new GetSchedulesListQuery(), CancellationToken.None);
@@ -153,18 +162,24 @@ public class RoleBasedFilteringTests
 
     private sealed class FakeCurrentUser : ICurrentUser
     {
-        public FakeCurrentUser(Guid schoolId, Guid userId, string role, bool isAdmin, bool isTeacher)
+        public FakeCurrentUser(Guid schoolId, Guid userId, RoleKind kind)
         {
             SchoolId = schoolId;
             UserId = userId;
-            Role = role;
-            IsAdmin = isAdmin;
-            IsTeacher = isTeacher;
+            RoleKind = kind;
+            RoleId = kind == RoleKind.Admin ? RoleIds.Director : RoleIds.Profesor;
+            RoleCode = kind == RoleKind.Admin ? RoleCodes.Director : RoleCodes.Profesor;
+            RoleName = kind == RoleKind.Admin ? "Director" : "Profesor";
+            IsAdmin = kind == RoleKind.Admin;
+            IsTeacher = kind == RoleKind.Teacher;
         }
 
         public Guid UserId { get; }
         public Guid SchoolId { get; }
-        public string Role { get; }
+        public Guid RoleId { get; }
+        public string RoleCode { get; }
+        public string RoleName { get; }
+        public RoleKind RoleKind { get; }
         public bool IsAdmin { get; }
         public bool IsTeacher { get; }
     }

@@ -24,7 +24,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<CycleBreak> CycleBreaks => Set<CycleBreak>();
     public DbSet<SchoolPeriod> SchoolPeriods => Set<SchoolPeriod>();
     public DbSet<PeriodAssignmentHours> PeriodAssignmentHours => Set<PeriodAssignmentHours>();
-    public DbSet<TeacherStageAssignment> TeacherStageAssignments => Set<TeacherStageAssignment>();
+    public DbSet<Role> Roles => Set<Role>();
+public DbSet<TeacherStageAssignment> TeacherStageAssignments => Set<TeacherStageAssignment>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -39,7 +40,6 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.CenterCode).HasMaxLength(20);
             e.Property(x => x.Locality).HasMaxLength(150);
             e.Property(x => x.Community).HasMaxLength(50).HasDefaultValue("madrid");
-            e.Property(x => x.Stage).HasMaxLength(30).HasDefaultValue("primaria");
             e.Property(x => x.AcademicYear).HasMaxLength(20).HasDefaultValue("2025/2026");
             e.Property(x => x.ScheduleType).HasMaxLength(20).HasDefaultValue("continua");
             e.Property(x => x.MorningStart).HasColumnType("time");
@@ -60,13 +60,27 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.WorkingDays).HasMaxLength(100).HasDefaultValue("[1,2,3,4,5]");
         });
 
+        mb.Entity<Role>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.Code).IsUnique();
+            e.Property(x => x.Code).HasMaxLength(40).IsRequired();
+            e.Property(x => x.Name).HasMaxLength(100).IsRequired();
+            e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(20).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(500);
+        });
+
         mb.Entity<AppUser>(e =>
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.Email).IsUnique();
             e.Property(x => x.Email).HasMaxLength(200).IsRequired();
             e.Property(x => x.FullName).HasMaxLength(200).IsRequired();
-            e.Property(x => x.Role).HasMaxLength(30).IsRequired();
+            e.HasOne(x => x.Role)
+             .WithMany()
+             .HasForeignKey(x => x.RoleId)
+             .OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(x => x.RoleId);
         });
 
         mb.Entity<Teacher>(e =>

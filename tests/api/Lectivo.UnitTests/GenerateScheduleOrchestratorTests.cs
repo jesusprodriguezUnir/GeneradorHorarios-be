@@ -57,7 +57,6 @@ public class GenerateScheduleOrchestratorTests
         SlotMinutes = 60,
         BreakAfterSlot = 2,
         BreakMinutes = 30,
-        Stage = "primaria",
         MinCourseLevel = 1,
         MaxCourseLevel = 6,
     };

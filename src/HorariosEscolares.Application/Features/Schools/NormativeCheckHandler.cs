@@ -18,6 +18,11 @@ public sealed class NormativeCheckHandler(IAppDbContext db, INormativeValidator 
         if (school is null)
             throw new NotFoundException("School not found");
 
+        var primaryStage = await db.SchoolStages.AsNoTracking()
+            .Where(st => st.SchoolId == user.SchoolId)
+            .OrderBy(st => st.SortOrder)
+            .FirstOrDefaultAsync(ct);
+
         var cycleSchedules = await db.CycleSchedules.AsNoTracking()
             .Include(c => c.Breaks)
             .Where(c => c.SchoolId == user.SchoolId)
@@ -52,7 +57,7 @@ public sealed class NormativeCheckHandler(IAppDbContext db, INormativeValidator 
         var data = new NormativeValidationData
         {
             SchoolConfig = schoolConfig,
-            Stage = school.Stage,
+            Stage = primaryStage?.StageType ?? "primaria",
             MinCourseLevel = school.MinCourseLevel,
             MaxCourseLevel = school.MaxCourseLevel,
             BreakMinutes = school.BreakMinutes,

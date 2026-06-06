@@ -6,8 +6,9 @@ using HorariosEscolares.Domain.Entities;
 namespace HorariosEscolares.Application.Features.Auth;
 
 public record GetCurrentUserQuery : IRequest<CurrentUserResponse?>;
+public record CurrentUserRole(Guid Id, string Code, string Name, string Kind);
 public record CurrentUserResponse(
-    Guid UserId, Guid SchoolId, string Role,
+    Guid UserId, Guid SchoolId, CurrentUserRole Role,
     CurrentUserSchool? School, CurrentUserTeacher? Teacher);
 public record CurrentUserSchool(Guid Id, string Name, string Slug);
 public record CurrentUserTeacher(Guid Id, string FullName, string ColorKey, List<string> AssignedStageTypes);
@@ -29,19 +30,20 @@ public sealed class GetCurrentUserHandler(IAppDbContext db, ICurrentUser current
             teacher = await db.Teachers.AsNoTracking()
                 .Where(t => t.UserId == user.UserId)
                 .Select(t => new CurrentUserTeacher(
-                    t.Id, 
-                    t.FullName, 
-                    t.ColorKey, 
+                    t.Id,
+                    t.FullName,
+                    t.ColorKey,
                     t.StageAssignments.Select(sa => sa.Stage!.StageType).ToList()))
                 .FirstOrDefaultAsync(ct);
         }
 
-        return new CurrentUserResponse(user.UserId, user.SchoolId, user.Role, school, teacher);
+        var role = new CurrentUserRole(user.RoleId, user.RoleCode, user.RoleName, user.RoleKind.ToString());
+        return new CurrentUserResponse(user.UserId, user.SchoolId, role, school, teacher);
     }
 }
 
 public record GetDemoUsersQuery : IRequest<List<DemoUserResponse>>;
-public record DemoUserResponse(Guid Id, string Email, string FullName, string Role);
+public record DemoUserResponse(Guid Id, string Email, string FullName, CurrentUserRole Role);
 
 public sealed class GetDemoUsersHandler(IAppDbContext db)
     : IRequestHandler<GetDemoUsersQuery, List<DemoUserResponse>>
@@ -49,7 +51,12 @@ public sealed class GetDemoUsersHandler(IAppDbContext db)
     public async Task<List<DemoUserResponse>> Handle(GetDemoUsersQuery request, CancellationToken ct)
     {
         return await db.AppUsers.AsNoTracking()
-            .Select(u => new DemoUserResponse(u.Id, u.Email, u.FullName, u.Role))
+            .Include(u => u.Role)
+            .Select(u => new DemoUserResponse(
+                u.Id,
+                u.Email,
+                u.FullName,
+                new CurrentUserRole(u.Role!.Id, u.Role.Code, u.Role.Name, u.Role.Kind.ToString())))
             .ToListAsync(ct);
     }
 }

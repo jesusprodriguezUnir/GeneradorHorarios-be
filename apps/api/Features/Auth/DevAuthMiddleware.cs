@@ -1,51 +1,50 @@
 using Microsoft.EntityFrameworkCore;
 using HorariosEscolares.Domain.Abstractions;
+using HorariosEscolares.Domain.Entities;
 using HorariosEscolares.Infrastructure.Persistence;
 
 namespace HorariosEscolares.Features.Auth;
 
 public sealed class DevAuthMiddleware(RequestDelegate next)
 {
-    private static readonly Dictionary<string, Guid> DemoEmails = new(StringComparer.OrdinalIgnoreCase)
-    {
-        { "elena.castro@ceip-miguel-hernandez.es",   Guid.Parse("00000000-0000-0000-0000-000000000010") },
-        { "laura.fernandez@ceip-miguel-hernandez.es", Guid.Parse("00000000-0000-0000-0000-000000000011") },
-    };
-
     public async Task InvokeAsync(HttpContext ctx, AppDbContext db)
     {
         var userIdHeader = ctx.Request.Headers["X-User-Id"].FirstOrDefault();
         if (!string.IsNullOrWhiteSpace(userIdHeader) && Guid.TryParse(userIdHeader, out var directId))
         {
             var userById = await db.AppUsers.AsNoTracking()
+                .Include(u => u.Role)
                 .FirstOrDefaultAsync(u => u.Id == directId);
-            if (userById is not null)
-                ctx.Items["CurrentUser"] = new CurrentUserDto(userById.Id, userById.SchoolId, userById.Role);
+            if (userById is not null && userById.Role is not null)
+                ctx.Items["CurrentUser"] = new CurrentUserDto(userById.Id, userById.SchoolId, userById.RoleId, userById.Role);
             await next(ctx);
             return;
         }
 
         var email = ctx.Request.Headers["X-User-Email"].FirstOrDefault();
-        if (!string.IsNullOrWhiteSpace(email) &&
-            DemoEmails.TryGetValue(email, out var userId))
+        if (!string.IsNullOrWhiteSpace(email))
         {
             var user = await db.AppUsers.AsNoTracking()
-                .FirstOrDefaultAsync(u => u.Id == userId);
-            if (user is not null)
-                ctx.Items["CurrentUser"] = new CurrentUserDto(user.Id, user.SchoolId, user.Role);
+                .Include(u => u.Role)
+                .FirstOrDefaultAsync(u => u.Email == email);
+            if (user is not null && user.Role is not null)
+                ctx.Items["CurrentUser"] = new CurrentUserDto(user.Id, user.SchoolId, user.RoleId, user.Role);
         }
 
         await next(ctx);
     }
 }
 
-public sealed class CurrentUserDto(Guid userId, Guid schoolId, string role) : ICurrentUser
+public sealed class CurrentUserDto(Guid userId, Guid schoolId, Guid roleId, Role role) : ICurrentUser
 {
     public Guid UserId { get; } = userId;
     public Guid SchoolId { get; } = schoolId;
-    public string Role { get; } = role;
-    public bool IsAdmin => Role == "school_admin";
-    public bool IsTeacher => Role == "teacher";
+    public Guid RoleId { get; } = roleId;
+    public string RoleCode { get; } = role.Code;
+    public string RoleName { get; } = role.Name;
+    public RoleKind RoleKind { get; } = role.Kind;
+    public bool IsAdmin => RoleKind == RoleKind.Admin;
+    public bool IsTeacher => RoleKind == RoleKind.Teacher;
 }
 
 public sealed class CurrentUserAccessor(IHttpContextAccessor httpContextAccessor) : Domain.Abstractions.ICurrentUser
@@ -53,7 +52,10 @@ public sealed class CurrentUserAccessor(IHttpContextAccessor httpContextAccessor
     private ICurrentUser? User => httpContextAccessor.HttpContext?.Items["CurrentUser"] as ICurrentUser;
     public Guid UserId => User?.UserId ?? throw new UnauthorizedAccessException("No autenticado");
     public Guid SchoolId => User?.SchoolId ?? throw new UnauthorizedAccessException("No autenticado");
-    public string Role => User?.Role ?? "";
+    public Guid RoleId => User?.RoleId ?? throw new UnauthorizedAccessException("No autenticado");
+    public string RoleCode => User?.RoleCode ?? "";
+    public string RoleName => User?.RoleName ?? "";
+    public RoleKind RoleKind => User?.RoleKind ?? throw new UnauthorizedAccessException("No autenticado");
     public bool IsAdmin => User?.IsAdmin ?? false;
     public bool IsTeacher => User?.IsTeacher ?? false;
 }

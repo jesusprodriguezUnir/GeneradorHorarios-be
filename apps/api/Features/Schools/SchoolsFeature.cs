@@ -62,11 +62,53 @@ public static class SchoolEndpoints
             return Results.Ok(result);
         });
 
-        // ── Stages (etapas / bloques) ───────────────────────────────────────
+        // ── Stages (etapas / bloques) CRUD ──────────────────────────────────
         g.MapGet("/me/stages", async (ISender sender) =>
         {
             var result = await sender.Send(new GetStagesQuery());
             return Results.Ok(result);
+        });
+
+        g.MapPost("/me/stages", async (HttpContext ctx, ISender sender, CreateStageCommand cmd) =>
+        {
+            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
+            try
+            {
+                var result = await sender.Send(cmd);
+                return Results.Created($"/api/schools/me/stages/{result.Id}", result);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.BadRequest(new { message = ex.Message });
+            }
+        });
+
+        g.MapDelete("/me/stages/{stageId:guid}", async (Guid stageId, HttpContext ctx, ISender sender) =>
+        {
+            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
+            try
+            {
+                await sender.Send(new DeleteStageCommand(stageId));
+                return Results.NoContent();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.BadRequest(new { message = ex.Message });
+            }
+        });
+
+        g.MapPut("/me/stages/{stageId:guid}", async (Guid stageId, HttpContext ctx, ISender sender, UpdateStageCommand cmd) =>
+        {
+            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
+            try
+            {
+                var result = await sender.Send(cmd with { StageId = stageId });
+                return Results.Ok(result);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.BadRequest(new { message = ex.Message });
+            }
         });
 
         // ── Periods CRUD ────────────────────────────────────────────────────
