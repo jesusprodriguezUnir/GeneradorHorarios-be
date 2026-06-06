@@ -121,27 +121,98 @@ public static class SlotCalculator
         => Compute(totalSlots, s.SlotMinutes, s.BreakAfterSlot, s.BreakMinutes,
             s.AfternoonSlots, morningStart, afternoonStart, afternoonStart.HasValue && s.AfternoonSlots > 0);
 
+    /// <summary>
+    /// Calcula las franjas lectivas y recreos a partir de las cuatro horas de jornada del ciclo.
+    /// El número de franjas se deriva de (fin - inicio) / slotMinutes, respetando los recreos.
+    /// Esta es la lógica principal para ciclos con las 4 horas configuradas explícitamente.
+    /// </summary>
+    public static List<SlotInfo> ComputeFromBoundaries(
+        TimeOnly morningStart, TimeOnly morningEnd,
+        TimeOnly? afternoonStart, TimeOnly? afternoonEnd,
+        int slotMinutes,
+        IReadOnlyList<(int AfterSlot, int Minutes)> breaks)
+    {
+        var breakSet = breaks.ToDictionary(b => b.AfterSlot, b => b.Minutes);
+        var slots = new List<SlotInfo>();
+        var current = morningStart;
+        int index = 0;
+
+        // — Mañana —
+        while (true)
+        {
+            // Insertar recreo antes de la franja 'index' si corresponde
+            if (breakSet.TryGetValue(index, out var breakMinutes))
+            {
+                var breakEnd = current.AddMinutes(breakMinutes);
+                // Solo añadimos el recreo si cabe antes de morningEnd
+                if (breakEnd <= morningEnd)
+                {
+                    slots.Add(new SlotInfo(-1,
+                        current.ToString("HH:mm"), breakEnd.ToString("HH:mm"),
+                        IsBreak: true,
+                        StartMinute: (int)current.ToTimeSpan().TotalMinutes,
+                        EndMinute: (int)breakEnd.ToTimeSpan().TotalMinutes));
+                    current = breakEnd;
+                }
+            }
+            var end = current.AddMinutes(slotMinutes);
+            if (end > morningEnd) break;  // Franja parcial → no se añade
+            slots.Add(new SlotInfo(index, current.ToString("HH:mm"), end.ToString("HH:mm"), IsBreak: false,
+                StartMinute: (int)current.ToTimeSpan().TotalMinutes,
+                EndMinute: (int)end.ToTimeSpan().TotalMinutes));
+            current = end;
+            index++;
+        }
+
+        // — Tarde —
+        if (afternoonStart.HasValue && afternoonEnd.HasValue)
+        {
+            current = afternoonStart.Value;
+            while (true)
+            {
+                var end = current.AddMinutes(slotMinutes);
+                if (end > afternoonEnd.Value) break;
+                slots.Add(new SlotInfo(index, current.ToString("HH:mm"), end.ToString("HH:mm"), IsBreak: false,
+                    StartMinute: (int)current.ToTimeSpan().TotalMinutes,
+                    EndMinute: (int)end.ToTimeSpan().TotalMinutes));
+                current = end;
+                index++;
+            }
+        }
+
+        return slots;
+    }
+
+    /// <summary>
+    /// Devuelve el nº de franjas lectivas (no-recreo) que caben entre las 4 horas del ciclo.
+    /// </summary>
+    public static int DeriveLectiveSlotCount(CycleSchedule c, int slotMinutes)
+    {
+        var breaks = c.Breaks
+            .OrderBy(b => b.AfterSlot)
+            .Select(b => (b.AfterSlot, b.Minutes))
+            .ToList();
+        return ComputeFromBoundaries(
+                c.MorningStart, c.MorningEnd,
+                c.AfternoonStart, c.AfternoonEnd,
+                slotMinutes, breaks)
+            .Count(s => !s.IsBreak);
+    }
+
     public static List<SlotInfo> Compute(CycleSchedule c, School s)
     {
         var breaks = c.Breaks
             .OrderBy(b => b.AfterSlot)
             .Select(b => (b.AfterSlot, b.Minutes))
             .ToList();
-        return Compute(s.SlotsPerDay, s.SlotMinutes, breaks,
-            s.AfternoonSlots, c.MorningStart, c.AfternoonStart,
-            s.ScheduleType == "partida" && c.AfternoonStart.HasValue);
+        return ComputeFromBoundaries(
+            c.MorningStart, c.MorningEnd,
+            c.AfternoonStart, c.AfternoonEnd,
+            s.SlotMinutes, breaks);
     }
 
     public static TimeOnly ComputeEndTime(CycleSchedule c, School s)
-    {
-        var breaks = c.Breaks
-            .OrderBy(b => b.AfterSlot)
-            .Select(b => (b.AfterSlot, b.Minutes))
-            .ToList();
-        return ComputeEndTime(s.SlotsPerDay, s.SlotMinutes, breaks,
-            s.AfternoonSlots, c.MorningStart, c.AfternoonStart,
-            s.ScheduleType == "partida" && c.AfternoonStart.HasValue);
-    }
+        => c.AfternoonEnd ?? c.MorningEnd;
 
     public static List<SlotInfo> Compute(CycleSchedule c, SchoolPeriod p)
     {
@@ -149,21 +220,14 @@ public static class SlotCalculator
             .OrderBy(b => b.AfterSlot)
             .Select(b => (b.AfterSlot, b.Minutes))
             .ToList();
-        return Compute(p.SlotsPerDay, p.SlotMinutes, breaks,
-            p.AfternoonSlots, c.MorningStart, c.AfternoonStart,
-            p.ScheduleType == "partida" && c.AfternoonStart.HasValue);
+        return ComputeFromBoundaries(
+            c.MorningStart, c.MorningEnd,
+            c.AfternoonStart, c.AfternoonEnd,
+            p.SlotMinutes, breaks);
     }
 
     public static TimeOnly ComputeEndTime(CycleSchedule c, SchoolPeriod p)
-    {
-        var breaks = c.Breaks
-            .OrderBy(b => b.AfterSlot)
-            .Select(b => (b.AfterSlot, b.Minutes))
-            .ToList();
-        return ComputeEndTime(p.SlotsPerDay, p.SlotMinutes, breaks,
-            p.AfternoonSlots, c.MorningStart, c.AfternoonStart,
-            p.ScheduleType == "partida" && c.AfternoonStart.HasValue);
-    }
+        => c.AfternoonEnd ?? c.MorningEnd;
 
     public static IReadOnlyList<int> ParseWorkingDays(string json)
     {

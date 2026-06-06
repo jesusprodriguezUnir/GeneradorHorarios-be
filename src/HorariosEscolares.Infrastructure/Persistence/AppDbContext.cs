@@ -230,8 +230,10 @@ public DbSet<TeacherStageAssignment> TeacherStageAssignments => Set<TeacherStage
              .HasForeignKey(x => x.StageId)
              .OnDelete(DeleteBehavior.Restrict);
             e.Property(x => x.MorningStart).HasColumnType("time");
-            e.Property(x => x.EndTime).HasColumnType("time");
+            e.Property(x => x.MorningEnd).HasColumnType("time");
             e.Property(x => x.AfternoonStart).HasColumnType("time");
+            e.Property(x => x.AfternoonEnd).HasColumnType("time");
+            e.Property(x => x.EndTime).HasColumnType("time");
             e.HasMany(x => x.Breaks)
              .WithOne(x => x.Cycle)
              .HasForeignKey(x => x.CycleScheduleId)

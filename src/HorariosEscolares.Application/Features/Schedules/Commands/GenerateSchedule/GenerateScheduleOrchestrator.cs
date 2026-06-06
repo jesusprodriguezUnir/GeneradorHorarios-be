@@ -80,8 +80,15 @@ public sealed class GenerateScheduleOrchestrator(
             ?? Enumerable.Range(0, period.SlotsPerDay)
                 .Select(i => new SlotConfig(i, false, i * period.SlotMinutes, (i + 1) * period.SlotMinutes)).ToList();
 
+        // El número de franjas lectivas del día se toma del máximo entre los ciclos configurados
+        // (cada ciclo puede tener distinto nº si las horas de entrada/salida difieren).
+        // Si no hay ciclos configurados, se cae al valor del periodo.
+        int maxLectiveSlots = cyclesList.Count > 0
+            ? cyclesList.Max(cg => cg.Slots.Count(s => !s.IsBreak))
+            : period.SlotsPerDay;
+
         var schoolConfig = new SchoolConfig(
-            period.SlotsPerDay, workingDays.Count, workingDays, cyclesList,
+            maxLectiveSlots, workingDays.Count, workingDays, cyclesList,
             classrooms.Select(c => new ClassroomInfo(c.Id, c.Name, ParseClassroomType(c.ClassroomType))).ToList());
 
         var normativeValidationData = new NormativeValidationData

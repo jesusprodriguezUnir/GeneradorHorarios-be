@@ -195,16 +195,11 @@ public static class DbInitializer
             SortOrder = 0,
         };
 
+        // Jornada ordinaria: continua 09:00–14:00 | partida 09:00–13:00 + 15:00–17:00
         for (int c = 1; c <= 3; c++)
         {
-            var cycleEnd = SlotCalculator.ComputeEndTime(
-                totalSlots: 5,
-                slotMinutes: 60,
-                breaks: defaultBreakList,
-                afternoonSlots: isPartida ? 2 : 0,
-                morningStart: new TimeOnly(9, 0),
-                afternoonStart: isPartida ? new TimeOnly(15, 0) : null,
-                isPartida: isPartida);
+            var morningEnd   = isPartida ? new TimeOnly(13, 0) : new TimeOnly(14, 0);
+            var afternoonEnd = isPartida ? new TimeOnly(17, 0) : (TimeOnly?)null;
             var cycleSchedule = new CycleSchedule
             {
                 SchoolId       = SchoolId,
@@ -212,8 +207,10 @@ public static class DbInitializer
                 PeriodId       = ordinarioPeriod.Id,
                 Cycle          = c,
                 MorningStart   = new TimeOnly(9, 0),
-                EndTime        = cycleEnd,
+                MorningEnd     = morningEnd,
                 AfternoonStart = isPartida ? new TimeOnly(15, 0) : null,
+                AfternoonEnd   = afternoonEnd,
+                EndTime        = afternoonEnd ?? morningEnd,
             };
             cycleSchedule.Breaks.Add(new CycleBreak
             {
@@ -241,17 +238,9 @@ public static class DbInitializer
             SortOrder = 1,
         };
 
-        var junSepBreaks = new List<(int AfterSlot, int Minutes)> { (2, LomloeMadrid.MinDailyBreakMinutes) }.AsReadOnly();
+        // Jornada junio/septiembre: continua 09:00–13:00 (4 franjas × 60 min = 4 h lectivas)
         for (int c = 1; c <= 3; c++)
         {
-            var cycleEnd = SlotCalculator.ComputeEndTime(
-                totalSlots: 4,
-                slotMinutes: 60,
-                breaks: junSepBreaks,
-                afternoonSlots: 0,
-                morningStart: new TimeOnly(9, 0),
-                afternoonStart: null,
-                isPartida: false);
             var cycleSchedule = new CycleSchedule
             {
                 SchoolId       = SchoolId,
@@ -259,8 +248,10 @@ public static class DbInitializer
                 PeriodId       = junSepPeriod.Id,
                 Cycle          = c,
                 MorningStart   = new TimeOnly(9, 0),
-                EndTime        = cycleEnd,
+                MorningEnd     = new TimeOnly(13, 0),
                 AfternoonStart = null,
+                AfternoonEnd   = null,
+                EndTime        = new TimeOnly(13, 0),
             };
             cycleSchedule.Breaks.Add(new CycleBreak
             {
@@ -718,14 +709,9 @@ public static class DbInitializer
             SortOrder = 0,
         };
 
-        var cycleEnd = SlotCalculator.ComputeEndTime(
-            totalSlots: 5,
-            slotMinutes: 60,
-            breaks: breaks,
-            afternoonSlots: isPartida ? 2 : 0,
-            morningStart: new TimeOnly(9, 0),
-            afternoonStart: isPartida ? new TimeOnly(15, 0) : null,
-            isPartida: isPartida);
+        // Infantil: continua 09:00–14:00 | partida 09:00–13:00 + 15:00–17:00
+        var infantilMorningEnd   = isPartida ? new TimeOnly(13, 0) : new TimeOnly(14, 0);
+        var infantilAfternoonEnd = isPartida ? new TimeOnly(17, 0) : (TimeOnly?)null;
         var cs = new CycleSchedule
         {
             SchoolId       = SchoolId,
@@ -733,8 +719,10 @@ public static class DbInitializer
             PeriodId       = period.Id,
             Cycle          = 1,
             MorningStart   = new TimeOnly(9, 0),
-            EndTime        = cycleEnd,
+            MorningEnd     = infantilMorningEnd,
             AfternoonStart = isPartida ? new TimeOnly(15, 0) : null,
+            AfternoonEnd   = infantilAfternoonEnd,
+            EndTime        = infantilAfternoonEnd ?? infantilMorningEnd,
         };
         cs.Breaks.Add(new CycleBreak { CycleScheduleId = cs.Id, AfterSlot = 2, Minutes = LomloeMadrid.MinDailyBreakMinutes });
         period.Cycles.Add(cs);
@@ -925,14 +913,7 @@ public static class DbInitializer
 
         for (int c = 1; c <= 2; c++)
         {
-            var cycleEnd = SlotCalculator.ComputeEndTime(
-                totalSlots: 6,
-                slotMinutes: 60,
-                breaks: breaks,
-                afternoonSlots: 0,
-                morningStart: new TimeOnly(8, 30),
-                afternoonStart: null,
-                isPartida: false);
+            // Secundaria: continua 08:30–14:30 (6 franjas × 60 min = 6 h lectivas)
             var cs = new CycleSchedule
             {
                 SchoolId       = SchoolId,
@@ -940,8 +921,10 @@ public static class DbInitializer
                 PeriodId       = period.Id,
                 Cycle          = c,
                 MorningStart   = new TimeOnly(8, 30),
-                EndTime        = cycleEnd,
+                MorningEnd     = new TimeOnly(14, 30),
                 AfternoonStart = null,
+                AfternoonEnd   = null,
+                EndTime        = new TimeOnly(14, 30),
             };
             cs.Breaks.Add(new CycleBreak { CycleScheduleId = cs.Id, AfterSlot = 3, Minutes = LomloeMadrid.MinDailyBreakMinutes });
             period.Cycles.Add(cs);

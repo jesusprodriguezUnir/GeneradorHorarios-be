@@ -150,6 +150,7 @@ public sealed class GetScheduleGridHandler(IAppDbContext db, ICurrentUser user)
             ? period.Cycles.ToList()
             : school is not null
                 ? await db.CycleSchedules.AsNoTracking()
+                    .Include(c => c.Breaks)
                     .Where(c => c.SchoolId == schedule.SchoolId).ToListAsync(ct)
                 : [];
 
@@ -178,7 +179,7 @@ public sealed class GetScheduleGridHandler(IAppDbContext db, ICurrentUser user)
                 .ToDictionary(
                     c => c.Cycle,
                     c => (IReadOnlyList<SlotInfoDto>)SlotCalculator
-                        .Compute(school, school.SlotsPerDay, c.MorningStart, c.AfternoonStart)
+                        .Compute(c, school)
                         .Select(sl => new SlotInfoDto(sl.Index, sl.StartTime, sl.EndTime, sl.IsBreak))
                         .ToList());
         }

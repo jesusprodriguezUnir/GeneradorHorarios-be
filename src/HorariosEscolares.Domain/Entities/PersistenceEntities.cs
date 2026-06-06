@@ -252,8 +252,14 @@ public class CycleSchedule
     public required Guid PeriodId { get; set; }
     public required int Cycle { get; set; }
     public TimeOnly MorningStart { get; set; } = new(9, 0);
-    public TimeOnly EndTime { get; set; } = new(14, 0);
+    /// <summary>Salida de la mañana (fin de la sesión de mañana).</summary>
+    public TimeOnly MorningEnd { get; set; } = new(14, 0);
     public TimeOnly? AfternoonStart { get; set; }
+    /// <summary>Salida de la tarde; null cuando no hay jornada de tarde.</summary>
+    public TimeOnly? AfternoonEnd { get; set; }
+    /// <summary>Hora de fin total del día lectivo: AfternoonEnd si hay tarde, MorningEnd en jornada continua.
+    /// Se mantiene por compatibilidad con los consumidores existentes.</summary>
+    public TimeOnly EndTime { get; set; } = new(14, 0);
     public SchoolPeriod? Period { get; set; }
     public ICollection<CycleBreak> Breaks { get; set; } = new List<CycleBreak>();
 }

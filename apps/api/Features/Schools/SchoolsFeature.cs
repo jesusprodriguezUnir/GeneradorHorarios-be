@@ -176,8 +176,15 @@ public static class SchoolEndpoints
         g.MapPut("/me/periods/{periodId:guid}/cycles/{cycle}", async (Guid periodId, int cycle, HttpContext ctx, ISender sender, UpdatePeriodCycleCommand cmd) =>
         {
             if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
-            var result = await sender.Send(cmd with { PeriodId = periodId, Cycle = cycle });
-            return Results.Ok(result);
+            try
+            {
+                var result = await sender.Send(cmd with { PeriodId = periodId, Cycle = cycle });
+                return Results.Ok(result);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.BadRequest(new { message = ex.Message });
+            }
         });
 
         return app;
