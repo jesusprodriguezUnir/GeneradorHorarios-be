@@ -48,6 +48,8 @@ public static class DbInitializer
 
     private static readonly string[] TutorColorKeys = ["len", "mat", "cie", "art", "tut", "rel"];
 
+    private const string EmailDomain = "ceipso-antonio-machado.es";
+
     public static async Task InitializeAsync(AppDbContext db, SeedOptions? options = null)
     {
         await db.Database.MigrateAsync();
@@ -92,10 +94,10 @@ public static class DbInitializer
         db.Schools.Add(new School
         {
             Id             = SchoolId,
-            Name           = "CEIP Miguel Hernández",
-            Slug           = "ceip-miguel-hernandez",
-            CenterCode     = "28013291",
-            Locality       = "Madrid",
+            Name           = "CEIPSO Antonio Machado",
+            Slug           = "ceipso-antonio-machado",
+            CenterCode     = "28099001",
+            Locality       = "Alcalá de Henares",
             Community      = "madrid",
             MinCourseLevel = 1,
             MaxCourseLevel = opts.Levels,
@@ -135,23 +137,43 @@ public static class DbInitializer
         };
         var infantilStage = new SchoolStage
         {
-            Id        = InfantilStageId,
-            SchoolId  = SchoolId,
-            StageType = StageTypes.Infantil,
-            Name      = "Educación Infantil",
-            MinLevel  = 1,
-            MaxLevel  = 2,
-            SortOrder = 0,
+            Id             = InfantilStageId,
+            SchoolId       = SchoolId,
+            StageType      = StageTypes.Infantil,
+            Name           = "Educación Infantil",
+            MinLevel       = 1,
+            MaxLevel       = 3,
+            SortOrder      = 0,
+            ScheduleType   = opts.ScheduleType,
+            MorningStart   = new TimeOnly(9, 0),
+            AfternoonStart = isPartida ? new TimeOnly(15, 0) : null,
+            SlotMinutes    = 60,
+            BreakAfterSlot = 2,
+            BreakMinutes   = LomloeMadrid.MinDailyBreakMinutes,
+            SlotsPerDay    = 5,
+            AfternoonSlots = isPartida ? 2 : 0,
+            DaysPerWeek    = 5,
+            WorkingDays    = "[1,2,3,4,5]",
         };
         var secundariaStage = new SchoolStage
         {
-            Id        = SecundariaStageId,
-            SchoolId  = SchoolId,
-            StageType = StageTypes.Secundaria,
-            Name      = "Educación Secundaria (ESO)",
-            MinLevel  = 1,
-            MaxLevel  = 4,
-            SortOrder = 2,
+            Id             = SecundariaStageId,
+            SchoolId       = SchoolId,
+            StageType      = StageTypes.Secundaria,
+            Name           = "Educación Secundaria (ESO)",
+            MinLevel       = 1,
+            MaxLevel       = 4,
+            SortOrder      = 2,
+            ScheduleType   = "continua",
+            MorningStart   = new TimeOnly(8, 30),
+            AfternoonStart = null,
+            SlotMinutes    = 60,
+            BreakAfterSlot = 3,
+            BreakMinutes   = LomloeMadrid.MinDailyBreakMinutes,
+            SlotsPerDay    = 6,
+            AfternoonSlots = 0,
+            DaysPerWeek    = 5,
+            WorkingDays    = "[1,2,3,4,5]",
         };
         db.SchoolStages.AddRange(primariaStage, infantilStage, secundariaStage);
 
@@ -253,7 +275,7 @@ public static class DbInitializer
         db.AppUsers.Add(new AppUser
         {
             Id       = AdminUserId,
-            Email    = "elena.castro@ceip-miguel-hernandez.es",
+            Email    = $"elena.castro@{EmailDomain}",
             FullName = "Elena Castro",
             SchoolId = SchoolId,
             RoleId   = RoleIds.Director,
@@ -416,7 +438,7 @@ public static class DbInitializer
                 Id             = Guid.NewGuid(),
                 SchoolId       = SchoolId,
                 FullName       = name,
-                Email          = $"{emailUser}@ceip-miguel-hernandez.es",
+                Email          = $"{emailUser}@{EmailDomain}",
                 TeacherType    = "definitivo",
                 MaxWeeklyHours = 25,
                 Specialties    = "[\"Generalista\"]",
@@ -438,7 +460,7 @@ public static class DbInitializer
             Id             = Guid.NewGuid(),
             SchoolId       = SchoolId,
             FullName       = t.Item1,
-            Email          = $"{t.Item2}@ceip-miguel-hernandez.es",
+            Email          = $"{t.Item2}@{EmailDomain}",
             TeacherType    = "especialista",
             MaxWeeklyHours = 25,
             Specialties    = "[\"Inglés (habilitación)\"]",
@@ -449,7 +471,7 @@ public static class DbInitializer
         db.AppUsers.Add(new AppUser
         {
             Id        = ProfUserId,
-            Email     = "laura.fernandez@ceip-miguel-hernandez.es",
+            Email     = $"laura.fernandez@{EmailDomain}",
             FullName  = "Laura Fernández",
             SchoolId  = SchoolId,
             RoleId    = RoleIds.Profesor,
@@ -459,7 +481,7 @@ public static class DbInitializer
         db.AppUsers.Add(new AppUser
         {
             Id        = JefeEstudiosUserId,
-            Email     = "maria.garcia@ceip-miguel-hernandez.es",
+            Email     = $"maria.garcia@{EmailDomain}",
             FullName  = "María García",
             SchoolId  = SchoolId,
             RoleId    = RoleIds.JefeEstudios,
@@ -468,7 +490,7 @@ public static class DbInitializer
         db.AppUsers.Add(new AppUser
         {
             Id        = SecretarioUserId,
-            Email     = "antonio.lopez@ceip-miguel-hernandez.es",
+            Email     = $"antonio.lopez@{EmailDomain}",
             FullName  = "Antonio López",
             SchoolId  = SchoolId,
             RoleId    = RoleIds.Secretario,
@@ -477,7 +499,7 @@ public static class DbInitializer
         db.AppUsers.Add(new AppUser
         {
             Id        = TutorUserId,
-            Email     = "ana.garcia@ceip-miguel-hernandez.es",
+            Email     = $"ana.garcia@{EmailDomain}",
             FullName  = "Ana García",
             SchoolId  = SchoolId,
             RoleId    = RoleIds.Tutor,
@@ -487,7 +509,7 @@ public static class DbInitializer
         db.AppUsers.Add(new AppUser
         {
             Id        = CoordinadorCicloUserId,
-            Email     = "beatriz.lopez@ceip-miguel-hernandez.es",
+            Email     = $"beatriz.lopez@{EmailDomain}",
             FullName  = "Beatriz López",
             SchoolId  = SchoolId,
             RoleId    = RoleIds.CoordinadorCiclo,
@@ -497,7 +519,7 @@ public static class DbInitializer
         db.AppUsers.Add(new AppUser
         {
             Id        = OrientadorUserId,
-            Email     = "lucia.martin@ceip-miguel-hernandez.es",
+            Email     = $"lucia.martin@{EmailDomain}",
             FullName  = "Lucía Martín",
             SchoolId  = SchoolId,
             RoleId    = RoleIds.Orientador,
@@ -514,7 +536,7 @@ public static class DbInitializer
             Id             = Guid.NewGuid(),
             SchoolId       = SchoolId,
             FullName       = t.Item1,
-            Email          = $"{t.Item2}@ceip-miguel-hernandez.es",
+            Email          = $"{t.Item2}@{EmailDomain}",
             TeacherType    = "especialista",
             MaxWeeklyHours = 25,
             Specialties    = "[\"Educación Física\"]",
@@ -527,7 +549,7 @@ public static class DbInitializer
             Id             = Guid.NewGuid(),
             SchoolId       = SchoolId,
             FullName       = "Lucía Navarro",
-            Email          = "lucia.navarro@ceip-miguel-hernandez.es",
+            Email          = $"lucia.navarro@{EmailDomain}",
             TeacherType    = "definitivo",
             MaxWeeklyHours = 25,
             Specialties    = "[\"Generalista\",\"Música\"]",
@@ -540,7 +562,7 @@ public static class DbInitializer
             Id             = Guid.NewGuid(),
             SchoolId       = SchoolId,
             FullName       = "Pablo Vidal",
-            Email          = "pablo.vidal@ceip-miguel-hernandez.es",
+            Email          = $"pablo.vidal@{EmailDomain}",
             TeacherType    = "especialista",
             MaxWeeklyHours = 20,
             Specialties    = "[\"Religión\"]",
@@ -667,7 +689,7 @@ public static class DbInitializer
 
         // ── Seed de Infantil y Secundaria (con datos completos) ──
         SeedInfantilStage(db, infantilStage, infantilAllocations, ingTeachers, opts);
-        SeedSecundariaStage(db, secundariaStage, secundariaAllocations, musicTeacher, relTeacher);
+        SeedSecundariaStage(db, secundariaStage, secundariaAllocations, musicTeacher, relTeacher, opts);
 
         await db.SaveChangesAsync();
     }
@@ -779,7 +801,7 @@ public static class DbInitializer
                 Id             = Guid.NewGuid(),
                 SchoolId       = SchoolId,
                 FullName       = name,
-                Email          = $"{email}@ceip-miguel-hernandez.es",
+                Email          = $"{email}@{EmailDomain}",
                 TeacherType    = "definitivo",
                 MaxWeeklyHours = 25,
                 Specialties    = "[\"Generalista Infantil\"]",
@@ -877,24 +899,28 @@ public static class DbInitializer
         SchoolStage stage,
         List<SubjectAllocation> allocations,
         Teacher musicTeacher,
-        Teacher relTeacher)
+        Teacher relTeacher,
+        SeedOptions opts)
     {
+        var linesPerLevel = opts.LinesPerLevel;
+        char[] lineLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
         var breaks = new List<(int AfterSlot, int Minutes)> { (3, LomloeMadrid.MinDailyBreakMinutes) }.AsReadOnly();
 
+        // Secundaria siempre jornada continua (30 h/semana, 6 slots/día), independientemente del centro
         var period = new SchoolPeriod
         {
-            Id = SecundariaPeriodId,
-            SchoolId = SchoolId,
-            StageId = stage.Id,
-            Key = "ordinario",
-            Name = "Jornada ordinaria",
-            Months = "[10,11,12,1,2,3,4,5]",
-            ScheduleType = "continua",
-            SlotMinutes = 60,
-            SlotsPerDay = 6, // 6 periodos diarios en Secundaria (30h/semana)
+            Id             = SecundariaPeriodId,
+            SchoolId       = SchoolId,
+            StageId        = stage.Id,
+            Key            = "ordinario",
+            Name           = "Jornada ordinaria",
+            Months         = "[10,11,12,1,2,3,4,5]",
+            ScheduleType   = "continua",
+            SlotMinutes    = 60,
+            SlotsPerDay    = 6,
             AfternoonSlots = 0,
-            IsDefault = true,
-            SortOrder = 0,
+            IsDefault      = true,
+            SortOrder      = 0,
         };
 
         for (int c = 1; c <= 2; c++)
@@ -922,136 +948,179 @@ public static class DbInitializer
         }
         db.SchoolPeriods.Add(period);
 
-        // Aulas de Secundaria
+        // Aulas: una por grupo (nivel × línea)
         var classrooms = new List<Classroom>();
         for (int level = 1; level <= 4; level++)
         {
-            classrooms.Add(new Classroom
+            for (int li = 0; li < linesPerLevel; li++)
             {
-                Id            = Guid.NewGuid(),
-                SchoolId      = SchoolId,
-                Name          = $"Aula {level}º ESO A",
-                ClassroomType = "regular",
-                Capacity      = 30,
-            });
+                classrooms.Add(new Classroom
+                {
+                    Id            = Guid.NewGuid(),
+                    SchoolId      = SchoolId,
+                    Name          = $"Aula {level}º ESO {lineLabels[li]}",
+                    ClassroomType = "regular",
+                    Capacity      = 30,
+                });
+            }
         }
         db.Classrooms.AddRange(classrooms);
 
-        // Profesores especialistas de Secundaria
-        var secTeachers = new List<Teacher>
-        {
-            new() { Id = Guid.NewGuid(), SchoolId = SchoolId, FullName = "Santiago Ortiz",     Email = "santiago.ortiz@ceip-miguel-hernandez.es",     TeacherType = "definitivo", MaxWeeklyHours = 20, Specialties = "[\"Matemáticas\"]", ColorKey = "mat" },
-            new() { Id = Guid.NewGuid(), SchoolId = SchoolId, FullName = "Isabel Sanz",         Email = "isabel.sanz@ceip-miguel-hernandez.es",         TeacherType = "definitivo", MaxWeeklyHours = 20, Specialties = "[\"Lengua\"]", ColorKey = "len" },
-            new() { Id = Guid.NewGuid(), SchoolId = SchoolId, FullName = "Francisco Javier",    Email = "francisco.javier@ceip-miguel-hernandez.es",    TeacherType = "definitivo", MaxWeeklyHours = 20, Specialties = "[\"Geografía e Historia\"]", ColorKey = "cie" },
-            new() { Id = Guid.NewGuid(), SchoolId = SchoolId, FullName = "Teresa Castro",       Email = "teresa.castro@ceip-miguel-hernandez.es",       TeacherType = "definitivo", MaxWeeklyHours = 20, Specialties = "[\"Física y Química\",\"Biología\"]", ColorKey = "art" },
-            new() { Id = Guid.NewGuid(), SchoolId = SchoolId, FullName = "Jorge García",        Email = "jorge.garcia@ceip-miguel-hernandez.es",        TeacherType = "definitivo", MaxWeeklyHours = 20, Specialties = "[\"Tecnología\",\"Educación Física\"]", ColorKey = "tut" },
-            new() { Id = Guid.NewGuid(), SchoolId = SchoolId, FullName = "María José",          Email = "maria.jose@ceip-miguel-hernandez.es",          TeacherType = "definitivo", MaxWeeklyHours = 20, Specialties = "[\"Inglés\"]", ColorKey = "ing" },
-            new() { Id = Guid.NewGuid(), SchoolId = SchoolId, FullName = "Andrés Gómez",        Email = "andres.gomez@ceip-miguel-hernandez.es",        TeacherType = "definitivo", MaxWeeklyHours = 20, Specialties = "[\"Generalista\"]", ColorKey = "opt" }
+        // Pool de especialistas: 7 posiciones × N líneas.
+        // Cada línea tiene su propio equipo de 7 profesores para no superar las 20 h/semana.
+        // El email lleva sufijo ".esoa"/".esob" para garantizar unicidad en la escuela.
+        string[] specSpecialties = [
+            "[\"Matemáticas\"]",
+            "[\"Lengua y Literatura\"]",
+            "[\"Geografía e Historia\"]",
+            "[\"Física y Química\",\"Biología\"]",
+            "[\"Tecnología\",\"Educación Física\"]",
+            "[\"Inglés\"]",
+            "[\"Generalista\"]",
+        ];
+        string[] specColorKeys = ["mat", "len", "cie", "art", "tut", "ing", "opt"];
+        (string Name, string Email)[,] specNamePool = {
+            { ("Santiago Ortiz",   "santiago.ortiz"),   ("Miguel Fuentes",   "miguel.fuentes")   },
+            { ("Isabel Sanz",      "isabel.sanz"),       ("Patricia Méndez",  "patricia.mendez")  },
+            { ("Francisco Javier", "francisco.javier"),  ("Rodrigo Castillo", "rodrigo.castillo") },
+            { ("Teresa Castro",    "teresa.castro"),     ("Sergio Mora",      "sergio.mora")      },
+            { ("Jorge García",     "jorge.garcia"),      ("Hugo Blanco",      "hugo.blanco")      },
+            { ("María José",       "maria.jose"),        ("Valentina Cruz",   "valentina.cruz")   },
+            { ("Andrés Gómez",     "andres.gomez"),      ("Rebeca Prieto",    "rebeca.prieto")    },
         };
-        db.Teachers.AddRange(secTeachers);
+        int poolSize = specNamePool.GetLength(1);
 
-        // Grupos de Secundaria
+        var secTeams = new List<List<Teacher>>();
+        for (int li = 0; li < linesPerLevel; li++)
+        {
+            var team = new List<Teacher>();
+            for (int pos = 0; pos < 7; pos++)
+            {
+                var (name, emailUser) = specNamePool[pos, li % poolSize];
+                string lineSuffix = char.ToLower(lineLabels[li]).ToString();
+                team.Add(new Teacher
+                {
+                    Id             = Guid.NewGuid(),
+                    SchoolId       = SchoolId,
+                    FullName       = name,
+                    Email          = $"{emailUser}.eso{lineSuffix}@{EmailDomain}",
+                    TeacherType    = "definitivo",
+                    MaxWeeklyHours = 20,
+                    Specialties    = specSpecialties[pos],
+                    ColorKey       = specColorKeys[pos],
+                });
+            }
+            secTeams.Add(team);
+            db.Teachers.AddRange(team);
+        }
+
+        // Grupos: 4 niveles × linesPerLevel líneas
         var groups = new List<CourseGroup>();
         for (int level = 1; level <= 4; level++)
         {
-            groups.Add(new CourseGroup
+            for (int li = 0; li < linesPerLevel; li++)
             {
-                Id              = Guid.NewGuid(),
-                SchoolId        = SchoolId,
-                StageId         = stage.Id,
-                CourseLevel     = level,
-                GroupLabel      = "A",
-                StudentCount    = 25,
-                TutorId         = secTeachers[(level - 1) % secTeachers.Count].Id,
-                HomeClassroomId = classrooms[level - 1].Id,
-            });
+                int classroomIdx = (level - 1) * linesPerLevel + li;
+                groups.Add(new CourseGroup
+                {
+                    Id              = Guid.NewGuid(),
+                    SchoolId        = SchoolId,
+                    StageId         = stage.Id,
+                    CourseLevel     = level,
+                    GroupLabel      = lineLabels[li].ToString(),
+                    StudentCount    = 25,
+                    TutorId         = secTeams[li][0].Id,
+                    HomeClassroomId = classrooms[classroomIdx].Id,
+                });
+            }
         }
         db.CourseGroups.AddRange(groups);
 
-        // Asignaciones
-        var allocByKey = allocations.ToDictionary(a => a.SubjectKey);
-        var assignments = new List<Assignment>();
+        // Asignaciones: cada grupo usa el equipo de su línea (gi % linesPerLevel)
+        var allocByKey   = allocations.ToDictionary(a => a.SubjectKey);
+        var assignments  = new List<Assignment>();
 
-        var tMat = secTeachers[0];
-        var tLen = secTeachers[1];
-        var tGh  = secTeachers[2];
-        var tSci = secTeachers[3];
-        var tTec = secTeachers[4];
-        var tIng = secTeachers[5];
-        var tOpt = secTeachers[6];
-
-        foreach (var group in groups)
+        for (int gi = 0; gi < groups.Count; gi++)
         {
-            var lvl = group.CourseLevel;
+            var group = groups[gi];
+            var team  = secTeams[gi % linesPerLevel];
+            var lvl   = group.CourseLevel;
 
-            // Materias comunes
-            if (allocByKey.TryGetValue("len", out var lenAlloc)) 
+            var tMat = team[0]; var tLen = team[1]; var tGh  = team[2];
+            var tSci = team[3]; var tTec = team[4]; var tIng = team[5];
+            var tOpt = team[6];
+
+            // Materias comunes a todos los niveles
+            if (allocByKey.TryGetValue("len", out var lenAlloc))
                 assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tLen.Id, GroupId = group.Id, AllocationId = lenAlloc.Id, WeeklyHours = lvl == 1 ? 5 : 4 });
-            
-            if (allocByKey.TryGetValue("mat", out var matAlloc)) 
+
+            if (allocByKey.TryGetValue("mat", out var matAlloc))
                 assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tMat.Id, GroupId = group.Id, AllocationId = matAlloc.Id, WeeklyHours = 4 });
-            
-            if (allocByKey.TryGetValue("ing", out var ingAlloc)) 
+
+            if (allocByKey.TryGetValue("ing", out var ingAlloc))
                 assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tIng.Id, GroupId = group.Id, AllocationId = ingAlloc.Id, WeeklyHours = 3 });
-            
-            if (allocByKey.TryGetValue("gh", out var ghAlloc)) 
+
+            if (allocByKey.TryGetValue("gh", out var ghAlloc))
                 assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tGh.Id, GroupId = group.Id, AllocationId = ghAlloc.Id, WeeklyHours = 3 });
-            
-            if (allocByKey.TryGetValue("ef", out var efAlloc)) 
+
+            if (allocByKey.TryGetValue("ef", out var efAlloc))
                 assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tTec.Id, GroupId = group.Id, AllocationId = efAlloc.Id, WeeklyHours = lvl == 4 ? 2 : 3 });
-            
-            if (allocByKey.TryGetValue("tut", out var tutAlloc)) 
+
+            if (allocByKey.TryGetValue("tut", out var tutAlloc))
                 assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = group.TutorId ?? tMat.Id, GroupId = group.Id, AllocationId = tutAlloc.Id, WeeklyHours = 1 });
 
             // Materias específicas por nivel
             if (lvl == 1)
             {
-                if (allocByKey.TryGetValue("bg", out var bgAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tSci.Id, GroupId = group.Id, AllocationId = bgAlloc.Id, WeeklyHours = 3 });
-                if (allocByKey.TryGetValue("art", out var artAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tTec.Id, GroupId = group.Id, AllocationId = artAlloc.Id, WeeklyHours = 2 });
-                if (allocByKey.TryGetValue("mus", out var musAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = musicTeacher.Id, GroupId = group.Id, AllocationId = musAlloc.Id, WeeklyHours = 2 });
-                if (allocByKey.TryGetValue("rel", out var relAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = relTeacher.Id, GroupId = group.Id, AllocationId = relAlloc.Id, WeeklyHours = 2 });
-                if (allocByKey.TryGetValue("opt", out var optAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tOpt.Id, GroupId = group.Id, AllocationId = optAlloc.Id, WeeklyHours = 2 });
+                if (allocByKey.TryGetValue("bg",  out var bgAlloc))  assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tSci.Id,          GroupId = group.Id, AllocationId = bgAlloc.Id,  WeeklyHours = 3 });
+                if (allocByKey.TryGetValue("art", out var artAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tTec.Id,          GroupId = group.Id, AllocationId = artAlloc.Id, WeeklyHours = 2 });
+                if (allocByKey.TryGetValue("mus", out var musAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = musicTeacher.Id,  GroupId = group.Id, AllocationId = musAlloc.Id, WeeklyHours = 2 });
+                if (allocByKey.TryGetValue("rel", out var relAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = relTeacher.Id,    GroupId = group.Id, AllocationId = relAlloc.Id, WeeklyHours = 2 });
+                if (allocByKey.TryGetValue("opt", out var optAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tOpt.Id,          GroupId = group.Id, AllocationId = optAlloc.Id, WeeklyHours = 2 });
             }
             else if (lvl == 2)
             {
-                if (allocByKey.TryGetValue("fq", out var fqAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tSci.Id, GroupId = group.Id, AllocationId = fqAlloc.Id, WeeklyHours = 3 });
-                if (allocByKey.TryGetValue("tec", out var tecAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tTec.Id, GroupId = group.Id, AllocationId = tecAlloc.Id, WeeklyHours = 3 });
-                if (allocByKey.TryGetValue("art", out var artAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tTec.Id, GroupId = group.Id, AllocationId = artAlloc.Id, WeeklyHours = 2 });
-                if (allocByKey.TryGetValue("val", out var valAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tLen.Id, GroupId = group.Id, AllocationId = valAlloc.Id, WeeklyHours = 1 });
-                if (allocByKey.TryGetValue("rel", out var relAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = relTeacher.Id, GroupId = group.Id, AllocationId = relAlloc.Id, WeeklyHours = 1 });
-                if (allocByKey.TryGetValue("opt", out var optAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tOpt.Id, GroupId = group.Id, AllocationId = optAlloc.Id, WeeklyHours = 2 });
+                if (allocByKey.TryGetValue("fq",  out var fqAlloc))  assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tSci.Id,          GroupId = group.Id, AllocationId = fqAlloc.Id,  WeeklyHours = 3 });
+                if (allocByKey.TryGetValue("tec", out var tecAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tTec.Id,          GroupId = group.Id, AllocationId = tecAlloc.Id, WeeklyHours = 3 });
+                if (allocByKey.TryGetValue("art", out var artAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tTec.Id,          GroupId = group.Id, AllocationId = artAlloc.Id, WeeklyHours = 2 });
+                if (allocByKey.TryGetValue("val", out var valAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tLen.Id,          GroupId = group.Id, AllocationId = valAlloc.Id, WeeklyHours = 1 });
+                if (allocByKey.TryGetValue("rel", out var relAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = relTeacher.Id,    GroupId = group.Id, AllocationId = relAlloc.Id, WeeklyHours = 1 });
+                if (allocByKey.TryGetValue("opt", out var optAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tOpt.Id,          GroupId = group.Id, AllocationId = optAlloc.Id, WeeklyHours = 2 });
             }
             else if (lvl == 3)
             {
-                if (allocByKey.TryGetValue("bg", out var bgAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tSci.Id, GroupId = group.Id, AllocationId = bgAlloc.Id, WeeklyHours = 2 });
-                if (allocByKey.TryGetValue("fq", out var fqAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tSci.Id, GroupId = group.Id, AllocationId = fqAlloc.Id, WeeklyHours = 3 });
-                if (allocByKey.TryGetValue("tec", out var tecAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tTec.Id, GroupId = group.Id, AllocationId = tecAlloc.Id, WeeklyHours = 2 });
-                if (allocByKey.TryGetValue("mus", out var musAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = musicTeacher.Id, GroupId = group.Id, AllocationId = musAlloc.Id, WeeklyHours = 2 });
-                if (allocByKey.TryGetValue("rel", out var relAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = relTeacher.Id, GroupId = group.Id, AllocationId = relAlloc.Id, WeeklyHours = 1 });
-                if (allocByKey.TryGetValue("opt", out var optAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tOpt.Id, GroupId = group.Id, AllocationId = optAlloc.Id, WeeklyHours = 2 });
+                if (allocByKey.TryGetValue("bg",  out var bgAlloc))  assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tSci.Id,          GroupId = group.Id, AllocationId = bgAlloc.Id,  WeeklyHours = 2 });
+                if (allocByKey.TryGetValue("fq",  out var fqAlloc))  assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tSci.Id,          GroupId = group.Id, AllocationId = fqAlloc.Id,  WeeklyHours = 3 });
+                if (allocByKey.TryGetValue("tec", out var tecAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tTec.Id,          GroupId = group.Id, AllocationId = tecAlloc.Id, WeeklyHours = 2 });
+                if (allocByKey.TryGetValue("mus", out var musAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = musicTeacher.Id,  GroupId = group.Id, AllocationId = musAlloc.Id, WeeklyHours = 2 });
+                if (allocByKey.TryGetValue("rel", out var relAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = relTeacher.Id,    GroupId = group.Id, AllocationId = relAlloc.Id, WeeklyHours = 1 });
+                if (allocByKey.TryGetValue("opt", out var optAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tOpt.Id,          GroupId = group.Id, AllocationId = optAlloc.Id, WeeklyHours = 2 });
             }
             else if (lvl == 4)
             {
                 if (allocByKey.TryGetValue("rel", out var relAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = relTeacher.Id, GroupId = group.Id, AllocationId = relAlloc.Id, WeeklyHours = 2 });
-                if (allocByKey.TryGetValue("opt", out var optAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tOpt.Id, GroupId = group.Id, AllocationId = optAlloc.Id, WeeklyHours = 11 }); // Materias optativas / de opción
+                if (allocByKey.TryGetValue("opt", out var optAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tOpt.Id,       GroupId = group.Id, AllocationId = optAlloc.Id, WeeklyHours = 11 });
             }
         }
         db.Assignments.AddRange(assignments);
 
-        // Asociar profesores especialistas a la etapa secundaria
-        foreach (var teacher in secTeachers)
+        // Asociar todos los especialistas de ESO a la etapa
+        foreach (var team in secTeams)
         {
-            db.TeacherStageAssignments.Add(new TeacherStageAssignment
+            foreach (var teacher in team)
             {
-                TeacherId = teacher.Id,
-                StageId   = stage.Id,
-                Cycle     = null,
-            });
+                db.TeacherStageAssignments.Add(new TeacherStageAssignment
+                {
+                    TeacherId = teacher.Id,
+                    StageId   = stage.Id,
+                    Cycle     = null,
+                });
+            }
         }
 
-        // Asociar profesores de Música y Religión (compartidos) con Secundaria
+        // Asociar Música y Religión (compartidos con Primaria) a ESO
         db.TeacherStageAssignments.Add(new TeacherStageAssignment { TeacherId = musicTeacher.Id, StageId = stage.Id, Cycle = null });
-        db.TeacherStageAssignments.Add(new TeacherStageAssignment { TeacherId = relTeacher.Id, StageId = stage.Id, Cycle = null });
+        db.TeacherStageAssignments.Add(new TeacherStageAssignment { TeacherId = relTeacher.Id,   StageId = stage.Id, Cycle = null });
     }
 
     private static void SeedRoles(AppDbContext db)

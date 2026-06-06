@@ -59,6 +59,7 @@ public sealed class GetSchoolHandler(IAppDbContext db, ICurrentUser user)
             .FirstOrDefaultAsync(p => p.SchoolId == user.SchoolId && p.IsDefault, ct);
         var cycles = defaultPeriod is not null
             ? await db.CycleSchedules.AsNoTracking()
+                .Include(c => c.Breaks)
                 .Where(c => c.PeriodId == defaultPeriod.Id).ToListAsync(ct)
             : [];
         return Map(s, cycles);

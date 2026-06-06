@@ -28,12 +28,26 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new() { Title = "Lectivo API", Version = "v1" });
+    c.AddSecurityDefinition("X-Api-Key", new()
+    {
+        Name = "X-Api-Key",
+        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+        Type = Microsoft.OpenApi.Models.SecuritySchemeType.ApiKey,
+        Description = "API key secreta (configurada en ApiKey:Key). Da acceso completo como admin.",
+    });
     c.AddSecurityDefinition("X-User-Email", new()
     {
         Name = "X-User-Email",
         In = Microsoft.OpenApi.Models.ParameterLocation.Header,
         Type = Microsoft.OpenApi.Models.SecuritySchemeType.ApiKey,
-        Description = "Email del usuario demo (auth simulada)",
+        Description = "Email del usuario demo (auth simulada). Alternativa a X-Api-Key.",
+    });
+    c.AddSecurityRequirement(new()
+    {
+        {
+            new() { Reference = new() { Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme, Id = "X-Api-Key" } },
+            []
+        }
     });
     c.AddSecurityRequirement(new()
     {

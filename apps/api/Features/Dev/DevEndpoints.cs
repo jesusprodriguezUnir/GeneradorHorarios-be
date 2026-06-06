@@ -1,4 +1,5 @@
 using HorariosEscolares.Infrastructure.Persistence;
+using Microsoft.Extensions.Configuration;
 
 namespace HorariosEscolares.Features.Dev;
 
@@ -38,14 +39,15 @@ public static class DevEndpoints
         //   { "levels": 3, "linesPerLevel": 2,
         //     "modality": "bilingue",
         //     "scheduleType": "partida" }               → 3 cursos × 2 líneas bilingüe partida
-        g.MapPost("/reseed", async (AppDbContext db, ReseedRequest? req) =>
+        g.MapPost("/reseed", async (AppDbContext db, IConfiguration config, ReseedRequest? req) =>
         {
+            var cfgOpts = config.GetSection("Seed").Get<SeedOptions>() ?? new SeedOptions();
             var opts = new SeedOptions
             {
-                Levels        = req?.Levels        ?? 6,
-                LinesPerLevel = req?.LinesPerLevel  ?? 3,
-                Modality      = req?.Modality       ?? "estandar",
-                ScheduleType  = req?.ScheduleType   ?? "continua",
+                Levels        = req?.Levels        ?? cfgOpts.Levels,
+                LinesPerLevel = req?.LinesPerLevel  ?? cfgOpts.LinesPerLevel,
+                Modality      = req?.Modality       ?? cfgOpts.Modality,
+                ScheduleType  = req?.ScheduleType   ?? cfgOpts.ScheduleType,
             };
 
             await DbInitializer.ReseedAsync(db, opts);

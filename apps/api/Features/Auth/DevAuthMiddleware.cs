@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using HorariosEscolares.Domain.Abstractions;
 using HorariosEscolares.Domain.Entities;
 using HorariosEscolares.Infrastructure.Persistence;
@@ -7,8 +8,27 @@ namespace HorariosEscolares.Features.Auth;
 
 public sealed class DevAuthMiddleware(RequestDelegate next)
 {
-    public async Task InvokeAsync(HttpContext ctx, AppDbContext db)
+    public async Task InvokeAsync(HttpContext ctx, AppDbContext db, IConfiguration config)
     {
+        // ── 1. API key secreta (X-Api-Key) ─────────────────────────────────────
+        var configuredKey = config["ApiKey:Key"];
+        if (!string.IsNullOrWhiteSpace(configuredKey))
+        {
+            var incomingKey = ctx.Request.Headers["X-Api-Key"].FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(incomingKey) && incomingKey == configuredKey)
+            {
+                var apiKeyEmail = config["ApiKey:Email"] ?? string.Empty;
+                var apiKeyUser = await db.AppUsers.AsNoTracking()
+                    .Include(u => u.Role)
+                    .FirstOrDefaultAsync(u => u.Email == apiKeyEmail);
+                if (apiKeyUser is not null && apiKeyUser.Role is not null)
+                    ctx.Items["CurrentUser"] = new CurrentUserDto(apiKeyUser.Id, apiKeyUser.SchoolId, apiKeyUser.RoleId, apiKeyUser.Role);
+                await next(ctx);
+                return;
+            }
+        }
+
+        // ── 2. User-Id directo ─────────────────────────────────────────────────
         var userIdHeader = ctx.Request.Headers["X-User-Id"].FirstOrDefault();
         if (!string.IsNullOrWhiteSpace(userIdHeader) && Guid.TryParse(userIdHeader, out var directId))
         {
