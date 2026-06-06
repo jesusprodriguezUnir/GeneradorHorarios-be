@@ -29,27 +29,24 @@ public sealed class PrimariaNormative : IStageNormative
 }
 
 /// <summary>
-/// Educación Infantil (2º ciclo, 3-6 años) — Decreto 36/2022 (Comunidad de Madrid).
-/// Esqueleto: niveles y mínimos provisionales; las áreas se completarán al
-/// incorporar la tabla oficial del decreto.
+/// Educación Infantil (1er ciclo, 0-3 años) — Decreto 36/2022 (Comunidad de Madrid).
 /// </summary>
 public sealed class InfantilNormative : IStageNormative
 {
     public string StageType => StageTypes.Infantil;
     public int MinLevel => 1;
-    public int MaxLevel => 3;
-    public decimal MinWeeklyLectiveHours => 22.5m;       // Confirmado con Decreto 36/2022: 25h totales - 2.5h recreo = 22.5h lectivas
+    public int MaxLevel => 2;
+    public decimal MinWeeklyLectiveHours => 22.5m;
     public int MinDailyBreakMinutes => 30;
-    public IReadOnlyList<SubjectNorm> GetSubjects(string modality) =>
-    [
-        new("crec", "Crecimiento en Armonía",                     MinH: 4, MaxH: 8, DefaultH: 6),
-        new("desc", "Descubrimiento y Exploración del Entorno",    MinH: 4, MaxH: 8, DefaultH: 6),
-        new("com",  "Comunicación y Representación de la Realidad", MinH: 6, MaxH: 12, DefaultH: 8),
-        new("ing",  "Primera Lengua Extranjera (Inglés)",          MinH: 1, MaxH: 3, DefaultH: 2,
-            RequiresSpecialist: true),
-        new("rel",  "Religión / Valores",                          MinH: 0, MaxH: 2, DefaultH: 1,
-            MaxConsecutiveSlots: 1, Splittable: false)
-    ];
+    public IReadOnlyList<SubjectNorm> GetSubjects(string modality)
+    {
+        return
+        [
+            new("crec", "Crecimiento en Armonía",                     MinH: 5, MaxH: 10, DefaultH: 8),
+            new("desc", "Descubrimiento y Exploración del Entorno",    MinH: 4, MaxH: 9, DefaultH: 7),
+            new("com",  "Comunicación y Representación de la Realidad", MinH: 5, MaxH: 10, DefaultH: 8),
+        ];
+    }
 }
 
 /// <summary>

@@ -23,7 +23,6 @@ public class CycleResolverTests
     [Theory]
     [InlineData(1)]
     [InlineData(2)]
-    [InlineData(3)]
     public void Infantil_AllLevels_ReturnSingleCycle(int courseLevel)
     {
         Resolver.ResolveCycle(StageTypes.Infantil, courseLevel).Should().Be(1);

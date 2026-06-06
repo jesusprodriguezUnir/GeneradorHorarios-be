@@ -15,6 +15,10 @@ public class SchedulesGenerationTests
     private static readonly Guid SchoolId = Guid.Parse("00000000-0000-0000-0000-000000000001");
     private static readonly Guid StageId = Guid.Parse("00000000-0000-0000-0000-000000000031");
     private static readonly Guid PeriodId = Guid.Parse("00000000-0000-0000-0000-000000000020");
+    private static readonly Guid InfantilStageId = Guid.Parse("00000000-0000-0000-0000-000000000030");
+    private static readonly Guid InfantilPeriodId = Guid.Parse("00000000-0000-0000-0000-000000000022");
+    private static readonly Guid SecundariaStageId = Guid.Parse("00000000-0000-0000-0000-000000000032");
+    private static readonly Guid SecundariaPeriodId = Guid.Parse("00000000-0000-0000-0000-000000000023");
 
     public SchedulesGenerationTests(MsSqlFixture fixture)
     {
@@ -140,5 +144,59 @@ public class SchedulesGenerationTests
         result.Should().BeOfType<GenerateScheduleResult.Success>();
         var success = (GenerateScheduleResult.Success)result;
         success.Status.Should().Be("generated");
+    }
+
+    [Fact]
+    public async Task Generate_Infantil_WithSeedData_SuccessfullyAssignsAllSessions()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var orchestrator = scope.ServiceProvider.GetRequiredService<IScheduleGenerationOrchestrator>();
+        var result = await orchestrator.GenerateAsync(
+            SchoolId, InfantilStageId, InfantilPeriodId, "2025-2026", 30, null, CancellationToken.None);
+
+        result.Should().BeOfType<GenerateScheduleResult.Success>();
+        var success = (GenerateScheduleResult.Success)result;
+        success.Status.Should().Be("generated");
+    }
+
+    [Fact]
+    public async Task Generate_Secundaria_WithSeedData_SuccessfullyAssignsAllSessions()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var orchestrator = scope.ServiceProvider.GetRequiredService<IScheduleGenerationOrchestrator>();
+        var result = await orchestrator.GenerateAsync(
+            SchoolId, SecundariaStageId, SecundariaPeriodId, "2025-2026", 30, null, CancellationToken.None);
+
+        result.Should().BeOfType<GenerateScheduleResult.Success>();
+        var success = (GenerateScheduleResult.Success)result;
+        success.Status.Should().Be("generated");
+    }
+
+    [Fact]
+    public async Task Generate_Infantil_Bilingue_Partida_WithSeedData_SuccessfullyAssignsAllSessions()
+    {
+        var client = _factory.CreateAdminClient();
+        try
+        {
+            var reseedPayload = new { modality = "bilingue", scheduleType = "partida" };
+            var reseedResponse = await client.PostAsync("/api/dev/reseed",
+                new StringContent(JsonSerializer.Serialize(reseedPayload), Encoding.UTF8, "application/json"));
+            reseedResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+            using var scope = _factory.Services.CreateScope();
+            var orchestrator = scope.ServiceProvider.GetRequiredService<IScheduleGenerationOrchestrator>();
+            var result = await orchestrator.GenerateAsync(
+                SchoolId, InfantilStageId, InfantilPeriodId, "2025-2026", 30, null, CancellationToken.None);
+
+            result.Should().BeOfType<GenerateScheduleResult.Success>();
+            var success = (GenerateScheduleResult.Success)result;
+            success.Status.Should().Be("generated");
+        }
+        finally
+        {
+            var restorePayload = new { modality = "estandar", scheduleType = "continua" };
+            await client.PostAsync("/api/dev/reseed",
+                new StringContent(JsonSerializer.Serialize(restorePayload), Encoding.UTF8, "application/json"));
+        }
     }
 }

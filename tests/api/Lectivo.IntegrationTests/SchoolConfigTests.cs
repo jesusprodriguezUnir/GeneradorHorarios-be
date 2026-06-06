@@ -230,7 +230,7 @@ public class SchoolConfigTests
             centerCode = "28099001",
             locality = "Alcalá de Henares",
             community = "madrid",
-            stage = "primaria",
+            stage = "primaria,infantil,secundaria",
             minCourseLevel = 1,
             maxCourseLevel = 6,
             academicYear = "2026/2027",

@@ -16,6 +16,8 @@ public static class DbInitializer
     private static readonly Guid InfantilStageId   = Guid.Parse("00000000-0000-0000-0000-000000000030");
     private static readonly Guid PrimariaStageId   = Guid.Parse("00000000-0000-0000-0000-000000000031");
     private static readonly Guid SecundariaStageId = Guid.Parse("00000000-0000-0000-0000-000000000032");
+    private static readonly Guid InfantilPeriodId  = Guid.Parse("00000000-0000-0000-0000-000000000022");
+    private static readonly Guid SecundariaPeriodId = Guid.Parse("00000000-0000-0000-0000-000000000023");
 
     private static readonly Dictionary<string, string> SubjectShortNames = new()
     {
@@ -131,7 +133,7 @@ public static class DbInitializer
             StageType = StageTypes.Infantil,
             Name      = "Educación Infantil",
             MinLevel  = 1,
-            MaxLevel  = 3,
+            MaxLevel  = 2,
             SortOrder = 0,
         };
         var secundariaStage = new SchoolStage
@@ -610,31 +612,32 @@ public static class DbInitializer
         db.TeacherStageAssignments.AddRange(stageAssignments);
 
         // ── Seed de Infantil y Secundaria (con datos completos) ──
-        SeedInfantilStage(db, infantilStage, infantilAllocations);
+        SeedInfantilStage(db, infantilStage, infantilAllocations, ingTeachers, opts);
         SeedSecundariaStage(db, secundariaStage, secundariaAllocations, musicTeacher, relTeacher);
 
         await db.SaveChangesAsync();
     }
 
     /// <summary>
-    /// Crea la estructura, aulas, profesores y asignaciones completas para Infantil.
+    /// Crea la estructura, aulas, profesores y asignaciones para el 1.er ciclo de Infantil (0-3 años).
     /// </summary>
-    private static void SeedInfantilStage(AppDbContext db, SchoolStage stage, List<SubjectAllocation> allocations)
+    private static void SeedInfantilStage(AppDbContext db, SchoolStage stage, List<SubjectAllocation> allocations, List<Teacher> ingTeachers, SeedOptions opts)
     {
+        var isPartida = opts.ScheduleType.Equals("partida", StringComparison.OrdinalIgnoreCase);
         var breaks = new List<(int AfterSlot, int Minutes)> { (2, LomloeMadrid.MinDailyBreakMinutes) }.AsReadOnly();
 
         var period = new SchoolPeriod
         {
-            Id = Guid.NewGuid(),
+            Id = InfantilPeriodId,
             SchoolId = SchoolId,
             StageId = stage.Id,
             Key = "ordinario",
             Name = "Jornada ordinaria",
             Months = "[10,11,12,1,2,3,4,5]",
-            ScheduleType = "continua",
+            ScheduleType = opts.ScheduleType,
             SlotMinutes = 60,
             SlotsPerDay = 5,
-            AfternoonSlots = 0,
+            AfternoonSlots = isPartida ? 2 : 0,
             IsDefault = true,
             SortOrder = 0,
         };
@@ -643,10 +646,10 @@ public static class DbInitializer
             totalSlots: 5,
             slotMinutes: 60,
             breaks: breaks,
-            afternoonSlots: 0,
+            afternoonSlots: isPartida ? 2 : 0,
             morningStart: new TimeOnly(9, 0),
-            afternoonStart: null,
-            isPartida: false);
+            afternoonStart: isPartida ? new TimeOnly(15, 0) : null,
+            isPartida: isPartida);
         var cs = new CycleSchedule
         {
             SchoolId       = SchoolId,
@@ -655,89 +658,77 @@ public static class DbInitializer
             Cycle          = 1,
             MorningStart   = new TimeOnly(9, 0),
             EndTime        = cycleEnd,
-            AfternoonStart = null,
+            AfternoonStart = isPartida ? new TimeOnly(15, 0) : null,
         };
         cs.Breaks.Add(new CycleBreak { CycleScheduleId = cs.Id, AfterSlot = 2, Minutes = LomloeMadrid.MinDailyBreakMinutes });
         period.Cycles.Add(cs);
         db.SchoolPeriods.Add(period);
 
-        // Aulas de Infantil
-        var classrooms = new List<Classroom>();
-        for (int level = 1; level <= 3; level++)
+        // Aulas de Infantil — 1.er ciclo (0-3 años): 2 aulas de 1-2 años + 2 aulas de 2-3 años
+        var classrooms = new List<Classroom>
         {
-            classrooms.Add(new Classroom
-            {
-                Id            = Guid.NewGuid(),
-                SchoolId      = SchoolId,
-                Name          = $"Aula Infantil {level + 2} años", // 3, 4, 5 años
-                ClassroomType = "regular",
-                Capacity      = 22,
-            });
-        }
+            new() { Id = Guid.NewGuid(), SchoolId = SchoolId, Name = "Aula 1-2 años A", ClassroomType = "regular", Capacity = 13 },
+            new() { Id = Guid.NewGuid(), SchoolId = SchoolId, Name = "Aula 1-2 años B", ClassroomType = "regular", Capacity = 13 },
+            new() { Id = Guid.NewGuid(), SchoolId = SchoolId, Name = "Aula 2-3 años A", ClassroomType = "regular", Capacity = 18 },
+            new() { Id = Guid.NewGuid(), SchoolId = SchoolId, Name = "Aula 2-3 años B", ClassroomType = "regular", Capacity = 18 },
+        };
         db.Classrooms.AddRange(classrooms);
 
-        // Profesores de Infantil
+        // Profesores tutores de Infantil (1 por aula)
         var infantilTutorNames = new[]
         {
-            ("Carmen Ruiz",  "carmen.ruiz"),
-            ("Rocío Gómez",  "rocio.gomez"),
-            ("Silvia Muñoz", "silvia.munoz"),
+            ("Carmen Ruiz",     "carmen.ruiz"),
+            ("Rocío Gómez",     "rocio.gomez"),
+            ("Silvia Muñoz",    "silvia.munoz"),
+            ("Isabel Castro",   "isabel.castro"),
         };
-        var teachers = new List<Teacher>();
-        for (int i = 0; i < 3; i++)
+
+        var teachers = infantilTutorNames.Select((t, i) => new Teacher
         {
-            var (name, email) = infantilTutorNames[i];
-            teachers.Add(new Teacher
-            {
-                Id             = Guid.NewGuid(),
-                SchoolId       = SchoolId,
-                FullName       = name,
-                Email          = $"{email}@ceip-miguel-hernandez.es",
-                TeacherType    = "definitivo",
-                MaxWeeklyHours = 25,
-                Specialties    = "[\"Generalista Infantil\"]",
-                ColorKey       = TutorColorKeys[i % TutorColorKeys.Length],
-            });
-        }
+            Id             = Guid.NewGuid(),
+            SchoolId       = SchoolId,
+            FullName       = t.Item1,
+            Email          = $"{t.Item2}@ceip-miguel-hernandez.es",
+            TeacherType    = "definitivo",
+            MaxWeeklyHours = 25,
+            Specialties    = "[\"Generalista Infantil\"]",
+            ColorKey       = TutorColorKeys[i % TutorColorKeys.Length],
+        }).ToList();
         db.Teachers.AddRange(teachers);
 
-        // Grupos de Infantil
-        var groups = new List<CourseGroup>();
-        for (int level = 1; level <= 3; level++)
+        // Grupos de Infantil: 4 grupos (2 × 1-2 años + 2 × 2-3 años)
+        var groups = new List<CourseGroup>
         {
-            groups.Add(new CourseGroup
-            {
-                Id              = Guid.NewGuid(),
-                SchoolId        = SchoolId,
-                StageId         = stage.Id,
-                CourseLevel     = level,
-                GroupLabel      = "A",
-                StudentCount    = 20,
-                TutorId         = teachers[level - 1].Id,
-                HomeClassroomId = classrooms[level - 1].Id,
-            });
-        }
+            new() { Id = Guid.NewGuid(), SchoolId = SchoolId, StageId = stage.Id, CourseLevel = 1, GroupLabel = "A", StudentCount = 13, TutorId = teachers[0].Id, HomeClassroomId = classrooms[0].Id },
+            new() { Id = Guid.NewGuid(), SchoolId = SchoolId, StageId = stage.Id, CourseLevel = 1, GroupLabel = "B", StudentCount = 13, TutorId = teachers[1].Id, HomeClassroomId = classrooms[1].Id },
+            new() { Id = Guid.NewGuid(), SchoolId = SchoolId, StageId = stage.Id, CourseLevel = 2, GroupLabel = "A", StudentCount = 18, TutorId = teachers[2].Id, HomeClassroomId = classrooms[2].Id },
+            new() { Id = Guid.NewGuid(), SchoolId = SchoolId, StageId = stage.Id, CourseLevel = 2, GroupLabel = "B", StudentCount = 18, TutorId = teachers[3].Id, HomeClassroomId = classrooms[3].Id },
+        };
         db.CourseGroups.AddRange(groups);
 
-        // Asignaciones de Infantil
+        // Asignaciones de Infantil (solo las 3 áreas: crec, desc, com)
         var allocByKey = allocations.ToDictionary(a => a.SubjectKey);
         var assignments = new List<Assignment>();
+
+        void AddAssignment(Guid teacherId, Guid groupId, SubjectAllocation alloc, int hours) =>
+            assignments.Add(new Assignment
+            {
+                Id          = Guid.NewGuid(),
+                SchoolId    = SchoolId,
+                TeacherId   = teacherId,
+                GroupId     = groupId,
+                AllocationId = alloc.Id,
+                WeeklyHours = hours,
+            });
 
         for (int i = 0; i < groups.Count; i++)
         {
             var group = groups[i];
             var tutor = teachers[i];
 
-            if (allocByKey.TryGetValue("crec", out var crecAlloc))
-                assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tutor.Id, GroupId = group.Id, AllocationId = crecAlloc.Id, WeeklyHours = 6 });
-            if (allocByKey.TryGetValue("desc", out var descAlloc))
-                assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tutor.Id, GroupId = group.Id, AllocationId = descAlloc.Id, WeeklyHours = 6 });
-            if (allocByKey.TryGetValue("com",  out var comAlloc))
-                assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tutor.Id, GroupId = group.Id, AllocationId = comAlloc.Id, WeeklyHours = 8 });
-            if (allocByKey.TryGetValue("ing",  out var ingAlloc))
-                assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tutor.Id, GroupId = group.Id, AllocationId = ingAlloc.Id, WeeklyHours = 2 });
-            if (allocByKey.TryGetValue("rel",  out var relAlloc))
-                assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tutor.Id, GroupId = group.Id, AllocationId = relAlloc.Id, WeeklyHours = 1 });
+            if (allocByKey.TryGetValue("crec", out var crecAlloc)) AddAssignment(tutor.Id, group.Id, crecAlloc, 8);
+            if (allocByKey.TryGetValue("desc", out var descAlloc)) AddAssignment(tutor.Id, group.Id, descAlloc, 7);
+            if (allocByKey.TryGetValue("com",  out var comAlloc))  AddAssignment(tutor.Id, group.Id, comAlloc, 8);
         }
         db.Assignments.AddRange(assignments);
 
@@ -767,7 +758,7 @@ public static class DbInitializer
 
         var period = new SchoolPeriod
         {
-            Id = Guid.NewGuid(),
+            Id = SecundariaPeriodId,
             SchoolId = SchoolId,
             StageId = stage.Id,
             Key = "ordinario",
@@ -829,7 +820,8 @@ public static class DbInitializer
             new() { Id = Guid.NewGuid(), SchoolId = SchoolId, FullName = "Francisco Javier",    Email = "francisco.javier@ceip-miguel-hernandez.es",    TeacherType = "definitivo", MaxWeeklyHours = 20, Specialties = "[\"Geografía e Historia\"]", ColorKey = "cie" },
             new() { Id = Guid.NewGuid(), SchoolId = SchoolId, FullName = "Teresa Castro",       Email = "teresa.castro@ceip-miguel-hernandez.es",       TeacherType = "definitivo", MaxWeeklyHours = 20, Specialties = "[\"Física y Química\",\"Biología\"]", ColorKey = "art" },
             new() { Id = Guid.NewGuid(), SchoolId = SchoolId, FullName = "Jorge García",        Email = "jorge.garcia@ceip-miguel-hernandez.es",        TeacherType = "definitivo", MaxWeeklyHours = 20, Specialties = "[\"Tecnología\",\"Educación Física\"]", ColorKey = "tut" },
-            new() { Id = Guid.NewGuid(), SchoolId = SchoolId, FullName = "María José",          Email = "maria.jose@ceip-miguel-hernandez.es",          TeacherType = "definitivo", MaxWeeklyHours = 20, Specialties = "[\"Inglés\"]", ColorKey = "ing" }
+            new() { Id = Guid.NewGuid(), SchoolId = SchoolId, FullName = "María José",          Email = "maria.jose@ceip-miguel-hernandez.es",          TeacherType = "definitivo", MaxWeeklyHours = 20, Specialties = "[\"Inglés\"]", ColorKey = "ing" },
+            new() { Id = Guid.NewGuid(), SchoolId = SchoolId, FullName = "Andrés Gómez",        Email = "andres.gomez@ceip-miguel-hernandez.es",        TeacherType = "definitivo", MaxWeeklyHours = 20, Specialties = "[\"Generalista\"]", ColorKey = "opt" }
         };
         db.Teachers.AddRange(secTeachers);
 
@@ -861,6 +853,7 @@ public static class DbInitializer
         var tSci = secTeachers[3];
         var tTec = secTeachers[4];
         var tIng = secTeachers[5];
+        var tOpt = secTeachers[6];
 
         foreach (var group in groups)
         {
@@ -892,7 +885,7 @@ public static class DbInitializer
                 if (allocByKey.TryGetValue("art", out var artAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tTec.Id, GroupId = group.Id, AllocationId = artAlloc.Id, WeeklyHours = 2 });
                 if (allocByKey.TryGetValue("mus", out var musAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = musicTeacher.Id, GroupId = group.Id, AllocationId = musAlloc.Id, WeeklyHours = 2 });
                 if (allocByKey.TryGetValue("rel", out var relAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = relTeacher.Id, GroupId = group.Id, AllocationId = relAlloc.Id, WeeklyHours = 2 });
-                if (allocByKey.TryGetValue("opt", out var optAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tMat.Id, GroupId = group.Id, AllocationId = optAlloc.Id, WeeklyHours = 2 });
+                if (allocByKey.TryGetValue("opt", out var optAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tOpt.Id, GroupId = group.Id, AllocationId = optAlloc.Id, WeeklyHours = 2 });
             }
             else if (lvl == 2)
             {
@@ -901,7 +894,7 @@ public static class DbInitializer
                 if (allocByKey.TryGetValue("art", out var artAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tTec.Id, GroupId = group.Id, AllocationId = artAlloc.Id, WeeklyHours = 2 });
                 if (allocByKey.TryGetValue("val", out var valAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tLen.Id, GroupId = group.Id, AllocationId = valAlloc.Id, WeeklyHours = 1 });
                 if (allocByKey.TryGetValue("rel", out var relAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = relTeacher.Id, GroupId = group.Id, AllocationId = relAlloc.Id, WeeklyHours = 1 });
-                if (allocByKey.TryGetValue("opt", out var optAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tMat.Id, GroupId = group.Id, AllocationId = optAlloc.Id, WeeklyHours = 2 });
+                if (allocByKey.TryGetValue("opt", out var optAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tOpt.Id, GroupId = group.Id, AllocationId = optAlloc.Id, WeeklyHours = 2 });
             }
             else if (lvl == 3)
             {
@@ -910,12 +903,12 @@ public static class DbInitializer
                 if (allocByKey.TryGetValue("tec", out var tecAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tTec.Id, GroupId = group.Id, AllocationId = tecAlloc.Id, WeeklyHours = 2 });
                 if (allocByKey.TryGetValue("mus", out var musAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = musicTeacher.Id, GroupId = group.Id, AllocationId = musAlloc.Id, WeeklyHours = 2 });
                 if (allocByKey.TryGetValue("rel", out var relAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = relTeacher.Id, GroupId = group.Id, AllocationId = relAlloc.Id, WeeklyHours = 1 });
-                if (allocByKey.TryGetValue("opt", out var optAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tMat.Id, GroupId = group.Id, AllocationId = optAlloc.Id, WeeklyHours = 2 });
+                if (allocByKey.TryGetValue("opt", out var optAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tOpt.Id, GroupId = group.Id, AllocationId = optAlloc.Id, WeeklyHours = 2 });
             }
             else if (lvl == 4)
             {
                 if (allocByKey.TryGetValue("rel", out var relAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = relTeacher.Id, GroupId = group.Id, AllocationId = relAlloc.Id, WeeklyHours = 2 });
-                if (allocByKey.TryGetValue("opt", out var optAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tMat.Id, GroupId = group.Id, AllocationId = optAlloc.Id, WeeklyHours = 11 }); // Materias optativas / de opción
+                if (allocByKey.TryGetValue("opt", out var optAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tOpt.Id, GroupId = group.Id, AllocationId = optAlloc.Id, WeeklyHours = 11 }); // Materias optativas / de opción
             }
         }
         db.Assignments.AddRange(assignments);

@@ -137,7 +137,7 @@ public sealed class UpdateSchoolHandler(IAppDbContext db, ISchoolRepository repo
                     case StageTypes.Infantil:
                         name = "Educación Infantil";
                         minLevel = 1;
-                        maxLevel = 3;
+                        maxLevel = 2;
                         sortOrder = 0;
                         slotsPerDay = 5;
                         morningStart = new TimeOnly(9, 0);
