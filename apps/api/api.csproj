@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <!-- Project references -->
+    <PackageReference Include="Serilog.Sinks.Seq" Version="9.1.0" />
     <ProjectReference Include="..\..\src\HorariosEscolares.Application\HorariosEscolares.Application.csproj" />
     <ProjectReference Include="..\..\src\HorariosEscolares.Infrastructure\HorariosEscolares.Infrastructure.csproj" />
 
@@ -33,7 +34,7 @@
 
     <!-- Serilog & Logging -->
     <PackageReference Include="Serilog.AspNetCore" Version="8.0.1" />
-    <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
 
     <!-- Redis Caching & Health Check -->
     <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="8.0.5" />

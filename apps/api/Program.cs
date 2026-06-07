@@ -143,6 +143,20 @@ if (!app.Environment.IsProduction())
 }
 
 app.UseCors("Frontend");
+
+app.Use(async (context, next) =>
+{
+    try
+    {
+        await next(context);
+    }
+    catch (UnauthorizedAccessException ex)
+    {
+        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        await context.Response.WriteAsJsonAsync(new { error = ex.Message });
+    }
+});
+
 app.UseMiddleware<DevAuthMiddleware>();
 
 // ── Endpoints por feature ─────────────────────────────────────────────────────

@@ -29,6 +29,19 @@ services:
       timeout: 5s
       retries: 5
 
+  seq:
+    image: datalust/seq:latest
+    container_name: lectivo-seq
+    environment:
+      - ACCEPT_EULA=Y
+      - SEQ_FIRSTRUN_ADMINPASSWORD=Lectivo_Dev_2024!
+    ports:
+      - "5341:5341"
+      - "8081:80"
+    volumes:
+      - seq-data:/data
+
 volumes:
   sqlserver-data:
   redis-data:
+  seq-data:

@@ -148,30 +148,74 @@ public sealed class UpdateTeacherHandler(IAppDbContext db, ICurrentUser user)
 
         if (request.SubjectHours is not null)
         {
-            t.SubjectHours.Clear();
-            foreach (var sh in request.SubjectHours)
+            var newHours = request.SubjectHours.ToDictionary(
+                sh => sh.SubjectKey.ToLower().Trim(),
+                sh => sh.WeeklyHours
+            );
+
+            // Eliminar las que ya no están
+            var toRemove = t.SubjectHours
+                .Where(sh => !newHours.ContainsKey(sh.SubjectKey))
+                .ToList();
+            foreach (var item in toRemove)
             {
-                t.SubjectHours.Add(new TeacherSubjectHour
+                t.SubjectHours.Remove(item);
+                db.TeacherSubjectHours.Remove(item);
+            }
+
+            // Actualizar existentes o añadir nuevas
+            foreach (var kvp in newHours)
+            {
+                var existing = t.SubjectHours.FirstOrDefault(sh => sh.SubjectKey == kvp.Key);
+                if (existing is not null)
                 {
-                    TeacherId = t.Id,
-                    SubjectKey = sh.SubjectKey.ToLower().Trim(),
-                    WeeklyHours = sh.WeeklyHours,
-                });
+                    existing.WeeklyHours = kvp.Value;
+                }
+                else
+                {
+                    var newHour = new TeacherSubjectHour
+                    {
+                        TeacherId = t.Id,
+                        SubjectKey = kvp.Key,
+                        WeeklyHours = kvp.Value,
+                    };
+                    t.SubjectHours.Add(newHour);
+                    db.TeacherSubjectHours.Add(newHour);
+                }
             }
         }
 
         if (request.StageAssignments is not null)
         {
-            // Replace all stage assignments
-            t.StageAssignments.Clear();
-            foreach (var sa in request.StageAssignments)
+            var newStages = request.StageAssignments
+                .Select(sa => new { sa.StageId, sa.Cycle })
+                .ToList();
+
+            // Eliminar las que ya no están
+            var toRemove = t.StageAssignments
+                .Where(sa => !newStages.Any(ns => ns.StageId == sa.StageId && ns.Cycle == sa.Cycle))
+                .ToList();
+            foreach (var item in toRemove)
             {
-                t.StageAssignments.Add(new TeacherStageAssignment
+                t.StageAssignments.Remove(item);
+                db.TeacherStageAssignments.Remove(item);
+            }
+
+            // Añadir las nuevas
+            foreach (var ns in newStages)
+            {
+                var exists = t.StageAssignments.Any(sa => sa.StageId == ns.StageId && sa.Cycle == ns.Cycle);
+                if (!exists)
                 {
-                    TeacherId = t.Id,
-                    StageId = sa.StageId,
-                    Cycle = sa.Cycle,
-                });
+                    var newStage = new TeacherStageAssignment
+                    {
+                        TeacherId = t.Id,
+                        StageId = ns.StageId,
+                        Cycle = ns.Cycle,
+                    };
+                    t.StageAssignments.Add(newStage);
+                    db.TeacherStageAssignments.Add(newStage);
+                }
             }
         }
 
