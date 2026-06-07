@@ -148,6 +148,21 @@ public static class ScheduleEndpoints
             }
         });
 
+        // POST /api/schedules/{id}/archive — archiva un horario
+        g.MapPost("/{id:guid}/archive", async (Guid id, HttpContext ctx, ISender sender) =>
+        {
+            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
+            try
+            {
+                var message = await sender.Send(new ArchiveScheduleCommand(id));
+                return Results.Ok(new { message });
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.Conflict(new { message = ex.Message });
+            }
+        });
+
         // DELETE /api/schedules/{id} — elimina un horario (no publicado)
         g.MapDelete("/{id:guid}", async (Guid id, HttpContext ctx, ISender sender) =>
         {
@@ -159,7 +174,7 @@ public static class ScheduleEndpoints
             }
             catch (InvalidOperationException ex)
             {
-                return Results.BadRequest(new { message = ex.Message });
+                return Results.Conflict(new { message = ex.Message });
             }
         });
 

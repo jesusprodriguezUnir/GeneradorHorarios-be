@@ -87,7 +87,8 @@ public static class DbInitializer
     {
         var isBilingue = opts.Modality.Equals("bilingue", StringComparison.OrdinalIgnoreCase);
         var isPartida  = opts.ScheduleType.Equals("partida", StringComparison.OrdinalIgnoreCase);
-        var totalGroups = opts.Levels * opts.LinesPerLevel;
+        var primariaLines = opts.PrimariaLines ?? opts.LinesPerLevel;
+        var totalPrimariaGroups = opts.Levels * primariaLines;
 
         SeedRoles(db);
 
@@ -368,7 +369,7 @@ public static class DbInitializer
 
         for (int level = 1; level <= opts.Levels; level++)
         {
-            for (int li = 0; li < opts.LinesPerLevel; li++)
+            for (int li = 0; li < primariaLines; li++)
             {
                 classrooms.Add(new Classroom
                 {
@@ -421,7 +422,7 @@ public static class DbInitializer
         };
 
         var tutors = new List<Teacher>();
-        for (int i = 0; i < Math.Min(totalGroups, tutorNames.Length); i++)
+        for (int i = 0; i < Math.Min(totalPrimariaGroups, tutorNames.Length); i++)
         {
             var (name, emailUser) = tutorNames[i];
             tutors.Add(new Teacher
@@ -566,7 +567,7 @@ public static class DbInitializer
 
         for (int level = 1; level <= opts.Levels; level++)
         {
-            for (int li = 0; li < opts.LinesPerLevel; li++)
+            for (int li = 0; li < primariaLines; li++)
             {
                 var tutor     = groupIdx < tutors.Count ? tutors[groupIdx] : null;
                 var classroom = groupIdx < regularClassrooms.Count ? regularClassrooms[groupIdx] : null;
@@ -690,6 +691,7 @@ public static class DbInitializer
     /// </summary>
     private static void SeedInfantilStage(AppDbContext db, SchoolStage stage, List<SubjectAllocation> allocations, List<Teacher> ingTeachers, SeedOptions opts)
     {
+        var infantilLines = opts.InfantilLines ?? opts.LinesPerLevel;
         var isPartida = opts.ScheduleType.Equals("partida", StringComparison.OrdinalIgnoreCase);
         var breaks = new List<(int AfterSlot, int Minutes)> { (2, LomloeMadrid.MinDailyBreakMinutes) }.AsReadOnly();
 
@@ -733,7 +735,7 @@ public static class DbInitializer
         char[] lineLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
         for (int level = 1; level <= 3; level++)
         {
-            for (int li = 0; li < opts.LinesPerLevel; li++)
+            for (int li = 0; li < infantilLines; li++)
             {
                 classrooms.Add(new Classroom
                 {
@@ -777,7 +779,7 @@ public static class DbInitializer
         };
 
         var teachers = new List<Teacher>();
-        int totalInfantilTutors = 3 * opts.LinesPerLevel;
+        int totalInfantilTutors = 3 * infantilLines;
         for (int i = 0; i < totalInfantilTutors; i++)
         {
             var (name, email) = i < infantilTutorNames.Length
@@ -803,7 +805,7 @@ public static class DbInitializer
         int groupIdx = 0;
         for (int level = 1; level <= 3; level++)
         {
-            for (int li = 0; li < opts.LinesPerLevel; li++)
+            for (int li = 0; li < infantilLines; li++)
             {
                 var tutor = teachers[groupIdx];
                 var classroom = classrooms[groupIdx];
@@ -890,7 +892,7 @@ public static class DbInitializer
         Teacher relTeacher,
         SeedOptions opts)
     {
-        var linesPerLevel = opts.LinesPerLevel;
+        var linesPerLevel = opts.SecundariaLines ?? opts.LinesPerLevel;
         char[] lineLabels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
         var breaks = new List<(int AfterSlot, int Minutes)> { (3, LomloeMadrid.MinDailyBreakMinutes) }.AsReadOnly();
 

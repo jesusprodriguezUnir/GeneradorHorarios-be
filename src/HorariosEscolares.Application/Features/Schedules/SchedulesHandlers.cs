@@ -54,6 +54,7 @@ public record GetMyScheduleQuery : IRequest<MyScheduleDto?>;
 public record PublishScheduleCommand(Guid ScheduleId) : IRequest<string>;
 public record UpdateScheduleEntryCommand(Guid ScheduleId, Guid EntryId, UpdateEntryRequest Request) : IRequest;
 public record DeleteScheduleCommand(Guid ScheduleId) : IRequest;
+public record ArchiveScheduleCommand(Guid ScheduleId) : IRequest<string>;
 
 public sealed class GetSchedulesListHandler(IAppDbContext db, ICurrentUser user)
     : IRequestHandler<GetSchedulesListQuery, List<ScheduleListDto>>
@@ -338,8 +339,26 @@ public sealed class DeleteScheduleHandler(IAppDbContext db, IScheduleRepository 
             .FirstOrDefaultAsync(s => s.Id == request.ScheduleId && s.SchoolId == user.SchoolId, ct);
         if (schedule is null) throw new NotFoundException("Schedule not found");
         if (schedule.Status == "published")
-            throw new InvalidOperationException("No se puede eliminar un horario publicado. Archívalo primero.");
+            throw new InvalidOperationException("No se puede eliminar un horario publicado.");
 
         await repository.DeleteAsync(schedule.Id, ct);
+    }
+}
+
+public sealed class ArchiveScheduleHandler(IAppDbContext db, ICurrentUser user)
+    : IRequestHandler<ArchiveScheduleCommand, string>
+{
+    public async Task<string> Handle(ArchiveScheduleCommand request, CancellationToken ct)
+    {
+        var schedule = await db.Schedules
+            .FirstOrDefaultAsync(s => s.Id == request.ScheduleId && s.SchoolId == user.SchoolId, ct);
+        if (schedule is null) throw new NotFoundException("Schedule not found");
+        if (schedule.Status == "published")
+            throw new InvalidOperationException("No se puede archivar un horario publicado.");
+
+        schedule.Status = "archived";
+        await db.SaveChangesAsync(ct);
+
+        return "Horario archivado.";
     }
 }
