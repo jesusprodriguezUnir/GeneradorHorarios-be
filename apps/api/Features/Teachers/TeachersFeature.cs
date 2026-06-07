@@ -45,6 +45,24 @@ public static class TeacherEndpoints
             }
         });
 
+        g.MapPut("/{id:guid}/assignments", async (Guid id, HttpContext ctx, ISender sender, UpdateTeacherAssignmentsCommand cmd) =>
+        {
+            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
+            try
+            {
+                var result = await sender.Send(cmd with { TeacherId = id });
+                return Results.Ok(result);
+            }
+            catch (NotFoundException)
+            {
+                return Results.NotFound();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.BadRequest(new { message = ex.Message });
+            }
+        });
+
         g.MapDelete("/{id:guid}", async (Guid id, HttpContext ctx, ISender sender) =>
         {
             if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);

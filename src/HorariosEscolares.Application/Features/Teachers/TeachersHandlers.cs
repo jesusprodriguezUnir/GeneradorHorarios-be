@@ -9,13 +9,17 @@ namespace HorariosEscolares.Application.Features.Teachers;
 public record StageAssignmentDto(Guid StageId, string StageName, string StageType, int? Cycle);
 public record SubjectHourDto(string SubjectKey, int WeeklyHours);
 public record SubjectHourInput(string SubjectKey, int WeeklyHours);
+public record TeacherAssignmentDto(Guid Id, Guid GroupId, string GroupDisplay, Guid AllocationId, string SubjectName, int WeeklyHours);
 
 public record TeacherDto(
     Guid Id, string FullName, string Email, string TeacherType,
     int MaxWeeklyHours, SubjectHourDto[] SubjectHours, string ColorKey,
-    int AssignedHours, StageAssignmentDto[] StageAssignments);
+    int AssignedHours, StageAssignmentDto[] StageAssignments,
+    TeacherAssignmentDto[] Assignments);
 
 public record StageAssignmentInput(Guid StageId, int? Cycle);
+public record TeacherAssignmentInput(Guid AllocationId, Guid GroupId, int WeeklyHours);
+public record UpdateTeacherAssignmentsCommand(Guid TeacherId, TeacherAssignmentInput[] Assignments) : IRequest<TeacherDto>;
 
 public record GetAllTeachersQuery : IRequest<List<TeacherDto>>;
 public record GetTeacherByIdQuery(Guid Id) : IRequest<TeacherDto?>;
@@ -245,9 +249,119 @@ public sealed class DeleteTeacherHandler(ITeacherRepository repository, ICurrent
     }
 }
 
+public sealed class UpdateTeacherAssignmentsHandler(IAppDbContext db, ICurrentUser user)
+    : IRequestHandler<UpdateTeacherAssignmentsCommand, TeacherDto>
+{
+    public async Task<TeacherDto> Handle(UpdateTeacherAssignmentsCommand request, CancellationToken ct)
+    {
+        // 1. Verificar que el profesor pertenece al centro
+        var teacherExists = await db.Teachers.AnyAsync(
+            t => t.Id == request.TeacherId && t.SchoolId == user.SchoolId, ct);
+        if (!teacherExists) throw new NotFoundException($"Teacher {request.TeacherId} not found");
+
+        // 2. Validar que todos los groupId y allocationId existen en el centro
+        if (request.Assignments.Length > 0)
+        {
+            var validGroupIds = (await db.CourseGroups.AsNoTracking()
+                .Where(g => g.SchoolId == user.SchoolId)
+                .Select(g => g.Id)
+                .ToListAsync(ct)).ToHashSet();
+
+            var validAllocationIds = (await db.SubjectAllocations.AsNoTracking()
+                .Select(a => a.Id)
+                .ToListAsync(ct)).ToHashSet();
+
+            var badGroup = request.Assignments.FirstOrDefault(a => !validGroupIds.Contains(a.GroupId));
+            if (badGroup is not null)
+                throw new InvalidOperationException($"Grupo no válido: {badGroup.GroupId}");
+
+            var badAlloc = request.Assignments.FirstOrDefault(a => !validAllocationIds.Contains(a.AllocationId));
+            if (badAlloc is not null)
+                throw new InvalidOperationException($"Asignatura no válida: {badAlloc.AllocationId}");
+        }
+
+        // 3. Cargar asignaciones actuales del profesor en este centro
+        var existing = await db.Assignments
+            .Where(a => a.TeacherId == request.TeacherId && a.SchoolId == user.SchoolId)
+            .ToListAsync(ct);
+
+        // 4. Sincronizar por clave (GroupId, AllocationId)
+        var newSet = request.Assignments.ToDictionary(a => (a.GroupId, a.AllocationId));
+
+        // Eliminar las que ya no están
+        var toRemove = existing
+            .Where(e => !newSet.ContainsKey((e.GroupId, e.AllocationId)))
+            .ToList();
+        db.Assignments.RemoveRange(toRemove);
+
+        // Actualizar existentes o añadir nuevas
+        foreach (var input in request.Assignments)
+        {
+            var match = existing.FirstOrDefault(
+                e => e.GroupId == input.GroupId && e.AllocationId == input.AllocationId);
+            if (match is not null)
+            {
+                match.WeeklyHours = input.WeeklyHours;
+            }
+            else
+            {
+                db.Assignments.Add(new Assignment
+                {
+                    SchoolId = user.SchoolId,
+                    TeacherId = request.TeacherId,
+                    GroupId = input.GroupId,
+                    AllocationId = input.AllocationId,
+                    WeeklyHours = input.WeeklyHours,
+                });
+            }
+        }
+
+        await db.SaveChangesAsync(ct);
+
+        // 5. Recomponer TeacherDto con assignments finales
+        var teacher = await db.Teachers.AsNoTracking()
+            .Include(x => x.StageAssignments)
+            .Include(x => x.SubjectHours)
+            .FirstOrDefaultAsync(x => x.Id == request.TeacherId, ct);
+
+        var finalAssignments = await db.Assignments.AsNoTracking()
+            .Where(a => a.TeacherId == request.TeacherId && a.SchoolId == user.SchoolId)
+            .ToListAsync(ct);
+
+        var assignedHours = finalAssignments.Sum(a => a.WeeklyHours);
+
+        var groupIds = finalAssignments.Select(a => a.GroupId).ToHashSet();
+        var groupNames = await db.CourseGroups.AsNoTracking()
+            .Where(g => groupIds.Contains(g.Id))
+            .ToDictionaryAsync(g => g.Id, g => g.DisplayName, ct);
+
+        var allocationIds = finalAssignments.Select(a => a.AllocationId).ToHashSet();
+        var allocationNames = await db.SubjectAllocations.AsNoTracking()
+            .Where(s => allocationIds.Contains(s.Id))
+            .ToDictionaryAsync(s => s.Id, s => s.SubjectName, ct);
+
+        var assignmentDtos = finalAssignments.Select(a => new TeacherAssignmentDto(
+            a.Id,
+            a.GroupId,
+            groupNames.GetValueOrDefault(a.GroupId, "?"),
+            a.AllocationId,
+            allocationNames.GetValueOrDefault(a.AllocationId, "?"),
+            a.WeeklyHours
+        )).ToArray();
+
+        var stageIds = teacher!.StageAssignments.Select(sa => sa.StageId).Distinct();
+        var stagesMap = await db.SchoolStages.AsNoTracking()
+            .Where(s => stageIds.Contains(s.Id))
+            .ToDictionaryAsync(s => s.Id, ct);
+
+        return TeacherMapper.ToDto(teacher, assignedHours, stagesMap, assignmentDtos);
+    }
+}
+
 static class TeacherMapper
 {
-    public static TeacherDto ToDto(Teacher t, int assignedHours, Dictionary<Guid, SchoolStage> stagesMap)
+    public static TeacherDto ToDto(Teacher t, int assignedHours, Dictionary<Guid, SchoolStage> stagesMap,
+        TeacherAssignmentDto[]? assignments = null)
     {
         var subjectHours = t.SubjectHours
             .Select(sh => new SubjectHourDto(sh.SubjectKey, sh.WeeklyHours))
@@ -266,6 +380,7 @@ static class TeacherMapper
             .ToArray();
 
         return new(t.Id, t.FullName, t.Email, t.TeacherType,
-            t.MaxWeeklyHours, subjectHours, t.ColorKey, assignedHours, stageAssignments);
+            t.MaxWeeklyHours, subjectHours, t.ColorKey, assignedHours, stageAssignments,
+            assignments ?? []);
     }
 }
