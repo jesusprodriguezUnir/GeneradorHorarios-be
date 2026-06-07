@@ -40,12 +40,14 @@ public sealed class InfantilNormative : IStageNormative
     public int MinDailyBreakMinutes => 30;
     public IReadOnlyList<SubjectNorm> GetSubjects(string modality)
     {
-        return
-        [
-            new("crec", "Crecimiento en Armonía",                     MinH: 5, MaxH: 10, DefaultH: 8),
-            new("desc", "Descubrimiento y Exploración del Entorno",    MinH: 4, MaxH: 9, DefaultH: 7),
-            new("com",  "Comunicación y Representación de la Realidad", MinH: 5, MaxH: 10, DefaultH: 8),
-        ];
+        var list = new List<SubjectNorm>();
+        for (int cycle = 1; cycle <= 2; cycle++)
+        {
+            list.Add(new("crec", "Crecimiento en Armonía",                     MinH: 5, MaxH: 10, DefaultH: 8, Cycle: cycle));
+            list.Add(new("desc", "Descubrimiento y Exploración del Entorno",    MinH: 4, MaxH: 9, DefaultH: 7, Cycle: cycle));
+            list.Add(new("com",  "Comunicación y Representación de la Realidad", MinH: 5, MaxH: 10, DefaultH: 8, Cycle: cycle));
+        }
+        return list;
     }
 }
 
@@ -64,29 +66,44 @@ public sealed class SecundariaNormative : IStageNormative
     public IReadOnlyList<SubjectNorm> GetSubjects(string modality)
     {
         var isBilingue = modality.Equals("bilingue", StringComparison.OrdinalIgnoreCase);
-        return
-        [
-            new("len", "Lengua Castellana y Literatura",             MinH: 4, MaxH: 6, DefaultH: 4),
-            new("mat", "Matemáticas",                                MinH: 3, MaxH: 5, DefaultH: 4),
-            new("ing", "Primera Lengua Extranjera (Inglés)",         MinH: isBilingue ? 4 : 3, MaxH: isBilingue ? 6 : 5, DefaultH: isBilingue ? 5 : 3,
-                RequiresSpecialist: true),
-            new("gh",  "Geografía e Historia",                       MinH: 3, MaxH: 4, DefaultH: 3),
-            new("ef",  "Educación Física",                           MinH: 2, MaxH: 3, DefaultH: 2,
-                RequiresSpecialist: true, RequiredClassroomType: "gym", MaxConsecutiveSlots: 1),
-            new("bg",  "Biología y Geología",                        MinH: 0, MaxH: 3, DefaultH: 2),
-            new("fq",  "Física y Química",                           MinH: 0, MaxH: 3, DefaultH: 3),
-            new("tec", "Tecnología y Digitalización",                MinH: 0, MaxH: 3, DefaultH: 2),
-            new("art", "Educación Plástica, Visual y Audiovisual",    MinH: 0, MaxH: 2, DefaultH: 2),
-            new("mus", "Música",                                     MinH: 0, MaxH: 2, DefaultH: 2,
-                RequiresSpecialist: true, RequiredClassroomType: "music", MaxConsecutiveSlots: 1, Splittable: false),
-            new("val", "Educación en Valores Cívicos y Éticos",      MinH: 0, MaxH: 2, DefaultH: 1,
-                MaxConsecutiveSlots: 1, Splittable: false),
-            new("rel", "Religión o Atención Educativa",              MinH: 0, MaxH: 2, DefaultH: 1,
-                MaxConsecutiveSlots: 1, Splittable: false),
-            new("opt", "Materias de Opción / Optativas",             MinH: 0, MaxH: 12, DefaultH: 2),
-            new("tut", "Tutoría",                                    MinH: 1, MaxH: 1, DefaultH: 1,
-                MaxConsecutiveSlots: 1, Splittable: false)
-        ];
+        var list = new List<SubjectNorm>();
+        for (int course = 1; course <= 4; course++)
+        {
+            // Materias comunes a todos los cursos de ESO
+            list.Add(new("len", "Lengua Castellana y Literatura",             MinH: 4, MaxH: 6, DefaultH: course == 1 || course == 2 ? 5 : 4, CourseLevel: course));
+            list.Add(new("mat", "Matemáticas",                                MinH: 3, MaxH: 5, DefaultH: 4, CourseLevel: course));
+            list.Add(new("ing", "Primera Lengua Extranjera (Inglés)",         MinH: isBilingue ? 4 : 3, MaxH: isBilingue ? 6 : 5, DefaultH: isBilingue ? 5 : (course == 1 || course == 2 ? 4 : 4), RequiresSpecialist: true, CourseLevel: course));
+            list.Add(new("gh",  "Geografía e Historia",                       MinH: 3, MaxH: 4, DefaultH: 3, CourseLevel: course));
+            list.Add(new("ef",  "Educación Física",                           MinH: 2, MaxH: 3, DefaultH: 2, RequiresSpecialist: true, RequiredClassroomType: "gym", MaxConsecutiveSlots: 1, CourseLevel: course));
+            list.Add(new("tut", "Tutoría",                                    MinH: 1, MaxH: 1, DefaultH: 1, MaxConsecutiveSlots: 1, Splittable: false, CourseLevel: course));
+            list.Add(new("rel", "Religión o Atención Educativa",              MinH: 1, MaxH: 2, DefaultH: course == 1 ? 2 : 1, MaxConsecutiveSlots: 1, Splittable: false, CourseLevel: course));
+            list.Add(new("opt", "Materias de Opción / Optativas",             MinH: 2, MaxH: 12, DefaultH: course == 4 ? 11 : 2, CourseLevel: course));
+
+            // Materias específicas por nivel
+            if (course == 1)
+            {
+                list.Add(new("bg",  "Biología y Geología",                        MinH: 2, MaxH: 3, DefaultH: 3, CourseLevel: course));
+                list.Add(new("art", "Educación Plástica, Visual y Audiovisual",    MinH: 2, MaxH: 2, DefaultH: 2, CourseLevel: course));
+                list.Add(new("mus", "Música",                                     MinH: 2, MaxH: 2, DefaultH: 2, RequiresSpecialist: true, RequiredClassroomType: "music", MaxConsecutiveSlots: 1, Splittable: false, CourseLevel: course));
+            }
+            else if (course == 2)
+            {
+                list.Add(new("fq",  "Física y Química",                           MinH: 2, MaxH: 3, DefaultH: 3, CourseLevel: course));
+                list.Add(new("tec", "Tecnología y Digitalización",                MinH: 2, MaxH: 3, DefaultH: 3, CourseLevel: course));
+                list.Add(new("art", "Educación Plástica, Visual y Audiovisual",    MinH: 2, MaxH: 2, DefaultH: 2, CourseLevel: course));
+                list.Add(new("val", "Educación en Valores Cívicos y Éticos",      MinH: 1, MaxH: 2, DefaultH: 1, MaxConsecutiveSlots: 1, Splittable: false, CourseLevel: course));
+                list.Add(new("mus", "Música",                                     MinH: 2, MaxH: 2, DefaultH: 2, RequiresSpecialist: true, RequiredClassroomType: "music", MaxConsecutiveSlots: 1, Splittable: false, CourseLevel: course));
+            }
+            else if (course == 3)
+            {
+                list.Add(new("bg",  "Biología y Geología",                        MinH: 2, MaxH: 3, DefaultH: 2, CourseLevel: course));
+                list.Add(new("fq",  "Física y Química",                           MinH: 2, MaxH: 3, DefaultH: 2, CourseLevel: course));
+                list.Add(new("tec", "Tecnología y Digitalización",                MinH: 2, MaxH: 3, DefaultH: 2, CourseLevel: course));
+                list.Add(new("mus", "Música",                                     MinH: 2, MaxH: 2, DefaultH: 2, RequiresSpecialist: true, RequiredClassroomType: "music", MaxConsecutiveSlots: 1, Splittable: false, CourseLevel: course));
+            }
+            // En 4º ESO (course == 4), las materias adicionales van incluidas en "opt" (Materias de Opción) de 11h.
+        }
+        return list;
     }
 }
 

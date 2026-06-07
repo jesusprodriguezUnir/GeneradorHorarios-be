@@ -151,6 +151,8 @@ public class SubjectAllocation
     public int MaxConsecutiveSlots { get; set; } = 2;
     public bool SplittableAcrossDays { get; set; } = true;
     public bool IsOfficial { get; set; } = true;
+    public int? Cycle { get; set; }
+    public int? CourseLevel { get; set; }
 }
 
 public class CourseGroup

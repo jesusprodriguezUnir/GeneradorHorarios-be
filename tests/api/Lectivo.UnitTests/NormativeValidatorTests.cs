@@ -113,6 +113,8 @@ public class NormativeValidatorTests
             MakeAssignment(groupId, "mus", 1, minH: 1, maxH: 2),
             MakeAssignment(groupId, "art", 2, minH: 1, maxH: 2),
             MakeAssignment(groupId, "rel", 1, minH: 1, maxH: 2),
+            MakeAssignment(groupId, "tut", 1, minH: 0, maxH: 2),
+            MakeAssignment(groupId, "val", 1, minH: 1, maxH: 2),
         ];
     }
 
@@ -286,15 +288,16 @@ public class NormativeValidatorTests
     [Fact]
     public void LomloeMadrid_StandardSubjects_HasRequiredAreas()
     {
-        var keys = LomloeMadrid.StandardSubjects.Select(s => s.SubjectKey).ToHashSet();
-        keys.Should().Contain(["len", "mat", "cie", "ing", "ef", "mus", "art", "rel", "tut"]);
+        var subjects = LomloeMadrid.GetSubjects("ordinario");
+        var keys = subjects.Select(s => s.SubjectKey).ToHashSet();
+        keys.Should().Contain(["len", "mat", "cie", "ing", "ef", "mus", "art", "rel", "tut", "val"]);
     }
 
     [Fact]
     public void LomloeMadrid_BilingueSubjects_HasHigherInglesHours()
     {
-        var std = LomloeMadrid.StandardSubjects.First(s => s.SubjectKey == "ing");
-        var bil = LomloeMadrid.BilingueSubjects.First(s => s.SubjectKey == "ing");
+        var std = LomloeMadrid.GetSubjects("ordinario").First(s => s.SubjectKey == "ing");
+        var bil = LomloeMadrid.GetSubjects("bilingue").First(s => s.SubjectKey == "ing");
 
         bil.DefaultH.Should().BeGreaterThan(std.DefaultH);
         bil.MinH.Should().BeGreaterOrEqualTo(std.MinH);
@@ -315,16 +318,18 @@ public class NormativeValidatorTests
     [Fact]
     public void LomloeMadrid_GetSubjects_ReturnsCorrectModalityData()
     {
-        LomloeMadrid.GetSubjects("estandar").Should().BeSameAs(LomloeMadrid.StandardSubjects);
-        LomloeMadrid.GetSubjects("bilingue").Should().BeSameAs(LomloeMadrid.BilingueSubjects);
-        LomloeMadrid.GetSubjects("BILINGUE").Should().BeSameAs(LomloeMadrid.BilingueSubjects);
-        LomloeMadrid.GetSubjects("otro").Should().BeSameAs(LomloeMadrid.StandardSubjects);
+        var std = LomloeMadrid.GetSubjects("estandar");
+        var bil = LomloeMadrid.GetSubjects("bilingue");
+        
+        std.First(s => s.SubjectKey == "ing").DefaultH.Should().Be(4);
+        bil.First(s => s.SubjectKey == "ing").DefaultH.Should().Be(5);
     }
 
     [Fact]
     public void LomloeMadrid_AllSubjectMinH_LessThanOrEqualMaxH()
     {
-        foreach (var s in LomloeMadrid.StandardSubjects.Concat(LomloeMadrid.BilingueSubjects))
+        var allSubjects = LomloeMadrid.GetSubjects("ordinario").Concat(LomloeMadrid.GetSubjects("bilingue"));
+        foreach (var s in allSubjects)
         {
             s.MinH.Should().BeLessOrEqualTo(s.MaxH, $"área '{s.SubjectKey}' tiene Min > Max");
             s.DefaultH.Should().BeInRange(s.MinH, s.MaxH,

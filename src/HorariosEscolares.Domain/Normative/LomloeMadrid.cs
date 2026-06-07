@@ -11,50 +11,35 @@ public static class LomloeMadrid
     public const string Stage = "primaria";
     public const string Community = "madrid";
 
-    public static readonly IReadOnlyList<SubjectNorm> StandardSubjects =
-    [
-        new("len", "Lengua Castellana y Literatura",                MinH: 4, MaxH: 6, DefaultH: 5),
-        new("mat", "Matemáticas",                                   MinH: 4, MaxH: 6, DefaultH: 5),
-        new("cie", "Conocimiento del Medio Natural, Social y Cultural", MinH: 3, MaxH: 4, DefaultH: 3),
-        new("ing", "Primera Lengua Extranjera (Inglés)",            MinH: 3, MaxH: 5, DefaultH: 4,
-            RequiresSpecialist: true),
-        new("ef",  "Educación Física",                              MinH: 2, MaxH: 3, DefaultH: 3,
-            RequiresSpecialist: true, RequiredClassroomType: "gym",
-            MaxConsecutiveSlots: 1),
-        new("mus", "Educación Artística — Música",                  MinH: 1, MaxH: 2, DefaultH: 1,
-            RequiresSpecialist: true, RequiredClassroomType: "music",
-            MaxConsecutiveSlots: 1, Splittable: false),
-        new("art", "Educación Artística — Plástica y Visual",       MinH: 1, MaxH: 2, DefaultH: 2),
-        new("rel", "Religión / Valores Sociales y Cívicos",         MinH: 1, MaxH: 2, DefaultH: 1,
-            MaxConsecutiveSlots: 1, Splittable: false),
-        new("tut", "Libre Configuración del Centro",                MinH: 0, MaxH: 2, DefaultH: 1),
-    ];
+    public static IReadOnlyList<SubjectNorm> GetSubjects(string modality)
+    {
+        var isBilingue = modality.Equals("bilingue", StringComparison.OrdinalIgnoreCase);
+        var list = new List<SubjectNorm>();
+        
+        for (int cycle = 1; cycle <= 3; cycle++)
+        {
+            list.Add(new("len", "Lengua Castellana y Literatura", MinH: 4, MaxH: 6, DefaultH: 5, Cycle: cycle));
+            list.Add(new("mat", "Matemáticas", MinH: 4, MaxH: 6, DefaultH: 5, Cycle: cycle));
+            list.Add(new("cie", "Conocimiento del Medio Natural, Social y Cultural", MinH: 3, MaxH: 4, DefaultH: 3, Cycle: cycle));
+            list.Add(new("ing", "Primera Lengua Extranjera (Inglés)", MinH: isBilingue ? 4 : 3, MaxH: isBilingue ? 6 : 5, DefaultH: isBilingue ? 5 : 4, RequiresSpecialist: true, Cycle: cycle));
+            list.Add(new("ef",  "Educación Física", MinH: 2, MaxH: 3, DefaultH: 3, RequiresSpecialist: true, RequiredClassroomType: "gym", MaxConsecutiveSlots: 1, Cycle: cycle));
+            list.Add(new("mus", "Educación Artística — Música", MinH: 1, MaxH: 2, DefaultH: 1, RequiresSpecialist: true, RequiredClassroomType: "music", MaxConsecutiveSlots: 1, Splittable: false, Cycle: cycle));
+            list.Add(new("art", "Educación Artística — Plástica y Visual", MinH: 1, MaxH: 2, DefaultH: 2, Cycle: cycle));
+            list.Add(new("rel", "Religión / Atención Educativa", MinH: 1, MaxH: 2, DefaultH: 1, MaxConsecutiveSlots: 1, Splittable: false, Cycle: cycle));
+            
+            if (cycle == 3)
+            {
+                list.Add(new("val", "Educación en Valores Cívicos y Éticos", MinH: 1, MaxH: 2, DefaultH: 1, MaxConsecutiveSlots: 1, Splittable: false, Cycle: cycle));
+            }
+            if (!isBilingue)
+            {
+                list.Add(new("tut", "Libre Configuración del Centro", MinH: 0, MaxH: 2, DefaultH: 1, Cycle: cycle));
+            }
+        }
+        return list;
+    }
 
-    public static readonly IReadOnlyList<SubjectNorm> BilingueSubjects =
-    [
-        new("len", "Lengua Castellana y Literatura",                MinH: 4, MaxH: 6, DefaultH: 5),
-        new("mat", "Matemáticas",                                   MinH: 4, MaxH: 6, DefaultH: 5),
-        new("cie", "Conocimiento del Medio Natural, Social y Cultural", MinH: 3, MaxH: 4, DefaultH: 3),
-        new("ing", "Primera Lengua Extranjera (Inglés)",            MinH: 4, MaxH: 6, DefaultH: 5,
-            RequiresSpecialist: true),
-        new("ef",  "Educación Física",                              MinH: 2, MaxH: 3, DefaultH: 3,
-            RequiresSpecialist: true, RequiredClassroomType: "gym",
-            MaxConsecutiveSlots: 1),
-        new("mus", "Educación Artística — Música",                  MinH: 1, MaxH: 2, DefaultH: 1,
-            RequiresSpecialist: true, RequiredClassroomType: "music",
-            MaxConsecutiveSlots: 1, Splittable: false),
-        new("art", "Educación Artística — Plástica y Visual",       MinH: 1, MaxH: 2, DefaultH: 2),
-        new("rel", "Religión / Valores Sociales y Cívicos",         MinH: 1, MaxH: 2, DefaultH: 1,
-            MaxConsecutiveSlots: 1, Splittable: false),
-    ];
-
-    public static IReadOnlyList<SubjectNorm> GetSubjects(string modality) =>
-        modality.Equals("bilingue", StringComparison.OrdinalIgnoreCase)
-            ? BilingueSubjects
-            : StandardSubjects;
-
-    public static int DefaultWeeklyHours(string modality) =>
-        GetSubjects(modality).Sum(s => s.DefaultH);
+    public static int DefaultWeeklyHours(string modality) => 25; // approximated or we can compute by cycle 1. We just return a constant since it varies by cycle now.
 
     public static bool MeetsLectiveMinimum(decimal weeklyHours) =>
         weeklyHours >= MinWeeklyLectiveHours;
@@ -69,4 +54,6 @@ public record SubjectNorm(
     bool RequiresSpecialist = false,
     string? RequiredClassroomType = null,
     int MaxConsecutiveSlots = 2,
-    bool Splittable = true);
+    bool Splittable = true,
+    int? Cycle = null,
+    int? CourseLevel = null);

@@ -300,6 +300,8 @@ public static class DbInitializer
             RequiredClassroomType = n.RequiredClassroomType,
             MaxConsecutiveSlots  = n.MaxConsecutiveSlots,
             SplittableAcrossDays = n.Splittable,
+            Cycle                = n.Cycle,
+            CourseLevel          = n.CourseLevel,
         }).ToList();
         db.SubjectAllocations.AddRange(allocations);
 
@@ -330,6 +332,8 @@ public static class DbInitializer
             RequiredClassroomType = n.RequiredClassroomType,
             MaxConsecutiveSlots  = n.MaxConsecutiveSlots,
             SplittableAcrossDays = n.Splittable,
+            Cycle                = n.Cycle,
+            CourseLevel          = n.CourseLevel,
         }).ToList();
         db.SubjectAllocations.AddRange(infantilAllocations);
 
@@ -360,10 +364,10 @@ public static class DbInitializer
             RequiredClassroomType = n.RequiredClassroomType,
             MaxConsecutiveSlots  = n.MaxConsecutiveSlots,
             SplittableAcrossDays = n.Splittable,
+            Cycle                = n.Cycle,
+            CourseLevel          = n.CourseLevel,
         }).ToList();
         db.SubjectAllocations.AddRange(secundariaAllocations);
-
-        var allocByKey = allocations.ToDictionary(a => a.SubjectKey);
 
         var classrooms = new List<Classroom>();
         char[] lineLabels = ['A', 'B', 'C', 'D', 'E'];
@@ -599,27 +603,37 @@ public static class DbInitializer
         int ingSlots   = isBilingue ? 5 : 4;
         int ingMod     = isBilingue ? 5 : 3;
 
+        SubjectAllocation? GetAlloc(string key, int courseLevel)
+        {
+            int cycle = (courseLevel + 1) / 2;
+            return allocations.FirstOrDefault(a => a.SubjectKey == key && (a.Cycle == cycle || a.CourseLevel == courseLevel))
+                ?? allocations.FirstOrDefault(a => a.SubjectKey == key);
+        }
+
         for (int gi = 0; gi < groups.Count; gi++)
         {
             var group     = groups[gi];
             var tutor     = tutors[gi % tutors.Count];
 
-            if (allocByKey.TryGetValue("len", out var lenAlloc)) AddAssignment(tutor.Id, group.Id, lenAlloc, 5);
-            if (allocByKey.TryGetValue("mat", out var matAlloc)) AddAssignment(tutor.Id, group.Id, matAlloc, 5);
-            if (allocByKey.TryGetValue("cie", out var cieAlloc)) AddAssignment(tutor.Id, group.Id, cieAlloc, 3);
-            if (allocByKey.TryGetValue("art", out var artAlloc)) AddAssignment(tutor.Id, group.Id, artAlloc, 2);
+            var lenAlloc = GetAlloc("len", group.CourseLevel); if (lenAlloc != null) AddAssignment(tutor.Id, group.Id, lenAlloc, 5);
+            var matAlloc = GetAlloc("mat", group.CourseLevel); if (matAlloc != null) AddAssignment(tutor.Id, group.Id, matAlloc, 5);
+            var cieAlloc = GetAlloc("cie", group.CourseLevel); if (cieAlloc != null) AddAssignment(tutor.Id, group.Id, cieAlloc, 3);
+            var artAlloc = GetAlloc("art", group.CourseLevel); if (artAlloc != null) AddAssignment(tutor.Id, group.Id, artAlloc, 2);
 
-            if (allocByKey.TryGetValue("ing", out var ingAlloc))
+            var ingAlloc = GetAlloc("ing", group.CourseLevel); if (ingAlloc != null)
                 AddAssignment(ingTeachers[gi % ingMod].Id, group.Id, ingAlloc, ingSlots);
 
-            if (allocByKey.TryGetValue("ef", out var efAlloc))
+            var efAlloc = GetAlloc("ef", group.CourseLevel); if (efAlloc != null)
                 AddAssignment(efTeachers[gi % efTeachers.Count].Id, group.Id, efAlloc, 3);
 
-            if (allocByKey.TryGetValue("mus", out var musAlloc))
+            var musAlloc = GetAlloc("mus", group.CourseLevel); if (musAlloc != null)
                 AddAssignment(musicTeacher.Id, group.Id, musAlloc, 1);
 
-            if (allocByKey.TryGetValue("rel", out var relAlloc))
+            var relAlloc = GetAlloc("rel", group.CourseLevel); if (relAlloc != null)
                 AddAssignment(relTeacher.Id, group.Id, relAlloc, 1);
+                
+            var valAlloc = GetAlloc("val", group.CourseLevel); if (valAlloc != null)
+                AddAssignment(tutor.Id, group.Id, valAlloc, 1);
         }
         db.Assignments.AddRange(assignments);
 
@@ -849,7 +863,12 @@ public static class DbInitializer
         db.CourseGroups.AddRange(groups);
 
         // Asignaciones de Infantil (crec, desc, com, ing, rel)
-        var allocByKey = allocations.ToDictionary(a => a.SubjectKey);
+        SubjectAllocation? GetAlloc(string key, int cycle)
+        {
+            return allocations.FirstOrDefault(a => a.SubjectKey == key && a.Cycle == cycle)
+                ?? allocations.FirstOrDefault(a => a.SubjectKey == key && a.Cycle == null);
+        }
+
         var assignments = new List<Assignment>();
 
         void AddAssignment(Guid teacherId, Guid groupId, SubjectAllocation alloc, int hours) =>
@@ -868,15 +887,16 @@ public static class DbInitializer
             var group = groups[i];
             var tutor = teachers[i];
 
-            if (allocByKey.TryGetValue("crec", out var crecAlloc)) AddAssignment(tutor.Id, group.Id, crecAlloc, 6);
-            if (allocByKey.TryGetValue("desc", out var descAlloc)) AddAssignment(tutor.Id, group.Id, descAlloc, 6);
-            if (allocByKey.TryGetValue("com",  out var comAlloc))  AddAssignment(tutor.Id, group.Id, comAlloc, 8);
-            if (allocByKey.TryGetValue("ing",  out var ingAlloc))
+            var crecAlloc = GetAlloc("crec", 2); if (crecAlloc != null) AddAssignment(tutor.Id, group.Id, crecAlloc, 6);
+            var descAlloc = GetAlloc("desc", 2); if (descAlloc != null) AddAssignment(tutor.Id, group.Id, descAlloc, 6);
+            var comAlloc  = GetAlloc("com", 2);  if (comAlloc != null)  AddAssignment(tutor.Id, group.Id, comAlloc, 8);
+            
+            var ingAlloc  = GetAlloc("ing", 2);  if (ingAlloc != null)
             {
                 var ingTeacher = ingTeachers[i % ingTeachers.Count];
                 AddAssignment(ingTeacher.Id, group.Id, ingAlloc, 2);
             }
-            if (allocByKey.TryGetValue("rel",  out var relAlloc)) AddAssignment(tutor.Id, group.Id, relAlloc, 1);
+            var relAlloc  = GetAlloc("rel", 2);  if (relAlloc != null) AddAssignment(tutor.Id, group.Id, relAlloc, 1);
         }
         db.Assignments.AddRange(assignments);
 
@@ -1034,7 +1054,12 @@ public static class DbInitializer
         db.CourseGroups.AddRange(groups);
 
         // Asignaciones: cada grupo usa el equipo de su línea (gi % linesPerLevel)
-        var allocByKey   = allocations.ToDictionary(a => a.SubjectKey);
+        SubjectAllocation? GetAlloc(string key, int courseLevel)
+        {
+            return allocations.FirstOrDefault(a => a.SubjectKey == key && a.CourseLevel == courseLevel)
+                ?? allocations.FirstOrDefault(a => a.SubjectKey == key && a.CourseLevel == null);
+        }
+        
         var assignments  = new List<Assignment>();
 
         for (int gi = 0; gi < groups.Count; gi++)
@@ -1048,55 +1073,55 @@ public static class DbInitializer
             var tOpt = team[6];
 
             // Materias comunes a todos los niveles
-            if (allocByKey.TryGetValue("len", out var lenAlloc))
+            var lenAlloc = GetAlloc("len", lvl); if (lenAlloc != null)
                 assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tLen.Id, GroupId = group.Id, AllocationId = lenAlloc.Id, WeeklyHours = lvl == 1 ? 5 : 4 });
 
-            if (allocByKey.TryGetValue("mat", out var matAlloc))
+            var matAlloc = GetAlloc("mat", lvl); if (matAlloc != null)
                 assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tMat.Id, GroupId = group.Id, AllocationId = matAlloc.Id, WeeklyHours = 4 });
 
-            if (allocByKey.TryGetValue("ing", out var ingAlloc))
+            var ingAlloc = GetAlloc("ing", lvl); if (ingAlloc != null)
                 assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tIng.Id, GroupId = group.Id, AllocationId = ingAlloc.Id, WeeklyHours = 3 });
 
-            if (allocByKey.TryGetValue("gh", out var ghAlloc))
+            var ghAlloc = GetAlloc("gh", lvl); if (ghAlloc != null)
                 assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tGh.Id, GroupId = group.Id, AllocationId = ghAlloc.Id, WeeklyHours = 3 });
 
-            if (allocByKey.TryGetValue("ef", out var efAlloc))
+            var efAlloc = GetAlloc("ef", lvl); if (efAlloc != null)
                 assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tTec.Id, GroupId = group.Id, AllocationId = efAlloc.Id, WeeklyHours = lvl == 4 ? 2 : 3 });
 
-            if (allocByKey.TryGetValue("tut", out var tutAlloc))
+            var tutAlloc = GetAlloc("tut", lvl); if (tutAlloc != null)
                 assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = group.TutorId ?? tMat.Id, GroupId = group.Id, AllocationId = tutAlloc.Id, WeeklyHours = 1 });
 
             // Materias específicas por nivel
             if (lvl == 1)
             {
-                if (allocByKey.TryGetValue("bg",  out var bgAlloc))  assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tSci.Id,          GroupId = group.Id, AllocationId = bgAlloc.Id,  WeeklyHours = 3 });
-                if (allocByKey.TryGetValue("art", out var artAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tTec.Id,          GroupId = group.Id, AllocationId = artAlloc.Id, WeeklyHours = 2 });
-                if (allocByKey.TryGetValue("mus", out var musAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = musicTeacher.Id,  GroupId = group.Id, AllocationId = musAlloc.Id, WeeklyHours = 2 });
-                if (allocByKey.TryGetValue("rel", out var relAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = relTeacher.Id,    GroupId = group.Id, AllocationId = relAlloc.Id, WeeklyHours = 2 });
-                if (allocByKey.TryGetValue("opt", out var optAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tOpt.Id,          GroupId = group.Id, AllocationId = optAlloc.Id, WeeklyHours = 2 });
+                var bgAlloc = GetAlloc("bg", lvl);   if (bgAlloc != null)  assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tSci.Id,          GroupId = group.Id, AllocationId = bgAlloc.Id,  WeeklyHours = 3 });
+                var artAlloc = GetAlloc("art", lvl); if (artAlloc != null) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tTec.Id,          GroupId = group.Id, AllocationId = artAlloc.Id, WeeklyHours = 2 });
+                var musAlloc = GetAlloc("mus", lvl); if (musAlloc != null) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = musicTeacher.Id,  GroupId = group.Id, AllocationId = musAlloc.Id, WeeklyHours = 2 });
+                var relAlloc = GetAlloc("rel", lvl); if (relAlloc != null) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = relTeacher.Id,    GroupId = group.Id, AllocationId = relAlloc.Id, WeeklyHours = 2 });
+                var optAlloc = GetAlloc("opt", lvl); if (optAlloc != null) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tOpt.Id,          GroupId = group.Id, AllocationId = optAlloc.Id, WeeklyHours = 2 });
             }
             else if (lvl == 2)
             {
-                if (allocByKey.TryGetValue("fq",  out var fqAlloc))  assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tSci.Id,          GroupId = group.Id, AllocationId = fqAlloc.Id,  WeeklyHours = 3 });
-                if (allocByKey.TryGetValue("tec", out var tecAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tTec.Id,          GroupId = group.Id, AllocationId = tecAlloc.Id, WeeklyHours = 3 });
-                if (allocByKey.TryGetValue("art", out var artAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tTec.Id,          GroupId = group.Id, AllocationId = artAlloc.Id, WeeklyHours = 2 });
-                if (allocByKey.TryGetValue("val", out var valAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tLen.Id,          GroupId = group.Id, AllocationId = valAlloc.Id, WeeklyHours = 1 });
-                if (allocByKey.TryGetValue("rel", out var relAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = relTeacher.Id,    GroupId = group.Id, AllocationId = relAlloc.Id, WeeklyHours = 1 });
-                if (allocByKey.TryGetValue("opt", out var optAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tOpt.Id,          GroupId = group.Id, AllocationId = optAlloc.Id, WeeklyHours = 2 });
+                var fqAlloc = GetAlloc("fq", lvl);   if (fqAlloc != null)  assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tSci.Id,          GroupId = group.Id, AllocationId = fqAlloc.Id,  WeeklyHours = 3 });
+                var tecAlloc = GetAlloc("tec", lvl); if (tecAlloc != null) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tTec.Id,          GroupId = group.Id, AllocationId = tecAlloc.Id, WeeklyHours = 3 });
+                var artAlloc = GetAlloc("art", lvl); if (artAlloc != null) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tTec.Id,          GroupId = group.Id, AllocationId = artAlloc.Id, WeeklyHours = 2 });
+                var valAlloc = GetAlloc("val", lvl); if (valAlloc != null) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tLen.Id,          GroupId = group.Id, AllocationId = valAlloc.Id, WeeklyHours = 1 });
+                var relAlloc = GetAlloc("rel", lvl); if (relAlloc != null) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = relTeacher.Id,    GroupId = group.Id, AllocationId = relAlloc.Id, WeeklyHours = 1 });
+                var optAlloc = GetAlloc("opt", lvl); if (optAlloc != null) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tOpt.Id,          GroupId = group.Id, AllocationId = optAlloc.Id, WeeklyHours = 2 });
             }
             else if (lvl == 3)
             {
-                if (allocByKey.TryGetValue("bg",  out var bgAlloc))  assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tSci.Id,          GroupId = group.Id, AllocationId = bgAlloc.Id,  WeeklyHours = 2 });
-                if (allocByKey.TryGetValue("fq",  out var fqAlloc))  assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tSci.Id,          GroupId = group.Id, AllocationId = fqAlloc.Id,  WeeklyHours = 3 });
-                if (allocByKey.TryGetValue("tec", out var tecAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tTec.Id,          GroupId = group.Id, AllocationId = tecAlloc.Id, WeeklyHours = 2 });
-                if (allocByKey.TryGetValue("mus", out var musAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = musicTeacher.Id,  GroupId = group.Id, AllocationId = musAlloc.Id, WeeklyHours = 2 });
-                if (allocByKey.TryGetValue("rel", out var relAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = relTeacher.Id,    GroupId = group.Id, AllocationId = relAlloc.Id, WeeklyHours = 1 });
-                if (allocByKey.TryGetValue("opt", out var optAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tOpt.Id,          GroupId = group.Id, AllocationId = optAlloc.Id, WeeklyHours = 2 });
+                var bgAlloc = GetAlloc("bg", lvl);   if (bgAlloc != null)  assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tSci.Id,          GroupId = group.Id, AllocationId = bgAlloc.Id,  WeeklyHours = 2 });
+                var fqAlloc = GetAlloc("fq", lvl);   if (fqAlloc != null)  assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tSci.Id,          GroupId = group.Id, AllocationId = fqAlloc.Id,  WeeklyHours = 3 });
+                var tecAlloc = GetAlloc("tec", lvl); if (tecAlloc != null) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tTec.Id,          GroupId = group.Id, AllocationId = tecAlloc.Id, WeeklyHours = 2 });
+                var musAlloc = GetAlloc("mus", lvl); if (musAlloc != null) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = musicTeacher.Id,  GroupId = group.Id, AllocationId = musAlloc.Id, WeeklyHours = 2 });
+                var relAlloc = GetAlloc("rel", lvl); if (relAlloc != null) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = relTeacher.Id,    GroupId = group.Id, AllocationId = relAlloc.Id, WeeklyHours = 1 });
+                var optAlloc = GetAlloc("opt", lvl); if (optAlloc != null) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tOpt.Id,          GroupId = group.Id, AllocationId = optAlloc.Id, WeeklyHours = 2 });
             }
             else if (lvl == 4)
             {
-                if (allocByKey.TryGetValue("rel", out var relAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = relTeacher.Id, GroupId = group.Id, AllocationId = relAlloc.Id, WeeklyHours = 2 });
-                if (allocByKey.TryGetValue("opt", out var optAlloc)) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tOpt.Id,       GroupId = group.Id, AllocationId = optAlloc.Id, WeeklyHours = 11 });
+                var relAlloc = GetAlloc("rel", lvl); if (relAlloc != null) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = relTeacher.Id, GroupId = group.Id, AllocationId = relAlloc.Id, WeeklyHours = 2 });
+                var optAlloc = GetAlloc("opt", lvl); if (optAlloc != null) assignments.Add(new Assignment { SchoolId = SchoolId, TeacherId = tOpt.Id,       GroupId = group.Id, AllocationId = optAlloc.Id, WeeklyHours = 11 });
             }
         }
         db.Assignments.AddRange(assignments);

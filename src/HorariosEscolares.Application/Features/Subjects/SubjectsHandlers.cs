@@ -10,7 +10,8 @@ public record SubjectDto(
     Guid Id, string SubjectName, string SubjectShort, string SubjectKey,
     int WeeklyHoursMin, int WeeklyHoursMax, int WeeklyHoursDefault,
     bool RequiresSpecialist, string? RequiredClassroomType,
-    int MaxConsecutiveSlots, bool SplittableAcrossDays, bool IsOfficial);
+    int MaxConsecutiveSlots, bool SplittableAcrossDays, bool IsOfficial,
+    int? Cycle, int? CourseLevel);
 
 public record UpdateSubjectHoursRequest(int WeeklyHoursDefault);
 
@@ -21,12 +22,14 @@ public record CreateSubjectCommand(
     string SubjectName, string SubjectShort, string SubjectKey,
     int WeeklyHoursMin, int WeeklyHoursMax, int WeeklyHoursDefault,
     bool RequiresSpecialist, string? RequiredClassroomType,
-    int MaxConsecutiveSlots, bool SplittableAcrossDays) : IRequest<SubjectDto>;
+    int MaxConsecutiveSlots, bool SplittableAcrossDays,
+    int? Cycle, int? CourseLevel) : IRequest<SubjectDto>;
 public record UpdateSubjectCommand(
     Guid Id, string? SubjectName, string? SubjectShort, string? SubjectKey,
     int? WeeklyHoursMin, int? WeeklyHoursMax, int? WeeklyHoursDefault,
     bool? RequiresSpecialist, string? RequiredClassroomType,
-    int? MaxConsecutiveSlots, bool? SplittableAcrossDays) : IRequest<SubjectDto>;
+    int? MaxConsecutiveSlots, bool? SplittableAcrossDays,
+    int? Cycle, int? CourseLevel) : IRequest<SubjectDto>;
 public record DeleteSubjectCommand(Guid Id) : IRequest;
 
 public sealed class GetAllSubjectsHandler(IAppDbContext db, ICurrentUser user)
@@ -53,7 +56,8 @@ public sealed class GetAllSubjectsHandler(IAppDbContext db, ICurrentUser user)
             a.Id, a.SubjectName, a.SubjectShort, a.SubjectKey,
             a.WeeklyHoursMin, a.WeeklyHoursMax, a.WeeklyHoursDefault,
             a.RequiresSpecialist, a.RequiredClassroomType,
-            a.MaxConsecutiveSlots, a.SplittableAcrossDays, a.IsOfficial)).ToList();
+            a.MaxConsecutiveSlots, a.SplittableAcrossDays, a.IsOfficial,
+            a.Cycle, a.CourseLevel)).ToList();
     }
 }
 
@@ -95,6 +99,7 @@ public sealed class CloneOfficialCurriculumHandler(IAppDbContext db, ICurrentUse
             WeeklyHoursMin = a.WeeklyHoursMin, WeeklyHoursMax = a.WeeklyHoursMax, WeeklyHoursDefault = a.WeeklyHoursDefault,
             RequiresSpecialist = a.RequiresSpecialist, RequiredClassroomType = a.RequiredClassroomType,
             MaxConsecutiveSlots = a.MaxConsecutiveSlots, SplittableAcrossDays = a.SplittableAcrossDays,
+            Cycle = a.Cycle, CourseLevel = a.CourseLevel,
             IsOfficial = false
         }).ToList();
 
@@ -105,7 +110,8 @@ public sealed class CloneOfficialCurriculumHandler(IAppDbContext db, ICurrentUse
             a.Id, a.SubjectName, a.SubjectShort, a.SubjectKey,
             a.WeeklyHoursMin, a.WeeklyHoursMax, a.WeeklyHoursDefault,
             a.RequiresSpecialist, a.RequiredClassroomType,
-            a.MaxConsecutiveSlots, a.SplittableAcrossDays, a.IsOfficial)).ToList();
+            a.MaxConsecutiveSlots, a.SplittableAcrossDays, a.IsOfficial,
+            a.Cycle, a.CourseLevel)).ToList();
     }
 }
 
@@ -134,7 +140,8 @@ public sealed class UpdateSubjectHoursHandler(IAppDbContext db, ISubjectReposito
         return new SubjectDto(a.Id, a.SubjectName, a.SubjectShort, a.SubjectKey,
             a.WeeklyHoursMin, a.WeeklyHoursMax, a.WeeklyHoursDefault,
             a.RequiresSpecialist, a.RequiredClassroomType,
-            a.MaxConsecutiveSlots, a.SplittableAcrossDays, a.IsOfficial);
+            a.MaxConsecutiveSlots, a.SplittableAcrossDays, a.IsOfficial,
+            a.Cycle, a.CourseLevel);
     }
 }
 
@@ -159,6 +166,8 @@ public sealed class CreateSubjectHandler(IAppDbContext db, ISubjectRepository re
             RequiredClassroomType = request.RequiredClassroomType,
             MaxConsecutiveSlots = request.MaxConsecutiveSlots,
             SplittableAcrossDays = request.SplittableAcrossDays,
+            Cycle = request.Cycle,
+            CourseLevel = request.CourseLevel,
             IsOfficial = false
         };
         await repository.AddAsync(s, ct);
@@ -166,7 +175,8 @@ public sealed class CreateSubjectHandler(IAppDbContext db, ISubjectRepository re
         return new SubjectDto(s.Id, s.SubjectName, s.SubjectShort, s.SubjectKey,
             s.WeeklyHoursMin, s.WeeklyHoursMax, s.WeeklyHoursDefault,
             s.RequiresSpecialist, s.RequiredClassroomType,
-            s.MaxConsecutiveSlots, s.SplittableAcrossDays, s.IsOfficial);
+            s.MaxConsecutiveSlots, s.SplittableAcrossDays, s.IsOfficial,
+            s.Cycle, s.CourseLevel);
     }
 }
 
@@ -193,12 +203,15 @@ public sealed class UpdateSubjectHandler(IAppDbContext db, ISubjectRepository re
         a.RequiredClassroomType = request.RequiredClassroomType;
         if (request.MaxConsecutiveSlots.HasValue) a.MaxConsecutiveSlots = request.MaxConsecutiveSlots.Value;
         if (request.SplittableAcrossDays.HasValue) a.SplittableAcrossDays = request.SplittableAcrossDays.Value;
+        a.Cycle = request.Cycle;
+        a.CourseLevel = request.CourseLevel;
         await repository.SaveChangesAsync(ct);
 
         return new SubjectDto(a.Id, a.SubjectName, a.SubjectShort, a.SubjectKey,
             a.WeeklyHoursMin, a.WeeklyHoursMax, a.WeeklyHoursDefault,
             a.RequiresSpecialist, a.RequiredClassroomType,
-            a.MaxConsecutiveSlots, a.SplittableAcrossDays, a.IsOfficial);
+            a.MaxConsecutiveSlots, a.SplittableAcrossDays, a.IsOfficial,
+            a.Cycle, a.CourseLevel);
     }
 }
 
