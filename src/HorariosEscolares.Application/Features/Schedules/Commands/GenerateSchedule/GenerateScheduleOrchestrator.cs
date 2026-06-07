@@ -291,6 +291,16 @@ public sealed class GenerateScheduleOrchestrator(
             .Where(g => g.StageId == stage.Id)
             .ToDictionaryAsync(g => g.Id, ct);
 
+        // Cargar horas por asignatura de todos los profesores del centro (SubjectKey → horas).
+        var teacherSubjectHoursRaw = await db.TeacherSubjectHours.AsNoTracking()
+            .Where(sh => teachers.Keys.Contains(sh.TeacherId))
+            .ToListAsync(ct);
+        var teacherSubjectHoursMap = teacherSubjectHoursRaw
+            .GroupBy(sh => sh.TeacherId)
+            .ToDictionary(
+                g => g.Key,
+                g => (IReadOnlyDictionary<string, int>)g.ToDictionary(sh => sh.SubjectKey, sh => sh.WeeklyHours));
+
         var sessions = new List<SessionToAssign>();
         foreach (var a in assignments)
         {
@@ -302,9 +312,9 @@ public sealed class GenerateScheduleOrchestrator(
             var classroomType = alloc.RequiredClassroomType is not null
                 ? ParseClassroomType(alloc.RequiredClassroomType) : (ClassroomType?)null;
 
-            List<string> specialties;
-            try { specialties = JsonSerializer.Deserialize<List<string>>(teacher.Specialties) ?? []; }
-            catch { specialties = []; }
+            var subjectHours = teacherSubjectHoursMap.TryGetValue(teacher.Id, out var sh)
+                ? sh : (IReadOnlyDictionary<string, int>)new Dictionary<string, int>();
+
             var groupLabel = grp.DisplayName;
             var cycle = cycleResolver.ResolveCycle(stage.StageType, grp.CourseLevel);
 
@@ -320,7 +330,7 @@ public sealed class GenerateScheduleOrchestrator(
                     MaxConsecutiveSlots: alloc.MaxConsecutiveSlots,
                     RequiresSpecialist: alloc.RequiresSpecialist,
                     SubjectKey: alloc.SubjectKey ?? "",
-                    TeacherSpecialties: specialties,
+                    TeacherSubjectHours: subjectHours,
                     TeacherMaxWeeklyHours: teacher.MaxWeeklyHours,
                     SplittableAcrossDays: alloc.SplittableAcrossDays,
                     Cycle: cycle));
@@ -336,7 +346,7 @@ public sealed class GenerateScheduleOrchestrator(
         {
             new TeacherNotDoubleBooked(), new ClassroomNotDoubleBooked(),
             new MaxConsecutiveSlotsConstraint(), new RequiresSpecialistConstraint(),
-            new MaxWeeklyHoursConstraint(),
+            new TeacherSubjectHoursConstraint(), new MaxWeeklyHoursConstraint(),
         };
         if (unavailableSlots.Count > 0)
             result.Add(new TeacherAvailabilityConstraint(unavailableSlots));

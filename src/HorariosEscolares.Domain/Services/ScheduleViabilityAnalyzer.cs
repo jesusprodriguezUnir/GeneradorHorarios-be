@@ -28,8 +28,8 @@ public static class ScheduleViabilityAnalyzer
                     Description = $"El profesor asignado a '{session.SubjectName}' ({session.GroupLabel}) no tiene la especialidad requerida.",
                     Suggestions =
                     [
-                        $"Asigna un profesor con la especialidad '{RequiredSpecialtyLabel(session.SubjectKey)}' a esta sesión.",
-                        "Ve a Configuración → Profesores para revisar las especialidades registradas.",
+                        $"Asigna un profesor con {RequiredSpecialtyLabel(session.SubjectKey)} a esta sesión.",
+                        "Ve a Configuración → Profesores para revisar las asignaturas configuradas en cada profesor.",
                     ],
                     TeacherId = session.TeacherId,
                 });
@@ -149,25 +149,9 @@ public static class ScheduleViabilityAnalyzer
     }
 
     private static bool HasRequiredSpecialty(SessionToAssign session)
-    {
-        var specialties = session.TeacherSpecialties;
-        var key = session.SubjectKey.ToLower();
+        // El profesor puede impartir la asignatura si tiene una fila configurada para su SubjectKey.
+        => session.TeacherSubjectHours.ContainsKey(session.SubjectKey);
 
-        return key switch
-        {
-            "ing" => specialties.Any(s => s.Contains("Inglés", StringComparison.OrdinalIgnoreCase)),
-            "ef"  => specialties.Any(s => s.Contains("Física", StringComparison.OrdinalIgnoreCase)
-                                        || s.Contains("Deporte", StringComparison.OrdinalIgnoreCase)),
-            "mus" => specialties.Any(s => s.Contains("Música", StringComparison.OrdinalIgnoreCase)),
-            _     => specialties.Any(s => s.Contains("Generalista", StringComparison.OrdinalIgnoreCase)),
-        };
-    }
-
-    private static string RequiredSpecialtyLabel(string subjectKey) => subjectKey.ToLower() switch
-    {
-        "ing" => "Inglés",
-        "ef"  => "Educación Física / Deporte",
-        "mus" => "Música",
-        _     => "Generalista",
-    };
+    private static string RequiredSpecialtyLabel(string subjectKey)
+        => $"capacitación para '{subjectKey}'";
 }

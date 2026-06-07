@@ -1,4 +1,3 @@
-using System.Text.Json;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using HorariosEscolares.Domain.Abstractions;
@@ -8,10 +7,12 @@ using HorariosEscolares.Domain.Teachers;
 namespace HorariosEscolares.Application.Features.Teachers;
 
 public record StageAssignmentDto(Guid StageId, string StageName, string StageType, int? Cycle);
+public record SubjectHourDto(string SubjectKey, int WeeklyHours);
+public record SubjectHourInput(string SubjectKey, int WeeklyHours);
 
 public record TeacherDto(
     Guid Id, string FullName, string Email, string TeacherType,
-    int MaxWeeklyHours, string[] Specialties, string ColorKey,
+    int MaxWeeklyHours, SubjectHourDto[] SubjectHours, string ColorKey,
     int AssignedHours, StageAssignmentDto[] StageAssignments);
 
 public record StageAssignmentInput(Guid StageId, int? Cycle);
@@ -20,11 +21,11 @@ public record GetAllTeachersQuery : IRequest<List<TeacherDto>>;
 public record GetTeacherByIdQuery(Guid Id) : IRequest<TeacherDto?>;
 public record CreateTeacherCommand(
     string FullName, string Email, string TeacherType,
-    int MaxWeeklyHours, string[] Specialties, string ColorKey,
+    int MaxWeeklyHours, SubjectHourInput[] SubjectHours, string ColorKey,
     StageAssignmentInput[]? StageAssignments) : IRequest<TeacherDto>;
 public record UpdateTeacherCommand(
     Guid Id, string? FullName, string? Email, string? TeacherType,
-    int? MaxWeeklyHours, string[]? Specialties, string? ColorKey,
+    int? MaxWeeklyHours, SubjectHourInput[]? SubjectHours, string? ColorKey,
     StageAssignmentInput[]? StageAssignments) : IRequest<TeacherDto>;
 public record DeleteTeacherCommand(Guid Id) : IRequest;
 
@@ -35,6 +36,7 @@ public sealed class GetAllTeachersHandler(IAppDbContext db, ICurrentUser user)
     {
         var teachers = await db.Teachers.AsNoTracking()
             .Include(t => t.StageAssignments)
+            .Include(t => t.SubjectHours)
             .Where(t => t.SchoolId == user.SchoolId)
             .ToListAsync(ct);
 
@@ -60,6 +62,7 @@ public sealed class GetTeacherByIdHandler(IAppDbContext db, ICurrentUser user)
     {
         var t = await db.Teachers.AsNoTracking()
             .Include(x => x.StageAssignments)
+            .Include(x => x.SubjectHours)
             .FirstOrDefaultAsync(x => x.Id == request.Id && x.SchoolId == user.SchoolId, ct);
         if (t is null) return null;
 
@@ -84,9 +87,18 @@ public sealed class CreateTeacherHandler(IAppDbContext db, ITeacherRepository re
         {
             SchoolId = user.SchoolId, FullName = request.FullName, Email = request.Email,
             TeacherType = request.TeacherType, MaxWeeklyHours = request.MaxWeeklyHours,
-            Specialties = JsonSerializer.Serialize(request.Specialties),
             ColorKey = request.ColorKey,
         };
+
+        foreach (var sh in request.SubjectHours)
+        {
+            t.SubjectHours.Add(new TeacherSubjectHour
+            {
+                TeacherId = t.Id,
+                SubjectKey = sh.SubjectKey.ToLower().Trim(),
+                WeeklyHours = sh.WeeklyHours,
+            });
+        }
 
         if (request.StageAssignments is { Length: > 0 })
         {
@@ -124,6 +136,7 @@ public sealed class UpdateTeacherHandler(IAppDbContext db, ICurrentUser user)
     {
         var t = await db.Teachers
             .Include(x => x.StageAssignments)
+            .Include(x => x.SubjectHours)
             .FirstOrDefaultAsync(x => x.Id == request.Id && x.SchoolId == user.SchoolId, ct);
         if (t is null) throw new NotFoundException($"Teacher {request.Id} not found");
 
@@ -131,8 +144,21 @@ public sealed class UpdateTeacherHandler(IAppDbContext db, ICurrentUser user)
         if (request.Email is not null) t.Email = request.Email;
         if (request.TeacherType is not null) t.TeacherType = request.TeacherType;
         if (request.MaxWeeklyHours.HasValue) t.MaxWeeklyHours = request.MaxWeeklyHours.Value;
-        if (request.Specialties is not null) t.Specialties = JsonSerializer.Serialize(request.Specialties);
         if (request.ColorKey is not null) t.ColorKey = request.ColorKey;
+
+        if (request.SubjectHours is not null)
+        {
+            t.SubjectHours.Clear();
+            foreach (var sh in request.SubjectHours)
+            {
+                t.SubjectHours.Add(new TeacherSubjectHour
+                {
+                    TeacherId = t.Id,
+                    SubjectKey = sh.SubjectKey.ToLower().Trim(),
+                    WeeklyHours = sh.WeeklyHours,
+                });
+            }
+        }
 
         if (request.StageAssignments is not null)
         {
@@ -179,9 +205,9 @@ static class TeacherMapper
 {
     public static TeacherDto ToDto(Teacher t, int assignedHours, Dictionary<Guid, SchoolStage> stagesMap)
     {
-        string[] specialties;
-        try { specialties = JsonSerializer.Deserialize<string[]>(t.Specialties) ?? []; }
-        catch { specialties = []; }
+        var subjectHours = t.SubjectHours
+            .Select(sh => new SubjectHourDto(sh.SubjectKey, sh.WeeklyHours))
+            .ToArray();
 
         var stageAssignments = t.StageAssignments
             .Select(sa =>
@@ -196,7 +222,6 @@ static class TeacherMapper
             .ToArray();
 
         return new(t.Id, t.FullName, t.Email, t.TeacherType,
-            t.MaxWeeklyHours, specialties, t.ColorKey, assignedHours, stageAssignments);
+            t.MaxWeeklyHours, subjectHours, t.ColorKey, assignedHours, stageAssignments);
     }
 }
-

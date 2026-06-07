@@ -24,6 +24,7 @@ public interface IAppDbContext
     DbSet<SchoolPeriod> SchoolPeriods { get; }
     DbSet<PeriodAssignmentHours> PeriodAssignmentHours { get; }
     DbSet<Role> Roles { get; }
-DbSet<TeacherStageAssignment> TeacherStageAssignments { get; }
+    DbSet<TeacherStageAssignment> TeacherStageAssignments { get; }
+    DbSet<TeacherSubjectHour> TeacherSubjectHours { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

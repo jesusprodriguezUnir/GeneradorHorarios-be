@@ -55,7 +55,8 @@ public sealed class AssignmentState
         _teacherAssignedHours[session.TeacherId] = _teacherAssignedHours.GetValueOrDefault(session.TeacherId, 0) + 1;
         _assigned.Add(new AssignedSlot(
             session.AssignmentId, session.GroupId, session.TeacherId,
-            session.AllocationId, classroomId, day, slot, startMinute, endMinute, session.Cycle));
+            session.AllocationId, classroomId, day, slot, startMinute, endMinute, session.Cycle,
+            session.SubjectKey));
     }
 
     public void Unassign(SessionToAssign session, int day, int slot, int startMinute, int endMinute, Guid classroomId)

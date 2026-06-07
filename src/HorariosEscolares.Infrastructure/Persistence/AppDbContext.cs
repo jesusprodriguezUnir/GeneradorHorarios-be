@@ -25,7 +25,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<SchoolPeriod> SchoolPeriods => Set<SchoolPeriod>();
     public DbSet<PeriodAssignmentHours> PeriodAssignmentHours => Set<PeriodAssignmentHours>();
     public DbSet<Role> Roles => Set<Role>();
-public DbSet<TeacherStageAssignment> TeacherStageAssignments => Set<TeacherStageAssignment>();
+    public DbSet<TeacherStageAssignment> TeacherStageAssignments => Set<TeacherStageAssignment>();
+    public DbSet<TeacherSubjectHour> TeacherSubjectHours => Set<TeacherSubjectHour>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -91,7 +92,6 @@ public DbSet<TeacherStageAssignment> TeacherStageAssignments => Set<TeacherStage
             e.Property(x => x.Email).HasMaxLength(200).IsRequired();
             e.Property(x => x.TeacherType).HasMaxLength(30).HasDefaultValue("definitivo");
             e.Property(x => x.ColorKey).HasMaxLength(10).HasDefaultValue("mat");
-            e.Property(x => x.Specialties).HasMaxLength(500).HasDefaultValue("[]");
         });
 
         mb.Entity<Classroom>(e =>
@@ -259,6 +259,17 @@ public DbSet<TeacherStageAssignment> TeacherStageAssignments => Set<TeacherStage
              .WithMany()
              .HasForeignKey(x => x.StageId)
              .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        mb.Entity<TeacherSubjectHour>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.TeacherId, x.SubjectKey }).IsUnique();
+            e.Property(x => x.SubjectKey).HasMaxLength(20).IsRequired();
+            e.HasOne(x => x.Teacher)
+             .WithMany(x => x.SubjectHours)
+             .HasForeignKey(x => x.TeacherId)
+             .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

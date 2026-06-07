@@ -68,6 +68,7 @@ public static class DbInitializer
         await db.AppUsers.ExecuteDeleteAsync();
         await db.Roles.ExecuteDeleteAsync();
         await db.CourseGroups.ExecuteDeleteAsync();
+        await db.TeacherSubjectHours.ExecuteDeleteAsync();
         await db.TeacherStageAssignments.ExecuteDeleteAsync();
         await db.Teachers.ExecuteDeleteAsync();
         await db.Classrooms.ExecuteDeleteAsync();
@@ -433,7 +434,6 @@ public static class DbInitializer
                 Email          = $"{emailUser}@{EmailDomain}",
                 TeacherType    = "definitivo",
                 MaxWeeklyHours = 25,
-                Specialties    = "[\"Generalista\"]",
                 ColorKey       = TutorColorKeys[i % TutorColorKeys.Length],
             });
         }
@@ -455,7 +455,6 @@ public static class DbInitializer
             Email          = $"{t.Item2}@{EmailDomain}",
             TeacherType    = "especialista",
             MaxWeeklyHours = 25,
-            Specialties    = "[\"Inglés (habilitación)\"]",
             ColorKey       = "ing",
         }).ToList();
         db.Teachers.AddRange(ingTeachers);
@@ -531,7 +530,6 @@ public static class DbInitializer
             Email          = $"{t.Item2}@{EmailDomain}",
             TeacherType    = "especialista",
             MaxWeeklyHours = 25,
-            Specialties    = "[\"Educación Física\"]",
             ColorKey       = "ef",
         }).ToList();
         db.Teachers.AddRange(efTeachers);
@@ -544,7 +542,6 @@ public static class DbInitializer
             Email          = $"lucia.navarro@{EmailDomain}",
             TeacherType    = "definitivo",
             MaxWeeklyHours = 25,
-            Specialties    = "[\"Generalista\",\"Música\"]",
             ColorKey       = "mus",
         };
         db.Teachers.Add(musicTeacher);
@@ -557,7 +554,6 @@ public static class DbInitializer
             Email          = $"pablo.vidal@{EmailDomain}",
             TeacherType    = "especialista",
             MaxWeeklyHours = 20,
-            Specialties    = "[\"Religión\"]",
             ColorKey       = "rel",
         };
         db.Teachers.Add(relTeacher);
@@ -683,6 +679,33 @@ public static class DbInitializer
         SeedInfantilStage(db, infantilStage, infantilAllocations, ingTeachers, opts);
         SeedSecundariaStage(db, secundariaStage, secundariaAllocations, musicTeacher, relTeacher, opts);
 
+        // ── TeacherSubjectHours: derivar de todas las asignaciones añadidas al contexto ──
+        // Se construye un mapa de allocations (todas las etapas) para obtener el SubjectKey.
+        var allAllocById = allocations
+            .Concat(infantilAllocations)
+            .Concat(secundariaAllocations)
+            .ToDictionary(a => a.Id, a => a.SubjectKey);
+
+        // Agregar (TeacherId, SubjectKey) → suma de horas desde los Assignment del contexto.
+        var subjectHoursAccumulator = new Dictionary<(Guid TeacherId, string SubjectKey), int>();
+        foreach (var entry in db.ChangeTracker.Entries<Assignment>())
+        {
+            var a = entry.Entity;
+            if (!allAllocById.TryGetValue(a.AllocationId, out var subjectKey)) continue;
+            var key = (a.TeacherId, subjectKey);
+            subjectHoursAccumulator[key] = subjectHoursAccumulator.GetValueOrDefault(key, 0) + a.WeeklyHours;
+        }
+
+        foreach (var (k, totalHours) in subjectHoursAccumulator)
+        {
+            db.TeacherSubjectHours.Add(new TeacherSubjectHour
+            {
+                TeacherId   = k.TeacherId,
+                SubjectKey  = k.SubjectKey,
+                WeeklyHours = totalHours,
+            });
+        }
+
         await db.SaveChangesAsync();
     }
 
@@ -794,7 +817,6 @@ public static class DbInitializer
                 Email          = $"{email}@{EmailDomain}",
                 TeacherType    = "definitivo",
                 MaxWeeklyHours = 25,
-                Specialties    = "[\"Generalista Infantil\"]",
                 ColorKey       = TutorColorKeys[i % TutorColorKeys.Length],
             });
         }
@@ -954,15 +976,6 @@ public static class DbInitializer
         // Pool de especialistas: 7 posiciones × N líneas.
         // Cada línea tiene su propio equipo de 7 profesores para no superar las 20 h/semana.
         // El email lleva sufijo ".esoa"/".esob" para garantizar unicidad en la escuela.
-        string[] specSpecialties = [
-            "[\"Matemáticas\"]",
-            "[\"Lengua y Literatura\"]",
-            "[\"Geografía e Historia\"]",
-            "[\"Física y Química\",\"Biología\"]",
-            "[\"Tecnología\",\"Educación Física\"]",
-            "[\"Inglés\"]",
-            "[\"Generalista\"]",
-        ];
         string[] specColorKeys = ["mat", "len", "cie", "art", "tut", "ing", "opt"];
         (string Name, string Email)[,] specNamePool = {
             { ("Santiago Ortiz",   "santiago.ortiz"),   ("Miguel Fuentes",   "miguel.fuentes")   },
@@ -991,7 +1004,6 @@ public static class DbInitializer
                     Email          = $"{emailUser}.eso{lineSuffix}@{EmailDomain}",
                     TeacherType    = "definitivo",
                     MaxWeeklyHours = 20,
-                    Specialties    = specSpecialties[pos],
                     ColorKey       = specColorKeys[pos],
                 });
             }

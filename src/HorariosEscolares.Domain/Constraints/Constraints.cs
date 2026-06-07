@@ -169,18 +169,26 @@ public sealed class RequiresSpecialistConstraint : IHardConstraint
     public bool IsSatisfied(ProposedEntry entry, AssignmentState state)
     {
         if (!entry.Session.RequiresSpecialist) return true;
+        // El profesor puede impartir la asignatura si tiene una fila en TeacherSubjectHours para su SubjectKey.
+        return entry.Session.TeacherSubjectHours.ContainsKey(entry.Session.SubjectKey);
+    }
+}
 
-        var specialties = entry.Session.TeacherSpecialties;
-        var key = entry.Session.SubjectKey.ToLower();
+public sealed class TeacherSubjectHoursConstraint : IHardConstraint
+{
+    public string Name => "Límite horas por asignatura del profesor";
 
-        if (key == "ing")
-            return specialties.Any(s => s.Contains("Inglés", StringComparison.OrdinalIgnoreCase));
-        if (key == "ef")
-            return specialties.Any(s => s.Contains("Física", StringComparison.OrdinalIgnoreCase) || s.Contains("Deporte", StringComparison.OrdinalIgnoreCase));
-        if (key == "mus")
-            return specialties.Any(s => s.Contains("Música", StringComparison.OrdinalIgnoreCase));
+    public bool IsSatisfied(ProposedEntry entry, AssignmentState state)
+    {
+        var key = entry.Session.SubjectKey;
+        if (!entry.Session.TeacherSubjectHours.TryGetValue(key, out var maxHours))
+            return true; // Sin tope configurado para esta asignatura, no se limita aquí.
 
-        return specialties.Any(s => s.Contains("Generalista", StringComparison.OrdinalIgnoreCase));
+        var alreadyAssigned = state.Assigned.Count(a =>
+            a.TeacherId == entry.Session.TeacherId &&
+            a.SubjectKey == key);
+
+        return alreadyAssigned < maxHours;
     }
 }
 

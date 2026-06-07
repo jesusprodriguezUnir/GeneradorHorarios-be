@@ -41,7 +41,11 @@ public record SessionToAssign(
     ClassroomType? RequiredClassroomType,
     int MaxConsecutiveSlots,
     bool RequiresSpecialist,
-    IReadOnlyList<string> TeacherSpecialties,
+    /// <summary>
+    /// Diccionario SubjectKey → horas semanales asignadas a este profesor para esa asignatura.
+    /// Las claves presentes representan también las asignaturas que el profesor puede impartir.
+    /// </summary>
+    IReadOnlyDictionary<string, int> TeacherSubjectHours,
     string SubjectKey,
     int TeacherMaxWeeklyHours,
     bool SplittableAcrossDays,
@@ -68,7 +72,8 @@ public record AssignedSlot(
     int SlotIndex,
     int StartMinute = 0,
     int EndMinute = 0,
-    int Cycle = 1);
+    int Cycle = 1,
+    string SubjectKey = "");
 
 public record ConflictExplanation
 {

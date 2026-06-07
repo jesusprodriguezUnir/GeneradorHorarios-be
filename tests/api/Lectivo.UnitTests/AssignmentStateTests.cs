@@ -62,7 +62,8 @@ public class AssignmentStateTests
         _state.Assigned.Should().ContainSingle()
             .Which.Should().BeEquivalentTo(new AssignedSlot(
                 session.AssignmentId, session.GroupId, session.TeacherId,
-                session.AllocationId, TestData.RegularClassroomId, 1, 0, 0, 60));
+                session.AllocationId, TestData.RegularClassroomId, 1, 0, 0, 60,
+                Cycle: 1, SubjectKey: session.SubjectKey));
     }
 
     [Fact]

@@ -105,7 +105,12 @@ public class GenerateScheduleOrchestratorTests
             FullName = "Profesor Test",
             Email = "test@school.es",
             MaxWeeklyHours = 25,
-            Specialties = "[\"Generalista\"]",
+        });
+        db.TeacherSubjectHours.Add(new TeacherSubjectHour
+        {
+            TeacherId = TeacherId,
+            SubjectKey = "len",
+            WeeklyHours = 5,
         });
         db.Classrooms.Add(new Classroom
         {
@@ -158,8 +163,8 @@ public class GenerateScheduleOrchestratorTests
             FullName = "Profesor Test",
             Email = "test@school.es",
             MaxWeeklyHours = 25,
-            Specialties = "[\"Generalista\"]",
         });
+        // Nota: NO se añade TeacherSubjectHour para "ing" → el viability check detectará la falta de especialidad.
         db.Classrooms.Add(new Classroom
         {
             Id = ClassroomId,

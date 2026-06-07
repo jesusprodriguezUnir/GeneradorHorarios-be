@@ -80,9 +80,24 @@ public class Teacher
     public string TeacherType { get; set; } = "definitivo";
     public int MaxWeeklyHours { get; set; } = 25;
     public int MaxDailyConsecutive { get; set; } = 4;
-    public string Specialties { get; set; } = "[]";
     public string ColorKey { get; set; } = "mat";
     public ICollection<TeacherStageAssignment> StageAssignments { get; set; } = new List<TeacherStageAssignment>();
+    public ICollection<TeacherSubjectHour> SubjectHours { get; set; } = new List<TeacherSubjectHour>();
+}
+
+/// <summary>
+/// Horas semanales que un profesor imparte de una asignatura concreta.
+/// Sirve también como capacitación: tener fila para un <see cref="SubjectKey"/>
+/// indica que el profesor puede impartir esa asignatura.
+/// </summary>
+public class TeacherSubjectHour
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public required Guid TeacherId { get; set; }
+    /// <summary>Clave de asignatura: 'mat', 'ing', 'ef', 'mus'… (ver LomloeMadrid.cs)</summary>
+    public required string SubjectKey { get; set; }
+    public int WeeklyHours { get; set; }
+    public Teacher? Teacher { get; set; }
 }
 
 /// <summary>

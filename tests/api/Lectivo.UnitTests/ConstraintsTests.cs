@@ -177,32 +177,86 @@ public class ConstraintsTests
     {
         var constraint = new RequiresSpecialistConstraint();
         var entry = new ProposedEntry(
-            TestData.Session(requiresSpecialist: false, teacherSpecialties: ["Generalista"]),
+            TestData.Session(requiresSpecialist: false, subjectKey: "tut",
+                teacherSubjectHours: new Dictionary<string, int> { ["tut"] = 5 }),
             1, 0, TestData.RegularClassroomId, 0, 60);
 
         constraint.IsSatisfied(entry, _state).Should().BeTrue();
     }
 
     [Fact]
-    public void RequiresSpecialistConstraint_Satisfied_WhenTeacherHasSpecialty()
+    public void RequiresSpecialistConstraint_Satisfied_WhenTeacherHasSubjectKey()
     {
         var constraint = new RequiresSpecialistConstraint();
         var entry = new ProposedEntry(
-            TestData.Session(requiresSpecialist: true, subjectKey: "ing", teacherSpecialties: ["Inglés"]),
+            TestData.Session(requiresSpecialist: true, subjectKey: "ing",
+                teacherSubjectHours: new Dictionary<string, int> { ["ing"] = 4 }),
             1, 0, TestData.RegularClassroomId, 0, 60);
 
         constraint.IsSatisfied(entry, _state).Should().BeTrue();
     }
 
     [Fact]
-    public void RequiresSpecialistConstraint_NotSatisfied_WhenTeacherLacksSpecialty()
+    public void RequiresSpecialistConstraint_NotSatisfied_WhenTeacherLacksSubjectKey()
     {
         var constraint = new RequiresSpecialistConstraint();
         var entry = new ProposedEntry(
-            TestData.Session(requiresSpecialist: true, subjectKey: "mus", teacherSpecialties: ["Generalista"]),
+            TestData.Session(requiresSpecialist: true, subjectKey: "mus",
+                teacherSubjectHours: new Dictionary<string, int> { ["tut"] = 5 }),
             1, 0, TestData.RegularClassroomId, 0, 60);
 
         constraint.IsSatisfied(entry, _state).Should().BeFalse();
+    }
+
+    // ── TeacherSubjectHoursConstraint ────────────────────────────────────────
+
+    [Fact]
+    public void TeacherSubjectHoursConstraint_Satisfied_WhenBelowLimit()
+    {
+        var constraint = new TeacherSubjectHoursConstraint();
+        var teacher = TestData.Teacher1Id;
+        var entry = new ProposedEntry(
+            TestData.Session(teacherId: teacher, subjectKey: "mat",
+                teacherSubjectHours: new Dictionary<string, int> { ["mat"] = 5 }),
+            1, 0, TestData.RegularClassroomId, 0, 60);
+
+        // Sin sesiones previas → alreadyAssigned = 0 < 5
+        constraint.IsSatisfied(entry, _state).Should().BeTrue();
+    }
+
+    [Fact]
+    public void TeacherSubjectHoursConstraint_NotSatisfied_WhenAtLimit()
+    {
+        var constraint = new TeacherSubjectHoursConstraint();
+        var teacher = TestData.Teacher1Id;
+
+        // Asignar 2 sesiones de "mat" al mismo profesor
+        _state.Assign(TestData.Session(teacherId: teacher, subjectKey: "mat",
+            teacherSubjectHours: new Dictionary<string, int> { ["mat"] = 2 }), 1, 0, 0, 60, TestData.RegularClassroomId);
+        _state.Assign(TestData.Session(teacherId: teacher, subjectKey: "mat",
+            teacherSubjectHours: new Dictionary<string, int> { ["mat"] = 2 }), 1, 1, 60, 120, TestData.RegularClassroomId);
+
+        var entry = new ProposedEntry(
+            TestData.Session(teacherId: teacher, subjectKey: "mat",
+                teacherSubjectHours: new Dictionary<string, int> { ["mat"] = 2 }),
+            1, 2, TestData.RegularClassroomId, 120, 180);
+
+        // alreadyAssigned = 2, maxHours = 2 → no satisfecho
+        constraint.IsSatisfied(entry, _state).Should().BeFalse();
+    }
+
+    [Fact]
+    public void TeacherSubjectHoursConstraint_Satisfied_WhenNoLimitConfigured()
+    {
+        var constraint = new TeacherSubjectHoursConstraint();
+        var teacher = TestData.Teacher1Id;
+        // El profesor no tiene fila para "art" → sin tope, se permite
+        var entry = new ProposedEntry(
+            TestData.Session(teacherId: teacher, subjectKey: "art",
+                teacherSubjectHours: new Dictionary<string, int> { ["mat"] = 5 }),
+            1, 0, TestData.RegularClassroomId, 0, 60);
+
+        constraint.IsSatisfied(entry, _state).Should().BeTrue();
     }
 
     [Fact]

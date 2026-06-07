@@ -26,14 +26,15 @@ public class ScheduleViabilityAnalyzerTests
     // ── Check 1: Especialista ausente ─────────────────────────────────────────
 
     [Fact]
-    public void Analyze_ReturnsError_WhenTeacherLacksRequiredSpecialty()
+    public void Analyze_ReturnsError_WhenTeacherLacksRequiredSubjectKey()
     {
         var school = TestData.DefaultSchool();
         var session = TestData.Session(
             requiresSpecialist: true,
             subjectKey: "ing",
             subjectName: "Inglés",
-            teacherSpecialties: ["Generalista"]); // no tiene Inglés
+            // El profesor no tiene 'ing' en su mapa de asignaturas
+            teacherSubjectHours: new Dictionary<string, int> { ["tut"] = 5 });
 
         var result = ScheduleViabilityAnalyzer.Analyze(school, [session], NoUnavailable);
 
@@ -44,14 +45,15 @@ public class ScheduleViabilityAnalyzerTests
     }
 
     [Fact]
-    public void Analyze_ReturnsNoError_WhenTeacherHasRequiredSpecialty()
+    public void Analyze_ReturnsNoError_WhenTeacherHasRequiredSubjectKey()
     {
         var school = TestData.DefaultSchool();
         var session = TestData.Session(
             requiresSpecialist: true,
             subjectKey: "mus",
             subjectName: "Música",
-            teacherSpecialties: ["Música", "Generalista"]);
+            // El profesor tiene 'mus' → puede impartirla
+            teacherSubjectHours: new Dictionary<string, int> { ["mus"] = 2, ["tut"] = 3 });
 
         var result = ScheduleViabilityAnalyzer.Analyze(school, [session], NoUnavailable);
 
