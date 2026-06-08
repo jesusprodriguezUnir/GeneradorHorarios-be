@@ -640,52 +640,40 @@ public static class DbInitializer
         // ── Asociar profesores a etapas/ciclos ──────────────────────────────
         var stageAssignments = new List<TeacherStageAssignment>();
 
-        // Tutores: Primaria, todos los ciclos (null)
-        foreach (var tutor in tutors)
+        // Tutores de Primaria: asignar ciclo según niveles que imparten.
+        // Índices 0-5 (niveles 1-2) → Ciclo 1, 6-11 (niveles 3-4) → Ciclo 2, 12-17 (niveles 5-6) → Ciclo 3.
+        for (int i = 0; i < tutors.Count; i++)
         {
             stageAssignments.Add(new TeacherStageAssignment
             {
-                TeacherId = tutor.Id,
+                TeacherId = tutors[i].Id,
                 StageId   = PrimariaStageId,
-                Cycle     = null,
+                Cycle     = (i / 6) + 1,
             });
         }
 
-        // Especialistas de inglés: Primaria, todos los ciclos
+        // Especialistas de inglés: todos los ciclos de Primaria de forma explícita
         foreach (var t in ingTeachers)
         {
-            stageAssignments.Add(new TeacherStageAssignment
-            {
-                TeacherId = t.Id,
-                StageId   = PrimariaStageId,
-                Cycle     = null,
-            });
+            for (int c = 1; c <= 3; c++)
+                stageAssignments.Add(new TeacherStageAssignment { TeacherId = t.Id, StageId = PrimariaStageId, Cycle = c });
         }
 
-        // Especialistas de EF: Primaria, todos los ciclos
+        // Especialistas de EF: todos los ciclos de Primaria de forma explícita
         foreach (var t in efTeachers)
         {
-            stageAssignments.Add(new TeacherStageAssignment
-            {
-                TeacherId = t.Id,
-                StageId   = PrimariaStageId,
-                Cycle     = null,
-            });
+            for (int c = 1; c <= 3; c++)
+                stageAssignments.Add(new TeacherStageAssignment { TeacherId = t.Id, StageId = PrimariaStageId, Cycle = c });
         }
 
-        // Música y Religión: Primaria, todos los ciclos
-        stageAssignments.Add(new TeacherStageAssignment
-        {
-            TeacherId = musicTeacher.Id,
-            StageId   = PrimariaStageId,
-            Cycle     = null,
-        });
-        stageAssignments.Add(new TeacherStageAssignment
-        {
-            TeacherId = relTeacher.Id,
-            StageId   = PrimariaStageId,
-            Cycle     = null,
-        });
+        // Música: Primaria, ciclos 1, 2 y 3 explícitos.
+        stageAssignments.Add(new TeacherStageAssignment { TeacherId = musicTeacher.Id, StageId = PrimariaStageId, Cycle = 1 });
+        stageAssignments.Add(new TeacherStageAssignment { TeacherId = musicTeacher.Id, StageId = PrimariaStageId, Cycle = 2 });
+        stageAssignments.Add(new TeacherStageAssignment { TeacherId = musicTeacher.Id, StageId = PrimariaStageId, Cycle = 3 });
+
+        // Religión: todos los ciclos de Primaria de forma explícita
+        for (int c = 1; c <= 3; c++)
+            stageAssignments.Add(new TeacherStageAssignment { TeacherId = relTeacher.Id, StageId = PrimariaStageId, Cycle = c });
 
         db.TeacherStageAssignments.AddRange(stageAssignments);
 
