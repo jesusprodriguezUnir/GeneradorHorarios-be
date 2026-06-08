@@ -2,7 +2,9 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using HorariosEscolares.Domain.Abstractions;
 using HorariosEscolares.Domain.Entities;
+using HorariosEscolares.Domain.Services;
 using HorariosEscolares.Domain.Teachers;
+using HorariosEscolares.Application.Features.Assignments;
 
 namespace HorariosEscolares.Application.Features.Teachers;
 
@@ -25,7 +27,7 @@ public record GetAllTeachersQuery : IRequest<List<TeacherDto>>;
 public record GetTeacherByIdQuery(Guid Id) : IRequest<TeacherDto?>;
 public record CreateTeacherCommand(
     string FullName, string Email, string TeacherType,
-    int MaxWeeklyHours, SubjectHourInput[] SubjectHours, string ColorKey,
+    int MaxWeeklyHours, SubjectHourInput[]? SubjectHours, string ColorKey,
     StageAssignmentInput[]? StageAssignments) : IRequest<TeacherDto>;
 public record UpdateTeacherCommand(
     Guid Id, string? FullName, string? Email, string? TeacherType,
@@ -120,14 +122,17 @@ public sealed class CreateTeacherHandler(IAppDbContext db, ITeacherRepository re
             ColorKey = request.ColorKey,
         };
 
-        foreach (var sh in request.SubjectHours)
+        if (request.SubjectHours is not null)
         {
-            t.SubjectHours.Add(new TeacherSubjectHour
+            foreach (var sh in request.SubjectHours)
             {
-                TeacherId = t.Id,
-                SubjectKey = sh.SubjectKey.ToLower().Trim(),
-                WeeklyHours = sh.WeeklyHours,
-            });
+                t.SubjectHours.Add(new TeacherSubjectHour
+                {
+                    TeacherId = t.Id,
+                    SubjectKey = sh.SubjectKey.ToLower().Trim(),
+                    WeeklyHours = sh.WeeklyHours,
+                });
+            }
         }
 
         if (request.StageAssignments is { Length: > 0 })
@@ -275,7 +280,7 @@ public sealed class DeleteTeacherHandler(ITeacherRepository repository, ICurrent
     }
 }
 
-public sealed class UpdateTeacherAssignmentsHandler(IAppDbContext db, ICurrentUser user)
+public sealed class UpdateTeacherAssignmentsHandler(IAppDbContext db, ICurrentUser user, ICycleResolver cycleResolver)
     : IRequestHandler<UpdateTeacherAssignmentsCommand, TeacherDto>
 {
     public async Task<TeacherDto> Handle(UpdateTeacherAssignmentsCommand request, CancellationToken ct)
@@ -312,7 +317,15 @@ public sealed class UpdateTeacherAssignmentsHandler(IAppDbContext db, ICurrentUs
             .ToListAsync(ct);
 
         // 4. Sincronizar por clave (GroupId, AllocationId)
-        var newSet = request.Assignments.ToDictionary(a => (a.GroupId, a.AllocationId));
+        // Agrupar para evitar duplicados en la misma clave (GroupId, AllocationId)
+        var newSet = request.Assignments
+            .GroupBy(a => (a.GroupId, a.AllocationId))
+            .ToDictionary(
+                g => g.Key,
+                g => new TeacherAssignmentInput(
+                    g.Key.AllocationId,
+                    g.Key.GroupId,
+                    g.Sum(a => a.WeeklyHours)));
 
         // Eliminar las que ya no están
         var toRemove = existing
@@ -321,10 +334,10 @@ public sealed class UpdateTeacherAssignmentsHandler(IAppDbContext db, ICurrentUs
         db.Assignments.RemoveRange(toRemove);
 
         // Actualizar existentes o añadir nuevas
-        foreach (var input in request.Assignments)
+        foreach (var (key, input) in newSet)
         {
             var match = existing.FirstOrDefault(
-                e => e.GroupId == input.GroupId && e.AllocationId == input.AllocationId);
+                e => e.GroupId == key.GroupId && e.AllocationId == key.AllocationId);
             if (match is not null)
             {
                 match.WeeklyHours = input.WeeklyHours;
@@ -335,8 +348,8 @@ public sealed class UpdateTeacherAssignmentsHandler(IAppDbContext db, ICurrentUs
                 {
                     SchoolId = user.SchoolId,
                     TeacherId = request.TeacherId,
-                    GroupId = input.GroupId,
-                    AllocationId = input.AllocationId,
+                    GroupId = key.GroupId,
+                    AllocationId = key.AllocationId,
                     WeeklyHours = input.WeeklyHours,
                 });
             }
@@ -344,7 +357,15 @@ public sealed class UpdateTeacherAssignmentsHandler(IAppDbContext db, ICurrentUs
 
         await db.SaveChangesAsync(ct);
 
-        // 5. Recomponer TeacherDto con assignments finales
+        // 5. Asegurar TeacherStageAssignment para cada grupo asignado
+        var distinctGroupIds = newSet.Keys.Select(k => k.GroupId).Distinct();
+        foreach (var groupId in distinctGroupIds)
+        {
+            await TeacherStageAssignmentHelper.EnsureForGroupAsync(db, cycleResolver, request.TeacherId, groupId, ct);
+        }
+        await db.SaveChangesAsync(ct);
+
+        // 6. Recomponer TeacherDto con assignments finales
         var teacher = await db.Teachers.AsNoTracking()
             .Include(x => x.StageAssignments)
             .Include(x => x.SubjectHours)

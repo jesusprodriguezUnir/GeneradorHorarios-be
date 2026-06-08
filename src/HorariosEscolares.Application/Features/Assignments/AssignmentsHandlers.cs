@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using HorariosEscolares.Domain.Abstractions;
 using HorariosEscolares.Domain.Assignments;
 using HorariosEscolares.Domain.Entities;
+using HorariosEscolares.Domain.Services;
 
 namespace HorariosEscolares.Application.Features.Assignments;
 
@@ -21,6 +22,9 @@ public record AssignmentSummaryDto(
 public record GetAllAssignmentsQuery : IRequest<List<AssignmentSummaryDto>>;
 public record CreateAssignmentCommand(Guid TeacherId, Guid GroupId, Guid AllocationId, int WeeklyHours) : IRequest<AssignmentDto>;
 public record DeleteAssignmentCommand(Guid Id) : IRequest;
+
+public record AssignmentUpdateInput(Guid TeacherId, Guid GroupId, Guid AllocationId, int WeeklyHours);
+public record UpdateAssignmentsCommand(IReadOnlyList<AssignmentUpdateInput> Assignments) : IRequest;
 
 public sealed class GetAllAssignmentsHandler(IAppDbContext db, ICurrentUser user)
     : IRequestHandler<GetAllAssignmentsQuery, List<AssignmentSummaryDto>>
@@ -79,7 +83,7 @@ public sealed class GetAllAssignmentsHandler(IAppDbContext db, ICurrentUser user
     }
 }
 
-public sealed class CreateAssignmentHandler(IAppDbContext db, IAssignmentRepository repository, ICurrentUser user)
+public sealed class CreateAssignmentHandler(IAppDbContext db, IAssignmentRepository repository, ICurrentUser user, ICycleResolver cycleResolver)
     : IRequestHandler<CreateAssignmentCommand, AssignmentDto>
 {
     public async Task<AssignmentDto> Handle(CreateAssignmentCommand request, CancellationToken ct)
@@ -98,6 +102,8 @@ public sealed class CreateAssignmentHandler(IAppDbContext db, IAssignmentReposit
         await repository.AddAsync(a, ct);
         await repository.SaveChangesAsync(ct);
 
+        await TeacherStageAssignmentHelper.EnsureForGroupAsync(db, cycleResolver, request.TeacherId, request.GroupId, ct);
+
         var teacherName = await db.Teachers.AsNoTracking()
             .Where(t => t.Id == request.TeacherId).Select(t => t.FullName).FirstOrDefaultAsync(ct) ?? "?";
         var groupDisplay = await db.CourseGroups.AsNoTracking()
@@ -106,6 +112,76 @@ public sealed class CreateAssignmentHandler(IAppDbContext db, IAssignmentReposit
             .Where(s => s.Id == request.AllocationId).Select(s => s.SubjectName).FirstOrDefaultAsync(ct) ?? "?";
         return new AssignmentDto(a.Id, a.TeacherId, teacherName, a.GroupId, groupDisplay,
             a.AllocationId, subjectName, a.WeeklyHours);
+    }
+}
+
+public sealed class UpdateAssignmentsHandler(IAppDbContext db, ICurrentUser user, ICycleResolver cycleResolver)
+    : IRequestHandler<UpdateAssignmentsCommand>
+{
+    public async Task Handle(UpdateAssignmentsCommand request, CancellationToken ct)
+    {
+        var teacherIds = request.Assignments.Select(a => a.TeacherId).ToHashSet();
+        var groupIds = request.Assignments.Select(a => a.GroupId).ToHashSet();
+
+        var validTeachers = (await db.Teachers.AsNoTracking()
+            .Where(t => teacherIds.Contains(t.Id) && t.SchoolId == user.SchoolId)
+            .Select(t => t.Id)
+            .ToListAsync(ct)).ToHashSet();
+        var validGroups = (await db.CourseGroups.AsNoTracking()
+            .Where(g => groupIds.Contains(g.Id) && g.SchoolId == user.SchoolId)
+            .Select(g => g.Id)
+            .ToListAsync(ct)).ToHashSet();
+
+        foreach (var input in request.Assignments)
+        {
+            if (!validTeachers.Contains(input.TeacherId))
+                throw new InvalidOperationException($"Profesor no válido: {input.TeacherId}");
+            if (!validGroups.Contains(input.GroupId))
+                throw new InvalidOperationException($"Grupo no válido: {input.GroupId}");
+        }
+
+        var existing = await db.Assignments
+            .Where(a => a.SchoolId == user.SchoolId && teacherIds.Contains(a.TeacherId))
+            .ToListAsync(ct);
+
+        var inputSet = request.Assignments.ToDictionary(a => (a.TeacherId, a.GroupId, a.AllocationId));
+
+        var toRemove = existing
+            .Where(e => !inputSet.ContainsKey((e.TeacherId, e.GroupId, e.AllocationId)))
+            .ToList();
+        db.Assignments.RemoveRange(toRemove);
+
+        foreach (var input in request.Assignments)
+        {
+            var match = existing.FirstOrDefault(
+                e => e.TeacherId == input.TeacherId && e.GroupId == input.GroupId && e.AllocationId == input.AllocationId);
+            if (match is not null)
+            {
+                match.WeeklyHours = input.WeeklyHours;
+            }
+            else
+            {
+                db.Assignments.Add(new Assignment
+                {
+                    SchoolId = user.SchoolId,
+                    TeacherId = input.TeacherId,
+                    GroupId = input.GroupId,
+                    AllocationId = input.AllocationId,
+                    WeeklyHours = input.WeeklyHours,
+                });
+            }
+        }
+
+        await db.SaveChangesAsync(ct);
+
+        var distinctPairs = request.Assignments
+            .Select(a => (a.TeacherId, a.GroupId))
+            .Distinct();
+        foreach (var (teacherId, groupId) in distinctPairs)
+        {
+            await TeacherStageAssignmentHelper.EnsureForGroupAsync(db, cycleResolver, teacherId, groupId, ct);
+        }
+        await db.SaveChangesAsync(ct);
     }
 }
 

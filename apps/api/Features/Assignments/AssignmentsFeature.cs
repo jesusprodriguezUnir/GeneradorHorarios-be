@@ -30,6 +30,20 @@ public static class AssignmentEndpoints
             }
         });
 
+        g.MapPut("/", async (HttpContext ctx, ISender sender, UpdateAssignmentsCommand cmd) =>
+        {
+            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
+            try
+            {
+                await sender.Send(cmd);
+                return Results.Ok();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Results.BadRequest(new { message = ex.Message });
+            }
+        });
+
         g.MapDelete("/{id:guid}", async (Guid id, HttpContext ctx, ISender sender) =>
         {
             if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
