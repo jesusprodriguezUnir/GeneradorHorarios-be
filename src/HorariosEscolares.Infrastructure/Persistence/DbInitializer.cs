@@ -383,6 +383,7 @@ public static class DbInitializer
                     Name          = $"Aula {level}º{lineLabels[li]}",
                     ClassroomType = "regular",
                     Capacity      = 28,
+                    StageId       = PrimariaStageId,
                 });
             }
         }

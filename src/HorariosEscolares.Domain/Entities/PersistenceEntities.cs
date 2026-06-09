@@ -123,6 +123,8 @@ public class Classroom
     public string ClassroomType { get; set; } = "regular";
     public int Capacity { get; set; } = 30;
     public bool IsShared { get; set; } = false;
+    public Guid? StageId { get; set; }
+    public SchoolStage? Stage { get; set; }
 }
 
 public class CurriculumTemplate

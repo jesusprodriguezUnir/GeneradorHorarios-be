@@ -100,6 +100,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasIndex(x => x.SchoolId);
             e.Property(x => x.Name).HasMaxLength(100).IsRequired();
             e.Property(x => x.ClassroomType).HasMaxLength(20).HasDefaultValue("regular");
+            e.Property(x => x.StageId).IsRequired(false);
+            e.HasIndex(x => x.StageId);
+            e.HasOne(x => x.Stage).WithMany().HasForeignKey(x => x.StageId).OnDelete(DeleteBehavior.SetNull);
         });
 
         mb.Entity<CurriculumTemplate>(e =>

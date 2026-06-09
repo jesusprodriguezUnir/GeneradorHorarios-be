@@ -6,11 +6,11 @@ using HorariosEscolares.Domain.Entities;
 
 namespace HorariosEscolares.Application.Features.Classrooms;
 
-public record ClassroomDto(Guid Id, string Name, string ClassroomType, int Capacity, bool IsShared);
+public record ClassroomDto(Guid Id, string Name, string ClassroomType, int Capacity, bool IsShared, Guid? StageId);
 
 public record GetAllClassroomsQuery : IRequest<List<ClassroomDto>>;
-public record CreateClassroomCommand(string Name, string ClassroomType, int Capacity, bool IsShared) : IRequest<ClassroomDto>;
-public record UpdateClassroomCommand(Guid Id, string? Name, string? ClassroomType, int? Capacity, bool? IsShared) : IRequest<ClassroomDto>;
+public record CreateClassroomCommand(string Name, string ClassroomType, int Capacity, bool IsShared, Guid? StageId) : IRequest<ClassroomDto>;
+public record UpdateClassroomCommand(Guid Id, string? Name, string? ClassroomType, int? Capacity, bool? IsShared, Guid? StageId) : IRequest<ClassroomDto>;
 public record DeleteClassroomCommand(Guid Id) : IRequest;
 
 public sealed class GetAllClassroomsHandler(IAppDbContext db, ICurrentUser user)
@@ -21,7 +21,7 @@ public sealed class GetAllClassroomsHandler(IAppDbContext db, ICurrentUser user)
         return await db.Classrooms.AsNoTracking()
             .Where(c => c.SchoolId == user.SchoolId)
             .OrderBy(c => c.Name)
-            .Select(c => new ClassroomDto(c.Id, c.Name, c.ClassroomType, c.Capacity, c.IsShared))
+            .Select(c => new ClassroomDto(c.Id, c.Name, c.ClassroomType, c.Capacity, c.IsShared, c.StageId))
             .ToListAsync(ct);
     }
 }
@@ -34,11 +34,11 @@ public sealed class CreateClassroomHandler(IClassroomRepository repository, ICur
         var c = new Classroom
         {
             SchoolId = user.SchoolId, Name = request.Name, ClassroomType = request.ClassroomType,
-            Capacity = request.Capacity, IsShared = request.IsShared,
+            Capacity = request.Capacity, IsShared = request.IsShared, StageId = request.StageId,
         };
         await repository.AddAsync(c, ct);
         await repository.SaveChangesAsync(ct);
-        return new(c.Id, c.Name, c.ClassroomType, c.Capacity, c.IsShared);
+        return new(c.Id, c.Name, c.ClassroomType, c.Capacity, c.IsShared, c.StageId);
     }
 }
 
@@ -53,8 +53,9 @@ public sealed class UpdateClassroomHandler(IClassroomRepository repository, ICur
         if (request.ClassroomType is not null) c.ClassroomType = request.ClassroomType;
         if (request.Capacity.HasValue) c.Capacity = request.Capacity.Value;
         if (request.IsShared.HasValue) c.IsShared = request.IsShared.Value;
+        if (request.StageId.HasValue) c.StageId = request.StageId;
         await repository.SaveChangesAsync(ct);
-        return new(c.Id, c.Name, c.ClassroomType, c.Capacity, c.IsShared);
+        return new(c.Id, c.Name, c.ClassroomType, c.Capacity, c.IsShared, c.StageId);
     }
 }
 

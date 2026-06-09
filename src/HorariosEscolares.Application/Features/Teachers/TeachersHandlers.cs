@@ -222,13 +222,11 @@ public sealed class UpdateTeacherHandler(IAppDbContext db, ICurrentUser user)
 
         if (request.StageAssignments is not null)
         {
-            var newStages = request.StageAssignments
-                .Select(sa => new { sa.StageId, sa.Cycle })
-                .ToList();
+            var newStageIds = request.StageAssignments.Select(sa => sa.StageId).ToHashSet();
 
-            // Eliminar las que ya no están
+            // Eliminar solo si la StageId ya no está en la lista entrante
             var toRemove = t.StageAssignments
-                .Where(sa => !newStages.Any(ns => ns.StageId == sa.StageId && ns.Cycle == sa.Cycle))
+                .Where(sa => !newStageIds.Contains(sa.StageId))
                 .ToList();
             foreach (var item in toRemove)
             {
@@ -236,8 +234,8 @@ public sealed class UpdateTeacherHandler(IAppDbContext db, ICurrentUser user)
                 db.TeacherStageAssignments.Remove(item);
             }
 
-            // Añadir las nuevas
-            foreach (var ns in newStages)
+            // Añadir las que no existan exactamente (StageId + Cycle)
+            foreach (var ns in request.StageAssignments)
             {
                 var exists = t.StageAssignments.Any(sa => sa.StageId == ns.StageId && sa.Cycle == ns.Cycle);
                 if (!exists)
