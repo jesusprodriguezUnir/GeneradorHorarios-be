@@ -18,7 +18,7 @@ public class School
     public int BreakAfterSlot { get; set; } = 2;
     public int BreakMinutes { get; set; } = 30;
     public int SlotsPerDay { get; set; } = 5;
-    public int AfternoonSlots { get; set; } = 0;
+    public int AfternoonSlots { get; set; }
     public int DaysPerWeek { get; set; } = 5;
     public string WorkingDays { get; set; } = "[1,2,3,4,5]";
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
@@ -122,7 +122,7 @@ public class Classroom
     public required string Name { get; set; }
     public string ClassroomType { get; set; } = "regular";
     public int Capacity { get; set; } = 30;
-    public bool IsShared { get; set; } = false;
+    public bool IsShared { get; set; }
     public Guid? StageId { get; set; }
     public SchoolStage? Stage { get; set; }
 }
@@ -135,7 +135,7 @@ public class CurriculumTemplate
     public required string Name { get; set; }
     public string Region { get; set; } = "madrid";
     public string Stage { get; set; } = "primaria";
-    public bool IsOfficial { get; set; } = false;
+    public bool IsOfficial { get; set; }
 }
 
 public class SubjectAllocation
@@ -148,7 +148,7 @@ public class SubjectAllocation
     public int WeeklyHoursMin { get; set; }
     public int WeeklyHoursMax { get; set; }
     public int WeeklyHoursDefault { get; set; }
-    public bool RequiresSpecialist { get; set; } = false;
+    public bool RequiresSpecialist { get; set; }
     public string? RequiredClassroomType { get; set; }
     public int MaxConsecutiveSlots { get; set; } = 2;
     public bool SplittableAcrossDays { get; set; } = true;
@@ -212,7 +212,7 @@ public class ScheduleRecord
     public DateTime? GeneratedAt { get; set; }
     public DateTime? PublishedAt { get; set; }
     public int? GenerationSeconds { get; set; }
-    public int TotalConflicts { get; set; } = 0;
+    public int TotalConflicts { get; set; }
     public Guid? PeriodId { get; set; }
     public required Guid CreatedBy { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
@@ -229,7 +229,7 @@ public class ScheduleEntry
     public required Guid ClassroomId { get; set; }
     public required int DayOfWeek { get; set; }
     public required int SlotIndex { get; set; }
-    public bool IsManualOverride { get; set; } = false;
+    public bool IsManualOverride { get; set; }
 }
 
 public class ScheduleConflictRecord
@@ -257,7 +257,7 @@ public class SchoolPeriod
     public string ScheduleType { get; set; } = "partida";
     public int SlotMinutes { get; set; } = 60;
     public int SlotsPerDay { get; set; } = 5;
-    public int AfternoonSlots { get; set; } = 0;
+    public int AfternoonSlots { get; set; }
     public bool IsDefault { get; set; }
     public int SortOrder { get; set; }
     public ICollection<CycleSchedule> Cycles { get; set; } = new List<CycleSchedule>();
@@ -322,7 +322,7 @@ public class SchoolStage
     public int BreakAfterSlot { get; set; } = 2;
     public int BreakMinutes { get; set; } = 30;
     public int SlotsPerDay { get; set; } = 5;
-    public int AfternoonSlots { get; set; } = 0;
+    public int AfternoonSlots { get; set; }
     public int DaysPerWeek { get; set; } = 5;
     public string WorkingDays { get; set; } = "[1,2,3,4,5]";
 }

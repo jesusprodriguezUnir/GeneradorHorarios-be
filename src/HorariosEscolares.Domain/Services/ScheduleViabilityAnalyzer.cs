@@ -12,7 +12,7 @@ public static class ScheduleViabilityAnalyzer
     {
         var conflicts = new List<ConflictExplanation>();
 
-        var refSlots = school.Cycles.FirstOrDefault()?.Slots ?? [];
+        var refSlots = school.Cycles.Count > 0 ? school.Cycles[0].Slots : [];
         int lectiveSlots = refSlots.Count(s => !s.IsBreak);
         if (lectiveSlots == 0) lectiveSlots = school.SlotsPerDay;
         int totalLectiveSlots = school.WorkingDays.Count * lectiveSlots;
