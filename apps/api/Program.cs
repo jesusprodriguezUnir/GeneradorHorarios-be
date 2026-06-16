@@ -155,6 +155,30 @@ app.Use(async (context, next) =>
         context.Response.StatusCode = StatusCodes.Status401Unauthorized;
         await context.Response.WriteAsJsonAsync(new { error = ex.Message });
     }
+    catch (HorariosEscolares.Application.Common.Exceptions.ForbiddenAccessException ex)
+    {
+        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+        await context.Response.WriteAsJsonAsync(new { error = ex.Message });
+    }
+    catch (HorariosEscolares.Application.Common.Exceptions.NotFoundException ex)
+    {
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        await context.Response.WriteAsJsonAsync(new { error = ex.Message });
+    }
+    catch (HorariosEscolares.Application.Common.Exceptions.ValidationException ex)
+    {
+        context.Response.StatusCode = StatusCodes.Status400BadRequest;
+        await context.Response.WriteAsJsonAsync(new
+        {
+            error = "La solicitud contiene errores de validación.",
+            details = ex.Failures.Select(f => new { f.PropertyName, f.ErrorMessage }).ToList(),
+        });
+    }
+    catch (InvalidOperationException ex)
+    {
+        context.Response.StatusCode = StatusCodes.Status400BadRequest;
+        await context.Response.WriteAsJsonAsync(new { error = ex.Message });
+    }
     catch (Exception ex)
     {
         var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();

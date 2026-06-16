@@ -1,12 +1,14 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using HorariosEscolares.Domain.Abstractions;
-using HorariosEscolares.Domain.Entities;
 using HorariosEscolares.Domain.Constraints;
+using HorariosEscolares.Domain.Entities;
 using HorariosEscolares.Domain.Normative;
 using HorariosEscolares.Domain.Services;
 
 namespace HorariosEscolares.Application.Features.Schools;
+
+public record NormativeCheckQuery : IRequest<NormativeCheckDto>;
 
 public sealed class NormativeCheckHandler(IAppDbContext db, INormativeValidator validator, ICurrentUser user)
     : IRequestHandler<NormativeCheckQuery, NormativeCheckDto>

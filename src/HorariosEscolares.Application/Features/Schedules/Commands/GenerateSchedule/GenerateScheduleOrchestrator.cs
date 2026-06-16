@@ -26,22 +26,8 @@ public sealed class GenerateScheduleOrchestrator(
         IProgress<GenerationProgress>? progress,
         CancellationToken ct)
     {
-        // ── 0. Cargar etapa (dueña de los cursos, ciclos y niveles) ──────────
-        var stage = await db.SchoolStages.AsNoTracking()
-            .FirstOrDefaultAsync(s => s.Id == stageId && s.SchoolId == schoolId, ct);
-        if (stage is null)
-            throw new NotFoundException("Etapa no encontrada.");
+        var (stage, period) = await LoadCoreDataAsync(schoolId, stageId, periodId, ct);
 
-        // ── 1. Cargar periodo (dueño de la jornada) ──────────────────────────
-        var period = await db.SchoolPeriods.AsNoTracking()
-            .Include(p => p.Cycles).ThenInclude(c => c.Breaks)
-            .FirstOrDefaultAsync(p => p.Id == periodId && p.StageId == stageId, ct);
-        if (period is null)
-            throw new NotFoundException("Periodo no encontrado para esta etapa.");
-
-        var cycleMap = period.Cycles.ToDictionary(c => c.Cycle);
-
-        // ── 2. Construir sesiones (con override de horas del periodo) ────────
         var periodHoursOverrides = await db.PeriodAssignmentHours.AsNoTracking()
             .Where(h => h.PeriodId == periodId)
             .ToDictionaryAsync(h => h.AssignmentId, h => h.WeeklyHours, ct);
@@ -50,7 +36,69 @@ public sealed class GenerateScheduleOrchestrator(
         if (sessions.Count == 0)
             return new GenerateScheduleResult.NoAssignments();
 
-        // ── 3. Cargar datos auxiliares ────────────────────────────────────────
+        var (classrooms, unavailableSlots, unavailableSet) = await LoadAuxiliaryDataAsync(schoolId, ct);
+
+        var workingDays = SlotCalculator.ParseWorkingDays(stage.WorkingDays);
+        var cyclesList = BuildCycleGrids(period);
+        var schoolConfig = BuildSchoolConfig(stage, period, cyclesList, classrooms);
+
+        var normativeIssues = await ValidateNormativelyAsync(
+            schoolConfig, stage, period, schoolId, stageId, ct);
+
+        var context = BuildGenerationContext(
+            schoolConfig, sessions, unavailableSlots, schoolId, period, timeoutSeconds, ct);
+
+        var viabilityErrors = ScheduleViabilityAnalyzer.Analyze(context.School, sessions, unavailableSet);
+        if (viabilityErrors.Any())
+        {
+            var failedScheduleId = await PersistViabilityFailureAsync(
+                schoolId, stageId, periodId, academicYear, viabilityErrors, ct);
+            return new GenerateScheduleResult.ViabilityFailed(
+                failedScheduleId, viabilityErrors.Count, viabilityErrors);
+        }
+
+        var engineResult = await engine.GenerateAsync(context, ct, progress);
+
+        var (coverageConflicts, teacherHoursConflicts) = await DetectPostProcessConflictsAsync(
+            schoolId, stageId, stage, period, engineResult.AssignedSlots, ct);
+
+        var scheduleId = await PersistSuccessAsync(
+            schoolId, stageId, periodId, academicYear, engineResult,
+            normativeIssues, coverageConflicts, teacherHoursConflicts,
+            classrooms, ct);
+
+        return new GenerateScheduleResult.Success(
+            scheduleId, "generated",
+            engineResult.TotalAssigned, engineResult.TotalRequired,
+            engineResult.ElapsedSeconds,
+            engineResult.Conflicts.Count(c => c.Severity == ConflictSeverity.Error)
+                + normativeIssues.Count(c => c.Severity == ConflictSeverity.Error)
+                + coverageConflicts.Count + teacherHoursConflicts.Count,
+            engineResult.TotalCost);
+    }
+
+    private async Task<(SchoolStage Stage, SchoolPeriod Period)> LoadCoreDataAsync(
+        Guid schoolId, Guid stageId, Guid periodId, CancellationToken ct)
+    {
+        var stage = await db.SchoolStages.AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == stageId && s.SchoolId == schoolId, ct);
+        if (stage is null)
+            throw new NotFoundException("Etapa no encontrada.");
+
+        var period = await db.SchoolPeriods.AsNoTracking()
+            .Include(p => p.Cycles).ThenInclude(c => c.Breaks)
+            .FirstOrDefaultAsync(p => p.Id == periodId && p.StageId == stageId, ct);
+        if (period is null)
+            throw new NotFoundException("Periodo no encontrado para esta etapa.");
+
+        return (stage, period);
+    }
+
+    private async Task<(List<Classroom> Classrooms,
+        List<(Guid TeacherId, int Day, int Slot)> UnavailableSlots,
+        HashSet<(Guid TeacherId, int Day, int Slot)> UnavailableSet)> LoadAuxiliaryDataAsync(
+        Guid schoolId, CancellationToken ct)
+    {
         var classrooms = await db.Classrooms.AsNoTracking()
             .Where(c => c.SchoolId == schoolId).ToListAsync(ct);
 
@@ -61,7 +109,31 @@ public sealed class GenerateScheduleOrchestrator(
         var unavailableSet = unavailableSlots
             .Select(c => (c.TeacherId, c.Day, c.Slot)).ToHashSet();
 
-        // ── 4. Validación normativa (pero no para periodos reducidos) ─────────
+        return (classrooms, unavailableSlots.Select(c => (c.TeacherId, c.Day, c.Slot)).ToList(), unavailableSet);
+    }
+
+    private SchoolConfig BuildSchoolConfig(
+        SchoolStage stage, SchoolPeriod period, List<CycleGrid> cyclesList, List<Classroom> classrooms)
+    {
+        int maxLectiveSlots = cyclesList.Count > 0
+            ? cyclesList.Max(cg => cg.Slots.Count(s => !s.IsBreak))
+            : period.SlotsPerDay;
+
+        var workingDays = SlotCalculator.ParseWorkingDays(stage.WorkingDays);
+
+        return new SchoolConfig(
+            maxLectiveSlots, workingDays.Count, workingDays, cyclesList,
+            classrooms.Select(c => new ClassroomInfo(c.Id, c.Name, ParseClassroomType(c.ClassroomType))).ToList());
+    }
+
+    private async Task<List<ConflictExplanation>> ValidateNormativelyAsync(
+        SchoolConfig schoolConfig,
+        SchoolStage stage,
+        SchoolPeriod period,
+        Guid schoolId,
+        Guid stageId,
+        CancellationToken ct)
+    {
         var stageGroupIds = (await db.CourseGroups.AsNoTracking()
             .Where(g => g.StageId == stageId)
             .Select(g => g.Id).ToListAsync(ct)).ToHashSet();
@@ -73,23 +145,6 @@ public sealed class GenerateScheduleOrchestrator(
         var normativeData = normativeAssignments
             .Where(a => stageGroupIds.Contains(a.GroupId) && normativeAllocs.ContainsKey(a.AllocationId))
             .Select(a => (a, normativeAllocs[a.AllocationId])).ToList();
-
-        var workingDays = SlotCalculator.ParseWorkingDays(stage.WorkingDays);
-        var cyclesList = BuildCycleGrids(period);
-        var referenceSlots = cyclesList.FirstOrDefault()?.Slots
-            ?? Enumerable.Range(0, period.SlotsPerDay)
-                .Select(i => new SlotConfig(i, false, i * period.SlotMinutes, (i + 1) * period.SlotMinutes)).ToList();
-
-        // El número de franjas lectivas del día se toma del máximo entre los ciclos configurados
-        // (cada ciclo puede tener distinto nº si las horas de entrada/salida difieren).
-        // Si no hay ciclos configurados, se cae al valor del periodo.
-        int maxLectiveSlots = cyclesList.Count > 0
-            ? cyclesList.Max(cg => cg.Slots.Count(s => !s.IsBreak))
-            : period.SlotsPerDay;
-
-        var schoolConfig = new SchoolConfig(
-            maxLectiveSlots, workingDays.Count, workingDays, cyclesList,
-            classrooms.Select(c => new ClassroomInfo(c.Id, c.Name, ParseClassroomType(c.ClassroomType))).ToList());
 
         var normativeValidationData = new NormativeValidationData
         {
@@ -105,18 +160,33 @@ public sealed class GenerateScheduleOrchestrator(
                 n.a.WeeklyHours, n.Item2.WeeklyHoursMin,
                 n.Item2.WeeklyHoursMax, n.Item2.WeeklyHoursDefault)).ToList(),
         };
-        var normativeIssues = await normativeValidator.ValidateAsync(normativeValidationData, ct);
 
-        // ── 5. Computar slots y constraints ──────────────────────────────────
+        return await normativeValidator.ValidateAsync(normativeValidationData, ct);
+    }
+
+    private GenerationContext BuildGenerationContext(
+        SchoolConfig schoolConfig,
+        List<SessionToAssign> sessions,
+        List<(Guid TeacherId, int Day, int Slot)> unavailableSlots,
+        Guid schoolId,
+        SchoolPeriod period,
+        int timeoutSeconds,
+        CancellationToken ct)
+    {
+        var referenceSlots = schoolConfig.Cycles.Count > 0
+            ? schoolConfig.Cycles[0].Slots
+            : Enumerable.Range(0, period.SlotsPerDay)
+                .Select(i => new SlotConfig(i, false, i * period.SlotMinutes, (i + 1) * period.SlotMinutes)).ToList();
+
         int lastLectivoSlotIndex = referenceSlots.Where(s => !s.IsBreak).Any()
-            ? referenceSlots.Where(s => !s.IsBreak).Max(s => s.Index) : (period.SlotsPerDay - 1);
+            ? referenceSlots.Where(s => !s.IsBreak).Max(s => s.Index)
+            : (period.SlotsPerDay - 1);
 
         var weights = new SoftConstraintWeights();
-        var hardConstraints = BuildHardConstraints(unavailableSlots
-            .Select(c => (c.TeacherId, c.Day, c.Slot)).ToList());
-        var softConstraints = await BuildSoftConstraintsAsync(schoolId, lastLectivoSlotIndex, weights, ct);
+        var hardConstraints = BuildHardConstraints(unavailableSlots);
+        var softConstraints = BuildSoftConstraintsAsync(schoolId, lastLectivoSlotIndex, weights, ct).GetAwaiter().GetResult();
 
-        var context = new GenerationContext
+        return new GenerationContext
         {
             School = schoolConfig,
             Sessions = sessions,
@@ -125,54 +195,21 @@ public sealed class GenerateScheduleOrchestrator(
             TimeoutSeconds = timeoutSeconds,
             Weights = weights,
         };
+    }
 
-        // ── 6. Análisis de viabilidad ─────────────────────────────────────────
-        var viabilityErrors = ScheduleViabilityAnalyzer.Analyze(context.School, sessions, unavailableSet);
-        if (viabilityErrors.Any())
-        {
-            var failedSchedule = new ScheduleRecord
-            {
-                SchoolId = schoolId, StageId = stageId, AcademicYear = academicYear,
-                Status = "failed",
-                GeneratedAt = DateTime.UtcNow, GenerationSeconds = 0,
-                TotalConflicts = viabilityErrors.Count,
-                PeriodId = periodId,
-                CreatedBy = Guid.Empty,
-            };
-
-            var failedConflicts = viabilityErrors.Select(conflict => new ScheduleConflictRecord
-            {
-                ScheduleId = failedSchedule.Id,
-                ConflictType = conflict.Type.ToString().ToLower(),
-                Severity = conflict.Severity.ToString().ToLower(),
-                Description = conflict.Description,
-                Suggestions = JsonSerializer.Serialize(conflict.Suggestions),
-                GroupId = conflict.GroupId, TeacherId = conflict.TeacherId,
-                DayOfWeek = conflict.DayOfWeek, SlotIndex = conflict.SlotIndex,
-            }).ToList();
-
-            await scheduleRepository.AddScheduleWithDetailsAsync(failedSchedule, [], failedConflicts, ct);
-
-            return new GenerateScheduleResult.ViabilityFailed(
-                failedSchedule.Id, viabilityErrors.Count, viabilityErrors);
-        }
-
-        // ── 7. Ejecutar motor de generación ──────────────────────────────────
-        var result = await engine.GenerateAsync(context, ct, progress);
-
-        // ── 8. Post-procesamiento ────────────────────────────────────────────
-        var homeClassroomMap = await db.CourseGroups.AsNoTracking()
-            .Where(g => g.StageId == stageId && g.HomeClassroomId.HasValue)
-            .ToDictionaryAsync(g => g.Id, g => g.HomeClassroomId!.Value, ct);
-        var defaultClassroomId = await db.Classrooms.AsNoTracking()
-            .Where(c => c.SchoolId == schoolId && c.ClassroomType == "regular")
-            .Select(c => c.Id).FirstOrDefaultAsync(ct);
-        var validClassroomIds = (await db.Classrooms.AsNoTracking()
-            .Where(c => c.SchoolId == schoolId)
-            .Select(c => c.Id).ToListAsync(ct)).ToHashSet();
+    private async Task<(List<ConflictExplanation> Coverage, List<ConflictExplanation> TeacherHours)> DetectPostProcessConflictsAsync(
+        Guid schoolId,
+        Guid stageId,
+        SchoolStage stage,
+        SchoolPeriod period,
+        IReadOnlyList<AssignedSlot> assignedSlots,
+        CancellationToken ct)
+    {
         var allGroups = await db.CourseGroups.AsNoTracking()
             .Where(g => g.StageId == stageId)
             .ToDictionaryAsync(g => g.Id, ct);
+
+        var stageGroupIds = allGroups.Keys.ToHashSet();
         var teacherAssignedWeeklyHoursExpected = await db.Assignments.AsNoTracking()
             .Where(a => a.SchoolId == schoolId && stageGroupIds.Contains(a.GroupId))
             .GroupBy(a => a.TeacherId)
@@ -182,36 +219,96 @@ public sealed class GenerateScheduleOrchestrator(
             .Where(t => t.SchoolId == schoolId)
             .ToDictionaryAsync(t => t.Id, t => t.FullName, ct);
 
+        var cyclesList = BuildCycleGrids(period);
+        var referenceSlots = cyclesList.Count > 0
+            ? cyclesList[0].Slots
+            : Enumerable.Range(0, period.SlotsPerDay)
+                .Select(i => new SlotConfig(i, false, i * period.SlotMinutes, (i + 1) * period.SlotMinutes)).ToList();
+
+        var workingDays = SlotCalculator.ParseWorkingDays(stage.WorkingDays);
         var lectivoSlotIndices = referenceSlots.Where(s => !s.IsBreak).Select(s => s.Index).ToHashSet();
-        var assignedSet = result.AssignedSlots
+        var assignedSet = assignedSlots
             .Select(s => (s.GroupId, s.DayOfWeek, s.SlotIndex)).ToHashSet();
 
         var coverageConflicts = DetectCoverageConflicts(
             allGroups, workingDays, lectivoSlotIndices, assignedSet);
 
         var teacherHoursConflicts = DetectTeacherHoursConflicts(
-            result.AssignedSlots, teacherAssignedWeeklyHoursExpected, teacherNames);
+            assignedSlots, teacherAssignedWeeklyHoursExpected, teacherNames);
 
-        // ── 9. Persistir resultado ────────────────────────────────────────────
+        return (coverageConflicts, teacherHoursConflicts);
+    }
+
+    private async Task<Guid> PersistViabilityFailureAsync(
+        Guid schoolId,
+        Guid stageId,
+        Guid periodId,
+        string academicYear,
+        IReadOnlyList<ConflictExplanation> viabilityErrors,
+        CancellationToken ct)
+    {
+        var failedSchedule = new ScheduleRecord
+        {
+            SchoolId = schoolId, StageId = stageId, AcademicYear = academicYear,
+            Status = "failed",
+            GeneratedAt = DateTime.UtcNow, GenerationSeconds = 0,
+            TotalConflicts = viabilityErrors.Count,
+            PeriodId = periodId,
+            CreatedBy = Guid.Empty,
+        };
+
+        var failedConflicts = viabilityErrors.Select(conflict => new ScheduleConflictRecord
+        {
+            ScheduleId = failedSchedule.Id,
+            ConflictType = conflict.Type.ToString().ToLower(),
+            Severity = conflict.Severity.ToString().ToLower(),
+            Description = conflict.Description,
+            Suggestions = JsonSerializer.Serialize(conflict.Suggestions),
+            GroupId = conflict.GroupId, TeacherId = conflict.TeacherId,
+            DayOfWeek = conflict.DayOfWeek, SlotIndex = conflict.SlotIndex,
+        }).ToList();
+
+        await scheduleRepository.AddScheduleWithDetailsAsync(failedSchedule, [], failedConflicts, ct);
+        return failedSchedule.Id;
+    }
+
+    private async Task<Guid> PersistSuccessAsync(
+        Guid schoolId,
+        Guid stageId,
+        Guid periodId,
+        string academicYear,
+        ScheduleResult engineResult,
+        List<ConflictExplanation> normativeIssues,
+        List<ConflictExplanation> coverageConflicts,
+        List<ConflictExplanation> teacherHoursConflicts,
+        List<Classroom> classrooms,
+        CancellationToken ct)
+    {
+        var homeClassroomMap = await db.CourseGroups.AsNoTracking()
+            .Where(g => g.StageId == stageId && g.HomeClassroomId.HasValue)
+            .ToDictionaryAsync(g => g.Id, g => g.HomeClassroomId!.Value, ct);
+        var defaultClassroomId = classrooms
+            .Where(c => c.ClassroomType == "regular")
+            .Select(c => c.Id).FirstOrDefault();
+        var validClassroomIds = classrooms.Select(c => c.Id).ToHashSet();
+
         var schedule = new ScheduleRecord
         {
             SchoolId = schoolId, StageId = stageId, AcademicYear = academicYear,
             Status = "generated",
-            GeneratedAt = DateTime.UtcNow, GenerationSeconds = result.ElapsedSeconds,
-            TotalConflicts = result.Conflicts.Count(c => c.Severity == ConflictSeverity.Error)
+            GeneratedAt = DateTime.UtcNow, GenerationSeconds = engineResult.ElapsedSeconds,
+            TotalConflicts = engineResult.Conflicts.Count(c => c.Severity == ConflictSeverity.Error)
                            + normativeIssues.Count(c => c.Severity == ConflictSeverity.Error)
                            + coverageConflicts.Count + teacherHoursConflicts.Count,
             PeriodId = periodId,
             CreatedBy = Guid.Empty,
         };
 
-        var entries = result.AssignedSlots.Select(slot =>
+        var entries = engineResult.AssignedSlots.Select(slot =>
         {
-            Guid classroomId;
-            if (slot.ClassroomId != Guid.Empty && validClassroomIds.Contains(slot.ClassroomId))
-                classroomId = slot.ClassroomId;
-            else
-                classroomId = homeClassroomMap.GetValueOrDefault(slot.GroupId, defaultClassroomId);
+            var classroomId = slot.ClassroomId != Guid.Empty && validClassroomIds.Contains(slot.ClassroomId)
+                ? slot.ClassroomId
+                : homeClassroomMap.GetValueOrDefault(slot.GroupId, defaultClassroomId);
 
             return new ScheduleEntry
             {
@@ -222,7 +319,7 @@ public sealed class GenerateScheduleOrchestrator(
             };
         }).ToList();
 
-        var allConflicts = result.Conflicts
+        var allConflicts = engineResult.Conflicts
             .Concat(normativeIssues).Concat(coverageConflicts).Concat(teacherHoursConflicts).ToList();
 
         var conflictRecords = allConflicts.Select(conflict => new ScheduleConflictRecord
@@ -237,11 +334,7 @@ public sealed class GenerateScheduleOrchestrator(
         }).ToList();
 
         await scheduleRepository.AddScheduleWithDetailsAsync(schedule, entries, conflictRecords, ct);
-
-        return new GenerateScheduleResult.Success(
-            schedule.Id, schedule.Status,
-            result.TotalAssigned, result.TotalRequired,
-            result.ElapsedSeconds, schedule.TotalConflicts, result.TotalCost);
+        return schedule.Id;
     }
 
     private List<CycleGrid> BuildCycleGrids(SchoolPeriod period)
@@ -272,8 +365,6 @@ public sealed class GenerateScheduleOrchestrator(
         return grids;
     }
 
-    // ── Métodos privados ──────────────────────────────────────────────────────
-
     private async Task<List<SessionToAssign>> BuildSessionsAsync(
         Guid schoolId,
         SchoolStage stage,
@@ -291,7 +382,6 @@ public sealed class GenerateScheduleOrchestrator(
             .Where(g => g.StageId == stage.Id)
             .ToDictionaryAsync(g => g.Id, ct);
 
-        // Cargar horas por asignatura de todos los profesores del centro (SubjectKey → horas).
         var teacherSubjectHoursRaw = await db.TeacherSubjectHours.AsNoTracking()
             .Where(sh => teachers.Keys.Contains(sh.TeacherId))
             .ToListAsync(ct);
@@ -304,7 +394,6 @@ public sealed class GenerateScheduleOrchestrator(
         var sessions = new List<SessionToAssign>();
         foreach (var a in assignments)
         {
-            // Solo sesiones de los grupos de esta etapa.
             if (!groups.TryGetValue(a.GroupId, out var grp)) continue;
             if (!allocations.TryGetValue(a.AllocationId, out var alloc)) continue;
             if (!teachers.TryGetValue(a.TeacherId, out var teacher)) continue;
@@ -431,7 +520,7 @@ public sealed class GenerateScheduleOrchestrator(
         return conflicts;
     }
 
-    private static ClassroomType ParseClassroomType(string t) => t.ToLower() switch
+    private static ClassroomType ParseClassroomType(string t) => t.ToLowerInvariant() switch
     {
         "gym" => ClassroomType.Gym, "music" => ClassroomType.Music,
         "lab" => ClassroomType.Lab, "it" => ClassroomType.IT,
