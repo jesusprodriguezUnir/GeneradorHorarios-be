@@ -22,19 +22,17 @@ public static class ConstraintEndpoints
             return Results.Ok(result);
         });
 
-        g.MapPost("/", async (HttpContext ctx, ISender sender, CreateConstraintCommand cmd) =>
+        g.MapPost("/", async (ISender sender, CreateConstraintCommand cmd) =>
         {
-            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
             var result = await sender.Send(cmd);
             return Results.Created($"/api/constraints/{result.Id}", result);
-        });
+        }).RequireAdmin();
 
-        g.MapDelete("/{id:guid}", async (Guid id, HttpContext ctx, ISender sender) =>
+        g.MapDelete("/{id:guid}", async (Guid id, ISender sender) =>
         {
-            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
             await sender.Send(new DeleteConstraintCommand(id));
             return Results.NoContent();
-        });
+        }).RequireAdmin();
 
         return app;
     }

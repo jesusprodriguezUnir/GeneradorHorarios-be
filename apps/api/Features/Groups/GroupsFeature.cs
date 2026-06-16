@@ -16,26 +16,23 @@ public static class GroupEndpoints
             return Results.Ok(result);
         });
 
-        g.MapPost("/", async (HttpContext ctx, ISender sender, CreateGroupCommand cmd) =>
+        g.MapPost("/", async (ISender sender, CreateGroupCommand cmd) =>
         {
-            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
             var result = await sender.Send(cmd);
             return Results.Created($"/api/groups/{result.Id}", result);
-        });
+        }).RequireAdmin();
 
-        g.MapPut("/{id:guid}", async (Guid id, HttpContext ctx, ISender sender, UpdateGroupCommand cmd) =>
+        g.MapPut("/{id:guid}", async (Guid id, ISender sender, UpdateGroupCommand cmd) =>
         {
-            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
             var result = await sender.Send(cmd with { Id = id });
             return Results.Ok(result);
-        });
+        }).RequireAdmin();
 
-        g.MapDelete("/{id:guid}", async (Guid id, HttpContext ctx, ISender sender) =>
+        g.MapDelete("/{id:guid}", async (Guid id, ISender sender) =>
         {
-            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
             await sender.Send(new DeleteGroupCommand(id));
             return Results.NoContent();
-        });
+        }).RequireAdmin();
 
         return app;
     }

@@ -24,16 +24,14 @@ public static class TeacherEndpoints
             return result is not null ? Results.Ok(result) : Results.NotFound();
         });
 
-        g.MapPost("/", async (HttpContext ctx, ISender sender, CreateTeacherCommand cmd) =>
+        g.MapPost("/", async (ISender sender, CreateTeacherCommand cmd) =>
         {
-            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
             var result = await sender.Send(cmd);
             return Results.Created($"/api/teachers/{result.Id}", result);
-        });
+        }).RequireAdmin();
 
-        g.MapPut("/{id:guid}", async (Guid id, HttpContext ctx, ISender sender, UpdateTeacherCommand cmd) =>
+        g.MapPut("/{id:guid}", async (Guid id, ISender sender, UpdateTeacherCommand cmd) =>
         {
-            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
             try
             {
                 var result = await sender.Send(cmd with { Id = id });
@@ -43,11 +41,10 @@ public static class TeacherEndpoints
             {
                 return Results.NotFound();
             }
-        });
+        }).RequireAdmin();
 
-        g.MapPut("/{id:guid}/assignments", async (Guid id, HttpContext ctx, ISender sender, UpdateTeacherAssignmentsCommand cmd) =>
+        g.MapPut("/{id:guid}/assignments", async (Guid id, ISender sender, UpdateTeacherAssignmentsCommand cmd) =>
         {
-            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
             try
             {
                 var result = await sender.Send(cmd with { TeacherId = id });
@@ -61,14 +58,13 @@ public static class TeacherEndpoints
             {
                 return Results.BadRequest(new { message = ex.Message });
             }
-        });
+        }).RequireAdmin();
 
-        g.MapDelete("/{id:guid}", async (Guid id, HttpContext ctx, ISender sender) =>
+        g.MapDelete("/{id:guid}", async (Guid id, ISender sender) =>
         {
-            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
             await sender.Send(new DeleteTeacherCommand(id));
             return Results.NoContent();
-        });
+        }).RequireAdmin();
 
         return app;
     }

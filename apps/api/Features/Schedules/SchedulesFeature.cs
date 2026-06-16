@@ -58,7 +58,6 @@ public static class ScheduleEndpoints
             GenerateRequest req) =>
         {
             var user = ctx.GetCurrentUserOrFail();
-            if (!user.IsAdmin) return Results.StatusCode(403);
 
             var stageId = req.StageId;
             var periodId = req.PeriodId;
@@ -98,7 +97,7 @@ public static class ScheduleEndpoints
                     CancellationToken.None));
 
             return Results.Accepted($"/api/schedules/jobs/{jobId}", new { jobId });
-        });
+        }).RequireAdmin();
 
         // GET /api/schedules/jobs/{jobId} — estado de un job en background
         g.MapGet("/jobs/{jobId}", (string jobId) =>
@@ -134,9 +133,8 @@ public static class ScheduleEndpoints
         });
 
         // POST /api/schedules/{id}/publish
-        g.MapPost("/{id:guid}/publish", async (Guid id, HttpContext ctx, ISender sender) =>
+        g.MapPost("/{id:guid}/publish", async (Guid id, ISender sender) =>
         {
-            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
             try
             {
                 var message = await sender.Send(new PublishScheduleCommand(id));
@@ -146,12 +144,11 @@ public static class ScheduleEndpoints
             {
                 return Results.BadRequest(new { message = ex.Message });
             }
-        });
+        }).RequireAdmin();
 
         // POST /api/schedules/{id}/archive — archiva un horario
-        g.MapPost("/{id:guid}/archive", async (Guid id, HttpContext ctx, ISender sender) =>
+        g.MapPost("/{id:guid}/archive", async (Guid id, ISender sender) =>
         {
-            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
             try
             {
                 var message = await sender.Send(new ArchiveScheduleCommand(id));
@@ -161,12 +158,11 @@ public static class ScheduleEndpoints
             {
                 return Results.Conflict(new { message = ex.Message });
             }
-        });
+        }).RequireAdmin();
 
         // DELETE /api/schedules/{id} — elimina un horario (no publicado)
-        g.MapDelete("/{id:guid}", async (Guid id, HttpContext ctx, ISender sender) =>
+        g.MapDelete("/{id:guid}", async (Guid id, ISender sender) =>
         {
-            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
             try
             {
                 await sender.Send(new DeleteScheduleCommand(id));
@@ -176,14 +172,13 @@ public static class ScheduleEndpoints
             {
                 return Results.Conflict(new { message = ex.Message });
             }
-        });
+        }).RequireAdmin();
 
         // PUT /api/schedules/{scheduleId}/entries/{entryId}
         g.MapPut("/{scheduleId:guid}/entries/{entryId:guid}", async (
             Guid scheduleId, Guid entryId,
-            HttpContext ctx, ISender sender, UpdateEntryRequest req) =>
+            ISender sender, UpdateEntryRequest req) =>
         {
-            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
             try
             {
                 await sender.Send(new UpdateScheduleEntryCommand(scheduleId, entryId,
@@ -194,7 +189,7 @@ public static class ScheduleEndpoints
             {
                 return Results.BadRequest(new { message = ex.Message });
             }
-        });
+        }).RequireAdmin();
 
         return app;
     }

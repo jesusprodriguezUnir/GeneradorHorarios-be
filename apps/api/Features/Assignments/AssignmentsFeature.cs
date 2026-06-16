@@ -16,9 +16,8 @@ public static class AssignmentEndpoints
             return Results.Ok(result);
         });
 
-        g.MapPost("/", async (HttpContext ctx, ISender sender, CreateAssignmentCommand cmd) =>
+        g.MapPost("/", async (ISender sender, CreateAssignmentCommand cmd) =>
         {
-            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
             try
             {
                 var result = await sender.Send(cmd);
@@ -28,11 +27,10 @@ public static class AssignmentEndpoints
             {
                 return Results.BadRequest(new { message = ex.Message });
             }
-        });
+        }).RequireAdmin();
 
-        g.MapPut("/", async (HttpContext ctx, ISender sender, UpdateAssignmentsCommand cmd) =>
+        g.MapPut("/", async (ISender sender, UpdateAssignmentsCommand cmd) =>
         {
-            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
             try
             {
                 await sender.Send(cmd);
@@ -42,14 +40,13 @@ public static class AssignmentEndpoints
             {
                 return Results.BadRequest(new { message = ex.Message });
             }
-        });
+        }).RequireAdmin();
 
-        g.MapDelete("/{id:guid}", async (Guid id, HttpContext ctx, ISender sender) =>
+        g.MapDelete("/{id:guid}", async (Guid id, ISender sender) =>
         {
-            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
             await sender.Send(new DeleteAssignmentCommand(id));
             return Results.NoContent();
-        });
+        }).RequireAdmin();
 
         return app;
     }

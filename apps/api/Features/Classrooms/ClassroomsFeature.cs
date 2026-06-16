@@ -16,26 +16,23 @@ public static class ClassroomEndpoints
             return Results.Ok(result);
         });
 
-        g.MapPost("/", async (HttpContext ctx, ISender sender, CreateClassroomCommand cmd) =>
+        g.MapPost("/", async (ISender sender, CreateClassroomCommand cmd) =>
         {
-            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
             var result = await sender.Send(cmd);
             return Results.Created($"/api/classrooms/{result.Id}", result);
-        });
+        }).RequireAdmin();
 
-        g.MapPut("/{id:guid}", async (Guid id, HttpContext ctx, ISender sender, UpdateClassroomCommand cmd) =>
+        g.MapPut("/{id:guid}", async (Guid id, ISender sender, UpdateClassroomCommand cmd) =>
         {
-            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
             var result = await sender.Send(cmd with { Id = id });
             return Results.Ok(result);
-        });
+        }).RequireAdmin();
 
-        g.MapDelete("/{id:guid}", async (Guid id, HttpContext ctx, ISender sender) =>
+        g.MapDelete("/{id:guid}", async (Guid id, ISender sender) =>
         {
-            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
             await sender.Send(new DeleteClassroomCommand(id));
             return Results.NoContent();
-        });
+        }).RequireAdmin();
 
         return app;
     }

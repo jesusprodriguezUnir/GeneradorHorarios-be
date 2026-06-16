@@ -16,9 +16,8 @@ public static class SubjectEndpoints
             return Results.Ok(result);
         });
 
-        g.MapPost("/clone-official", async (HttpContext ctx, ISender sender) =>
+        g.MapPost("/clone-official", async (ISender sender) =>
         {
-            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
             try
             {
                 var result = await sender.Send(new CloneOfficialCurriculumCommand());
@@ -28,11 +27,10 @@ public static class SubjectEndpoints
             {
                 return Results.BadRequest(new { message = ex.Message });
             }
-        });
+        }).RequireAdmin();
 
-        g.MapPut("/{id:guid}/hours", async (Guid id, HttpContext ctx, ISender sender, UpdateSubjectHoursCommand cmd) =>
+        g.MapPut("/{id:guid}/hours", async (Guid id, ISender sender, UpdateSubjectHoursCommand cmd) =>
         {
-            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
             try
             {
                 var result = await sender.Send(cmd with { Id = id });
@@ -46,18 +44,16 @@ public static class SubjectEndpoints
             {
                 return Results.BadRequest(new { message = ex.Message });
             }
-        });
+        }).RequireAdmin();
 
-        g.MapPost("/", async (HttpContext ctx, ISender sender, CreateSubjectCommand cmd) =>
+        g.MapPost("/", async (ISender sender, CreateSubjectCommand cmd) =>
         {
-            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
             var result = await sender.Send(cmd);
             return Results.Created($"/api/subjects/{result.Id}", result);
-        });
+        }).RequireAdmin();
 
-        g.MapPut("/{id:guid}", async (Guid id, HttpContext ctx, ISender sender, UpdateSubjectCommand cmd) =>
+        g.MapPut("/{id:guid}", async (Guid id, ISender sender, UpdateSubjectCommand cmd) =>
         {
-            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
             try
             {
                 var result = await sender.Send(cmd with { Id = id });
@@ -67,11 +63,10 @@ public static class SubjectEndpoints
             {
                 return Results.StatusCode(403);
             }
-        });
+        }).RequireAdmin();
 
-        g.MapDelete("/{id:guid}", async (Guid id, HttpContext ctx, ISender sender) =>
+        g.MapDelete("/{id:guid}", async (Guid id, ISender sender) =>
         {
-            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
             try
             {
                 await sender.Send(new DeleteSubjectCommand(id));
@@ -81,7 +76,7 @@ public static class SubjectEndpoints
             {
                 return Results.StatusCode(403);
             }
-        });
+        }).RequireAdmin();
 
         return app;
     }

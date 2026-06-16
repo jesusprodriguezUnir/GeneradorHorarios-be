@@ -34,9 +34,8 @@ public static class SchoolEndpoints
             }
         });
 
-        g.MapPut("/me", async (HttpContext ctx, ISender sender, UpdateSchoolCommand cmd) =>
+        g.MapPut("/me", async (ISender sender, UpdateSchoolCommand cmd) =>
         {
-            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
             try
             {
                 var result = await sender.Send(cmd);
@@ -46,7 +45,7 @@ public static class SchoolEndpoints
             {
                 return Results.BadRequest(new { message = ex.Message });
             }
-        });
+        }).RequireAdmin();
 
         // ── Cycles (compatibilidad — apunta al periodo por defecto) ─────────
         g.MapGet("/me/cycles/{cycle}", async (int cycle, ISender sender) =>
@@ -55,12 +54,11 @@ public static class SchoolEndpoints
             return result is not null ? Results.Ok(result) : Results.NotFound();
         });
 
-        g.MapPut("/me/cycles/{cycle}", async (int cycle, HttpContext ctx, ISender sender, UpdateCycleScheduleCommand cmd) =>
+        g.MapPut("/me/cycles/{cycle}", async (int cycle, ISender sender, UpdateCycleScheduleCommand cmd) =>
         {
-            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
             var result = await sender.Send(cmd with { Cycle = cycle });
             return Results.Ok(result);
-        });
+        }).RequireAdmin();
 
         // ── Stages (etapas / bloques) CRUD ──────────────────────────────────
         g.MapGet("/me/stages", async (ISender sender) =>
@@ -69,9 +67,8 @@ public static class SchoolEndpoints
             return Results.Ok(result);
         });
 
-        g.MapPost("/me/stages", async (HttpContext ctx, ISender sender, CreateStageCommand cmd) =>
+        g.MapPost("/me/stages", async (ISender sender, CreateStageCommand cmd) =>
         {
-            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
             try
             {
                 var result = await sender.Send(cmd);
@@ -81,11 +78,10 @@ public static class SchoolEndpoints
             {
                 return Results.BadRequest(new { message = ex.Message });
             }
-        });
+        }).RequireAdmin();
 
-        g.MapDelete("/me/stages/{stageId:guid}", async (Guid stageId, HttpContext ctx, ISender sender) =>
+        g.MapDelete("/me/stages/{stageId:guid}", async (Guid stageId, ISender sender) =>
         {
-            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
             try
             {
                 await sender.Send(new DeleteStageCommand(stageId));
@@ -95,11 +91,10 @@ public static class SchoolEndpoints
             {
                 return Results.BadRequest(new { message = ex.Message });
             }
-        });
+        }).RequireAdmin();
 
-        g.MapPut("/me/stages/{stageId:guid}", async (Guid stageId, HttpContext ctx, ISender sender, UpdateStageCommand cmd) =>
+        g.MapPut("/me/stages/{stageId:guid}", async (Guid stageId, ISender sender, UpdateStageCommand cmd) =>
         {
-            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
             try
             {
                 var result = await sender.Send(cmd with { StageId = stageId });
@@ -109,7 +104,7 @@ public static class SchoolEndpoints
             {
                 return Results.BadRequest(new { message = ex.Message });
             }
-        });
+        }).RequireAdmin();
 
         // ── Periods CRUD ────────────────────────────────────────────────────
         g.MapGet("/me/periods", async (ISender sender, Guid? stageId) =>
@@ -124,9 +119,8 @@ public static class SchoolEndpoints
             return result is not null ? Results.Ok(result) : Results.NotFound();
         });
 
-        g.MapPost("/me/periods", async (HttpContext ctx, ISender sender, CreatePeriodCommand cmd) =>
+        g.MapPost("/me/periods", async (ISender sender, CreatePeriodCommand cmd) =>
         {
-            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
             try
             {
                 var result = await sender.Send(cmd);
@@ -136,11 +130,10 @@ public static class SchoolEndpoints
             {
                 return Results.BadRequest(new { message = ex.Message });
             }
-        });
+        }).RequireAdmin();
 
-        g.MapPut("/me/periods/{periodId:guid}", async (Guid periodId, HttpContext ctx, ISender sender, UpdatePeriodCommand cmd) =>
+        g.MapPut("/me/periods/{periodId:guid}", async (Guid periodId, ISender sender, UpdatePeriodCommand cmd) =>
         {
-            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
             try
             {
                 var result = await sender.Send(cmd with { PeriodId = periodId });
@@ -150,11 +143,10 @@ public static class SchoolEndpoints
             {
                 return Results.BadRequest(new { message = ex.Message });
             }
-        });
+        }).RequireAdmin();
 
-        g.MapDelete("/me/periods/{periodId:guid}", async (Guid periodId, HttpContext ctx, ISender sender) =>
+        g.MapDelete("/me/periods/{periodId:guid}", async (Guid periodId, ISender sender) =>
         {
-            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
             try
             {
                 await sender.Send(new DeletePeriodCommand(periodId));
@@ -164,7 +156,7 @@ public static class SchoolEndpoints
             {
                 return Results.BadRequest(new { message = ex.Message });
             }
-        });
+        }).RequireAdmin();
 
         // ── Period cycles ───────────────────────────────────────────────────
         g.MapGet("/me/periods/{periodId:guid}/cycles/{cycle}", async (Guid periodId, int cycle, ISender sender) =>
@@ -173,9 +165,8 @@ public static class SchoolEndpoints
             return result is not null ? Results.Ok(result) : Results.NotFound();
         });
 
-        g.MapPut("/me/periods/{periodId:guid}/cycles/{cycle}", async (Guid periodId, int cycle, HttpContext ctx, ISender sender, UpdatePeriodCycleCommand cmd) =>
+        g.MapPut("/me/periods/{periodId:guid}/cycles/{cycle}", async (Guid periodId, int cycle, ISender sender, UpdatePeriodCycleCommand cmd) =>
         {
-            if (!ctx.GetCurrentUserOrFail().IsAdmin) return Results.StatusCode(403);
             try
             {
                 var result = await sender.Send(cmd with { PeriodId = periodId, Cycle = cycle });
@@ -185,7 +176,7 @@ public static class SchoolEndpoints
             {
                 return Results.BadRequest(new { message = ex.Message });
             }
-        });
+        }).RequireAdmin();
 
         return app;
     }
