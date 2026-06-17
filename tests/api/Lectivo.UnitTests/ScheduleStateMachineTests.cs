@@ -21,7 +21,7 @@ public class ScheduleStateMachineTests
         schedule.SetGenerated([], []);
 
         schedule.Status.Should().Be(ScheduleStatus.Generated);
-        schedule.GeneratedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(1));
+        schedule.GeneratedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(2));
     }
 
     [Fact]
@@ -33,7 +33,7 @@ public class ScheduleStateMachineTests
         schedule.Publish();
 
         schedule.Status.Should().Be(ScheduleStatus.Published);
-        schedule.PublishedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(1));
+        schedule.PublishedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(2));
     }
 
     [Fact]

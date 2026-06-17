@@ -11,6 +11,15 @@ public sealed class ScheduleGenerationJob(
     IHubContext<GenerationProgressHub> hub,
     ILogger<ScheduleGenerationJob> logger)
 {
+    private static readonly Action<ILogger, Exception?> LogWarningFailedSignalR =
+        LoggerMessage.Define(LogLevel.Warning, 0, "Failed to send SignalR progress.");
+
+    private static readonly Action<ILogger, Guid, Exception?> LogInformationCancelled =
+        LoggerMessage.Define<Guid>(LogLevel.Information, 0, "Schedule generation cancelled for school {SchoolId}.");
+
+    private static readonly Action<ILogger, Guid, Exception?> LogErrorFailed =
+        LoggerMessage.Define<Guid>(LogLevel.Error, 0, "Schedule generation failed for school {SchoolId}.");
+
     [QueueAttribute("schedules")]
     [AutomaticRetry(Attempts = 0)]
     public async Task ExecuteAsync(
@@ -37,7 +46,7 @@ public sealed class ScheduleGenerationJob(
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Failed to send SignalR progress.");
+                LogWarningFailedSignalR(logger, ex);
             }
         });
 
@@ -68,8 +77,8 @@ public sealed class ScheduleGenerationJob(
                     totalConflicts = f.TotalConflicts,
                     conflicts = f.Conflicts.Select(c => new
                     {
-                        type = c.Type.ToString().ToLower(),
-                        severity = c.Severity.ToString().ToLower(),
+                        type = c.Type.ToString().ToLower(System.Globalization.CultureInfo.InvariantCulture),
+                        severity = c.Severity.ToString().ToLower(System.Globalization.CultureInfo.InvariantCulture),
                         description = c.Description,
                         suggestions = c.Suggestions,
                         teacherId = c.TeacherId,
@@ -85,13 +94,13 @@ public sealed class ScheduleGenerationJob(
         }
         catch (OperationCanceledException)
         {
-            logger.LogInformation("Schedule generation cancelled for school {SchoolId}.", schoolId);
+            LogInformationCancelled(logger, schoolId, null);
             await hub.Clients.Group(signalRGroup)
                 .SendAsync("GenerationCompleted", new { status = "cancelled" }, ct);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Schedule generation failed for school {SchoolId}.", schoolId);
+            LogErrorFailed(logger, schoolId, ex);
             await hub.Clients.Group(signalRGroup)
                 .SendAsync("GenerationCompleted", new { status = "error", message = ex.Message }, ct);
             throw;

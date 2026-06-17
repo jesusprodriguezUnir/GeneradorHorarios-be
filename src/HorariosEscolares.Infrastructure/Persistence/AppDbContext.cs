@@ -28,11 +28,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<TeacherStageAssignment> TeacherStageAssignments => Set<TeacherStageAssignment>();
     public DbSet<TeacherSubjectHour> TeacherSubjectHours => Set<TeacherSubjectHour>();
 
-    protected override void OnModelCreating(ModelBuilder mb)
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        base.OnModelCreating(mb);
+        base.OnModelCreating(modelBuilder);
 
-        mb.Entity<School>(e =>
+        modelBuilder.Entity<School>(e =>
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.Slug).IsUnique();
@@ -48,7 +48,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.WorkingDays).HasMaxLength(100).HasDefaultValue("[1,2,3,4,5]");
         });
 
-        mb.Entity<SchoolStage>(e =>
+        modelBuilder.Entity<SchoolStage>(e =>
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.SchoolId);
@@ -61,7 +61,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.WorkingDays).HasMaxLength(100).HasDefaultValue("[1,2,3,4,5]");
         });
 
-        mb.Entity<Role>(e =>
+        modelBuilder.Entity<Role>(e =>
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.Code).IsUnique();
@@ -71,7 +71,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.Description).HasMaxLength(500);
         });
 
-        mb.Entity<AppUser>(e =>
+        modelBuilder.Entity<AppUser>(e =>
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.Email).IsUnique();
@@ -84,7 +84,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasIndex(x => x.RoleId);
         });
 
-        mb.Entity<Teacher>(e =>
+        modelBuilder.Entity<Teacher>(e =>
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.SchoolId, x.Email }).IsUnique();
@@ -94,7 +94,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.ColorKey).HasMaxLength(10).HasDefaultValue("mat");
         });
 
-        mb.Entity<Classroom>(e =>
+        modelBuilder.Entity<Classroom>(e =>
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.SchoolId);
@@ -105,7 +105,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.HasOne(x => x.Stage).WithMany().HasForeignKey(x => x.StageId).OnDelete(DeleteBehavior.SetNull);
         });
 
-        mb.Entity<CurriculumTemplate>(e =>
+        modelBuilder.Entity<CurriculumTemplate>(e =>
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.StageId);
@@ -118,7 +118,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
              .OnDelete(DeleteBehavior.Restrict);
         });
 
-        mb.Entity<SubjectAllocation>(e =>
+        modelBuilder.Entity<SubjectAllocation>(e =>
         {
             e.HasKey(x => x.Id);
             e.Property(x => x.SubjectName).HasMaxLength(150).IsRequired();
@@ -127,7 +127,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.RequiredClassroomType).HasMaxLength(20);
         });
 
-        mb.Entity<CourseGroup>(e =>
+        modelBuilder.Entity<CourseGroup>(e =>
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.SchoolId);
@@ -140,7 +140,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
              .OnDelete(DeleteBehavior.Restrict);
         });
 
-        mb.Entity<GroupSubjectHour>(e =>
+        modelBuilder.Entity<GroupSubjectHour>(e =>
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.GroupId, x.SubjectKey }).IsUnique();
@@ -151,14 +151,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
              .OnDelete(DeleteBehavior.Cascade);
         });
 
-        mb.Entity<Assignment>(e =>
+        modelBuilder.Entity<Assignment>(e =>
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.SchoolId);
             e.HasIndex(x => new { x.TeacherId, x.GroupId, x.AllocationId }).IsUnique();
         });
 
-        mb.Entity<TeacherConstraint>(e =>
+        modelBuilder.Entity<TeacherConstraint>(e =>
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.SchoolId);
@@ -166,7 +166,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.Reason).HasMaxLength(300);
         });
 
-        mb.Entity<ScheduleRecord>(e =>
+        modelBuilder.Entity<ScheduleRecord>(e =>
         {
             e.ToTable("Schedules");
             e.HasKey(x => x.Id);
@@ -180,13 +180,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
              .OnDelete(DeleteBehavior.Restrict);
         });
 
-        mb.Entity<ScheduleEntry>(e =>
+        modelBuilder.Entity<ScheduleEntry>(e =>
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.SchoolId);
         });
 
-        mb.Entity<ScheduleConflictRecord>(e =>
+        modelBuilder.Entity<ScheduleConflictRecord>(e =>
         {
             e.ToTable("ScheduleConflicts");
             e.HasKey(x => x.Id);
@@ -196,7 +196,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
             e.Property(x => x.Suggestions).HasMaxLength(2000).HasDefaultValue("[]");
         });
 
-        mb.Entity<SchoolPeriod>(e =>
+        modelBuilder.Entity<SchoolPeriod>(e =>
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.SchoolId);
@@ -216,13 +216,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
              .OnDelete(DeleteBehavior.Restrict);
         });
 
-        mb.Entity<PeriodAssignmentHours>(e =>
+        modelBuilder.Entity<PeriodAssignmentHours>(e =>
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.PeriodId, x.AssignmentId }).IsUnique();
         });
 
-        mb.Entity<CycleSchedule>(e =>
+        modelBuilder.Entity<CycleSchedule>(e =>
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.PeriodId, x.Cycle }).IsUnique();
@@ -243,14 +243,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
              .OnDelete(DeleteBehavior.Cascade);
         });
 
-        mb.Entity<CycleBreak>(e =>
+        modelBuilder.Entity<CycleBreak>(e =>
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.CycleScheduleId);
             e.Property(x => x.Minutes).HasDefaultValue(30);
         });
 
-        mb.Entity<TeacherStageAssignment>(e =>
+        modelBuilder.Entity<TeacherStageAssignment>(e =>
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.TeacherId, x.StageId, x.Cycle }).IsUnique();
@@ -264,7 +264,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
              .OnDelete(DeleteBehavior.Restrict);
         });
 
-        mb.Entity<TeacherSubjectHour>(e =>
+        modelBuilder.Entity<TeacherSubjectHour>(e =>
         {
             e.HasKey(x => x.Id);
             e.HasIndex(x => new { x.TeacherId, x.SubjectKey }).IsUnique();

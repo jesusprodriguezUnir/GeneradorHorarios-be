@@ -6,7 +6,7 @@ namespace HorariosEscolares.Infrastructure.Engine;
 
 public sealed class BacktrackingScheduleEngine : IScheduleEngine
 {
-    private class BestSolutionTracker
+    private sealed class BestSolutionTracker
     {
         private readonly object _lock = new();
         public List<AssignedSlot> Best { get; set; } = [];
@@ -35,7 +35,7 @@ public sealed class BacktrackingScheduleEngine : IScheduleEngine
         var tracker = new BestSolutionTracker();
 
         var result = await Task.Run(
-            () => Backtrack(sessions, 0, state, context, timeoutCts.Token, progress, tracker),
+            () => Backtrack(sessions, 0, state, context, progress, tracker, timeoutCts.Token),
             cancellationToken);
 
         var elapsed = (int)(DateTime.UtcNow - startTime).TotalSeconds;
@@ -76,14 +76,14 @@ public sealed class BacktrackingScheduleEngine : IScheduleEngine
         })];
     }
 
-    private List<AssignedSlot> Backtrack(
+    private static List<AssignedSlot> Backtrack(
         List<SessionToAssign> sessions,
         int index,
         AssignmentState state,
         GenerationContext context,
-        CancellationToken ct,
         IProgress<GenerationProgress>? progress,
-        BestSolutionTracker tracker)
+        BestSolutionTracker tracker,
+        CancellationToken ct)
     {
         if (ct.IsCancellationRequested)
             return tracker.Best;
@@ -106,7 +106,7 @@ public sealed class BacktrackingScheduleEngine : IScheduleEngine
                 sessions.Count,
                 $"Asignando {session.SubjectName} a {session.GroupLabel}..."));
 
-            var result = Backtrack(sessions, index + 1, state, context, ct, progress, tracker);
+            var result = Backtrack(sessions, index + 1, state, context, progress, tracker, ct);
 
             if (!ct.IsCancellationRequested && result.Count == sessions.Count)
                 return result;

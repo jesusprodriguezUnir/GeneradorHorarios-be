@@ -108,7 +108,7 @@ builder.Services.AddHangfire(config => config
 builder.Services.AddHangfireServer(options =>
 {
     options.WorkerCount = 2;
-    options.Queues = new[] { "default", "schedules" };
+    options.Queues = ["default", "schedules"];
 });
 
 // Register IAppDbContext → AppDbContext (same scoped instance)
@@ -182,7 +182,9 @@ app.Use(async (context, next) =>
     catch (Exception ex)
     {
         var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+#pragma warning disable CA1848 // Use LoggerMessage delegates - not practical in top-level statements
         logger.LogError(ex, "Error no controlado en {Method} {Path}", context.Request.Method, context.Request.Path);
+#pragma warning restore CA1848
         context.Response.StatusCode = StatusCodes.Status500InternalServerError;
         await context.Response.WriteAsJsonAsync(new { error = ex.Message, type = ex.GetType().Name });
     }

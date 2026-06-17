@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <RootNamespace>HorariosEscolares.Infrastructure</RootNamespace>
+    <NoWarn>$(NoWarn);CA1861</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

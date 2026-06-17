@@ -3,7 +3,7 @@
   <PropertyGroup>
     <RootNamespace>HorariosEscolares</RootNamespace>
     <AssemblyName>HorariosEscolares.Api</AssemblyName>
-    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <!-- Inherits TreatWarningsAsErrors=true from Directory.Build.props -->
   </PropertyGroup>
 
   <ItemGroup>

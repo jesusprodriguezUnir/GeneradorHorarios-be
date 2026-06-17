@@ -128,11 +128,10 @@ public sealed class NormativeValidator(INormativeStageRegistry registry) : INorm
         }
     }
 
-    private static string GroupLabel(IReadOnlyList<NormativeAssignmentData> assignments)
+    private static string GroupLabel(List<NormativeAssignmentData> assignments)
     {
-        var firstAssignment = assignments.FirstOrDefault();
-        return firstAssignment is not null
-            ? firstAssignment.GroupId.ToString()[..8] + "…"
+        return assignments.Count > 0
+            ? assignments[0].GroupId.ToString()[..8] + "…"
             : "desconocido";
     }
 

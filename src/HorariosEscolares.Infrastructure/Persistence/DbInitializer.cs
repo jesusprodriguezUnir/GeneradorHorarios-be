@@ -1004,7 +1004,7 @@ public static class DbInitializer
             for (int pos = 0; pos < 7; pos++)
             {
                 var (name, emailUser) = specNamePool[pos, li % poolSize];
-                string lineSuffix = char.ToLower(lineLabels[li]).ToString();
+                string lineSuffix = char.ToLower(lineLabels[li], System.Globalization.CultureInfo.InvariantCulture).ToString();
                 team.Add(new Teacher
                 {
                     Id             = Guid.NewGuid(),
