@@ -1,0 +1,62 @@
+Usando la configuración de inicio de apps\api\Properties\launchSettings.json...
+Compilando...
+[05:26:13 DBG] Creating DbCommand for 'ExecuteNonQuery'.
+[05:26:13 DBG] Created DbCommand for 'ExecuteNonQuery' (78ms).
+[05:26:13 DBG] Initialized DbCommand for 'ExecuteNonQuery' (93ms).
+[05:26:13 DBG] Executing DbCommand [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT 1
+[05:26:13 INF] Executed DbCommand (60ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT 1
+[05:26:13 DBG] Creating DbCommand for 'ExecuteScalar'.
+[05:26:13 DBG] Created DbCommand for 'ExecuteScalar' (3ms).
+[05:26:13 DBG] Initialized DbCommand for 'ExecuteScalar' (6ms).
+[05:26:13 DBG] Executing DbCommand [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+[05:26:13 INF] Executed DbCommand (50ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+[05:26:13 DBG] Creating DbCommand for 'ExecuteNonQuery'.
+[05:26:13 DBG] Created DbCommand for 'ExecuteNonQuery' (0ms).
+[05:26:13 DBG] Initialized DbCommand for 'ExecuteNonQuery' (1ms).
+[05:26:13 DBG] Executing DbCommand [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT 1
+[05:26:13 INF] Executed DbCommand (2ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT 1
+[05:26:13 DBG] Creating DbCommand for 'ExecuteScalar'.
+[05:26:13 DBG] Created DbCommand for 'ExecuteScalar' (0ms).
+[05:26:13 DBG] Initialized DbCommand for 'ExecuteScalar' (1ms).
+[05:26:13 DBG] Executing DbCommand [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+[05:26:13 INF] Executed DbCommand (2ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT OBJECT_ID(N'[__EFMigrationsHistory]');
+[05:26:13 DBG] Creating DbCommand for 'ExecuteReader'.
+[05:26:13 DBG] Created DbCommand for 'ExecuteReader' (0ms).
+[05:26:13 DBG] Initialized DbCommand for 'ExecuteReader' (1ms).
+[05:26:13 DBG] Executing DbCommand [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT [MigrationId], [ProductVersion]
+FROM [__EFMigrationsHistory]
+ORDER BY [MigrationId];
+[05:26:13 INF] Executed DbCommand (11ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT [MigrationId], [ProductVersion]
+FROM [__EFMigrationsHistory]
+ORDER BY [MigrationId];
+[05:26:13 DBG] Closing data reader to 'LectivoDB' on server 'JOJENO'.
+[05:26:13 DBG] A data reader for 'LectivoDB' on server 'JOJENO' is being disposed after spending 11ms reading results.
+[05:26:13 DBG] Creating DbCommand for 'ExecuteReader'.
+[05:26:13 DBG] Created DbCommand for 'ExecuteReader' (18ms).
+[05:26:13 DBG] Initialized DbCommand for 'ExecuteReader' (18ms).
+[05:26:13 DBG] Executing DbCommand [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM [Schools] AS [s]) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END
+[05:26:13 INF] Executed DbCommand (8ms) [Parameters=[], CommandType='Text', CommandTimeout='30']
+SELECT CASE
+    WHEN EXISTS (
+        SELECT 1
+        FROM [Schools] AS [s]) THEN CAST(1 AS bit)
+    ELSE CAST(0 AS bit)
+END
+[05:26:13 DBG] Closing data reader to 'LectivoDB' on server 'JOJENO'.
+[05:26:13 DBG] A data reader for 'LectivoDB' on server 'JOJENO' is being disposed after spending 5ms reading results.

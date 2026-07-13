@@ -1,7 +1,8 @@
+using HorariosEscolares.Domain.Constraints;
 using HorariosEscolares.Domain.Entities;
 using HorariosEscolares.Domain.Normative;
+using HorariosEscolares.Domain.Services;
 using HorariosEscolares.Infrastructure.Normative;
-using HorariosEscolares.Infrastructure.Persistence.Entities;
 using FluentAssertions;
 
 namespace Lectivo.UnitTests;
@@ -12,13 +13,12 @@ namespace Lectivo.UnitTests;
 /// </summary>
 public class NormativeValidatorTests
 {
-    private static readonly NormativeValidator Validator = new();
+    private static readonly NormativeValidator Validator = new(new NormativeStageRegistry());
 
     // ── Helpers ───────────────────────────────────────────────────────────────────
 
     /// <summary>Crea un School con configuración mínima válida.</summary>
     private static School MakeSchool(
-        string stage            = "primaria",
         int breakMinutes        = 30,
         int slotsPerDay         = 5,
         int slotMinutes         = 60,
@@ -31,7 +31,6 @@ public class NormativeValidatorTests
             Id             = Guid.NewGuid(),
             Name           = "CEIP Test",
             Slug           = "test",
-            Stage          = stage,
             BreakMinutes   = breakMinutes,
             SlotsPerDay    = slotsPerDay,
             SlotMinutes    = slotMinutes,
@@ -74,6 +73,30 @@ public class NormativeValidatorTests
         return (assignment, alloc);
     }
 
+    private static NormativeValidationData BuildValidationData(School school, string stage, IReadOnlyList<(Assignment Assignment, SubjectAllocation Allocation)> data)
+    {
+        var slots = SlotCalculator.Compute(school, school.SlotsPerDay)
+            .Select(s => new SlotConfig(s.Index, s.IsBreak, s.StartMinute, s.EndMinute)).ToList();
+        var cycles = new List<CycleGrid> { new(1, slots) };
+        var schoolConfig = new SchoolConfig(
+            school.SlotsPerDay, school.DaysPerWeek,
+            SlotCalculator.ParseWorkingDays(school.WorkingDays).ToList(),
+            cycles, []);
+        return new NormativeValidationData
+        {
+            SchoolConfig = schoolConfig,
+            Stage = stage,
+            MinCourseLevel = school.MinCourseLevel,
+            MaxCourseLevel = school.MaxCourseLevel,
+            BreakMinutes = school.BreakMinutes,
+            SlotMinutes = school.SlotMinutes,
+            Assignments = data.Select(n => new NormativeAssignmentData(
+                n.Assignment.GroupId, n.Allocation.SubjectKey, n.Allocation.SubjectName,
+                n.Assignment.WeeklyHours, n.Allocation.WeeklyHoursMin,
+                n.Allocation.WeeklyHoursMax, n.Allocation.WeeklyHoursDefault)).ToList(),
+        };
+    }
+
     /// <summary>
     /// Construye una lista de asignaciones estándar (24 h/semana)
     /// para el grupo indicado.
@@ -90,6 +113,8 @@ public class NormativeValidatorTests
             MakeAssignment(groupId, "mus", 1, minH: 1, maxH: 2),
             MakeAssignment(groupId, "art", 2, minH: 1, maxH: 2),
             MakeAssignment(groupId, "rel", 1, minH: 1, maxH: 2),
+            MakeAssignment(groupId, "tut", 1, minH: 0, maxH: 2),
+            MakeAssignment(groupId, "val", 1, minH: 1, maxH: 2),
         ];
     }
 
@@ -102,7 +127,7 @@ public class NormativeValidatorTests
         var groupId = Guid.NewGuid();
         var data = StandardGroupAssignments(groupId);
 
-        var issues = await Validator.ValidateAsync(school, data);
+        var issues = await Validator.ValidateAsync(BuildValidationData(school, "primaria", data));
 
         issues.Should().BeEmpty();
     }
@@ -114,7 +139,7 @@ public class NormativeValidatorTests
         var groupId = Guid.NewGuid();
         var data = StandardGroupAssignments(groupId);
 
-        var issues = await Validator.ValidateAsync(school, data);
+        var issues = await Validator.ValidateAsync(BuildValidationData(school, "primaria", data));
 
         issues.Should().ContainSingle(i =>
             i.Severity == ConflictSeverity.Error &&
@@ -129,7 +154,7 @@ public class NormativeValidatorTests
         var groupId = Guid.NewGuid();
         var data = StandardGroupAssignments(groupId);
 
-        var issues = await Validator.ValidateAsync(school, data);
+        var issues = await Validator.ValidateAsync(BuildValidationData(school, "primaria", data));
         issues.Should().NotContain(i => i.Description.Contains("recreo"));
     }
 
@@ -141,7 +166,7 @@ public class NormativeValidatorTests
         var groupId = Guid.NewGuid();
         var data = StandardGroupAssignments(groupId);
 
-        var issues = await Validator.ValidateAsync(school, data);
+        var issues = await Validator.ValidateAsync(BuildValidationData(school, "primaria", data));
 
         issues.Should().Contain(i =>
             i.Severity == ConflictSeverity.Error &&
@@ -154,7 +179,7 @@ public class NormativeValidatorTests
         var school = MakeSchool(maxCourseLevel: 7);
         var data = Array.Empty<(Assignment, SubjectAllocation)>();
 
-        var issues = await Validator.ValidateAsync(school, data);
+        var issues = await Validator.ValidateAsync(BuildValidationData(school, "primaria", data));
 
         issues.Should().Contain(i =>
             i.Severity == ConflictSeverity.Error &&
@@ -162,16 +187,18 @@ public class NormativeValidatorTests
     }
 
     [Fact]
-    public async Task ValidateAsync_NonPrimariaStage_ReturnsWarning()
+    public async Task ValidateAsync_UnregisteredStage_ReturnsWarning()
     {
-        var school = MakeSchool(stage: "secundaria");
+        // 'bachillerato' no tiene normativa registrada → aviso de etapa no soportada.
+        var school = MakeSchool();
         var data = Array.Empty<(Assignment, SubjectAllocation)>();
 
-        var issues = await Validator.ValidateAsync(school, data);
+        var issues = await Validator.ValidateAsync(BuildValidationData(school, "bachillerato", data));
 
         issues.Should().Contain(i =>
             i.Severity == ConflictSeverity.Warning &&
-            i.Description.Contains("secundaria"));
+            i.Description.Contains("bachillerato") &&
+            i.Description.Contains("no hay normativa registrada"));
     }
 
     // ── Tests de horas por grupo ──────────────────────────────────────────────────
@@ -188,7 +215,7 @@ public class NormativeValidatorTests
             MakeAssignment(groupId, "mat", 5),
         };
 
-        var issues = await Validator.ValidateAsync(school, data);
+        var issues = await Validator.ValidateAsync(BuildValidationData(school, "primaria", data));
 
         issues.Should().Contain(i =>
             i.Severity == ConflictSeverity.Error &&
@@ -197,25 +224,24 @@ public class NormativeValidatorTests
     }
 
     [Fact]
-    public async Task ValidateAsync_GroupExceedsGridCapacity_ReturnsError()
+    public async Task ValidateAsync_SubjectExceedsMaxHours_ReturnsWarning()
     {
-        var school = MakeSchool(slotsPerDay: 5, slotMinutes: 60, daysPerWeek: 5); // capacidad 25h
+        var school = MakeSchool();
         var groupId = Guid.NewGuid();
-        // Asignamos 28 h (> 25 h capacidad)
         var data = new[]
         {
-            MakeAssignment(groupId, "len", 8, minH: 4, maxH: 10),
-            MakeAssignment(groupId, "mat", 8, minH: 4, maxH: 10),
-            MakeAssignment(groupId, "cie", 7, minH: 3, maxH: 10),
-            MakeAssignment(groupId, "ing", 5, minH: 3, maxH: 6),
+            MakeAssignment(groupId, "len", 8, minH: 4, maxH: 6),
+            MakeAssignment(groupId, "mat", 8, minH: 4, maxH: 6),
+            MakeAssignment(groupId, "cie", 7, minH: 3, maxH: 4),
+            MakeAssignment(groupId, "ing", 5, minH: 3, maxH: 5),
         };
 
-        var issues = await Validator.ValidateAsync(school, data);
+        var issues = await Validator.ValidateAsync(BuildValidationData(school, "primaria", data));
 
         issues.Should().Contain(i =>
-            i.Severity == ConflictSeverity.Error &&
+            i.Severity == ConflictSeverity.Warning &&
             i.GroupId == groupId &&
-            i.Description.Contains("capacidad"));
+            i.Description.Contains("superando el máximo"));
     }
 
     [Fact]
@@ -229,7 +255,7 @@ public class NormativeValidatorTests
         data = data.Where(d => d.Item2.SubjectKey != "ing").ToList();
         data.Add(MakeAssignment(groupId, "ing", 2, minH: 3, maxH: 5));
 
-        var issues = await Validator.ValidateAsync(school, data);
+        var issues = await Validator.ValidateAsync(BuildValidationData(school, "primaria", data));
 
         issues.Should().Contain(i =>
             i.Severity == ConflictSeverity.Warning &&
@@ -250,7 +276,7 @@ public class NormativeValidatorTests
             data.AddRange(StandardGroupAssignments(gId));
         }
 
-        var issues = await Validator.ValidateAsync(school, data);
+        var issues = await Validator.ValidateAsync(BuildValidationData(school, "primaria", data));
 
         // No debe haber ningún error
         var errors = issues.Where(i => i.Severity == ConflictSeverity.Error).ToList();
@@ -262,15 +288,16 @@ public class NormativeValidatorTests
     [Fact]
     public void LomloeMadrid_StandardSubjects_HasRequiredAreas()
     {
-        var keys = LomloeMadrid.StandardSubjects.Select(s => s.SubjectKey).ToHashSet();
-        keys.Should().Contain(["len", "mat", "cie", "ing", "ef", "mus", "art", "rel", "tut"]);
+        var subjects = LomloeMadrid.GetSubjects("ordinario");
+        var keys = subjects.Select(s => s.SubjectKey).ToHashSet();
+        keys.Should().Contain(["len", "mat", "cie", "ing", "ef", "mus", "art", "rel", "tut", "val"]);
     }
 
     [Fact]
     public void LomloeMadrid_BilingueSubjects_HasHigherInglesHours()
     {
-        var std = LomloeMadrid.StandardSubjects.First(s => s.SubjectKey == "ing");
-        var bil = LomloeMadrid.BilingueSubjects.First(s => s.SubjectKey == "ing");
+        var std = LomloeMadrid.GetSubjects("ordinario").First(s => s.SubjectKey == "ing");
+        var bil = LomloeMadrid.GetSubjects("bilingue").First(s => s.SubjectKey == "ing");
 
         bil.DefaultH.Should().BeGreaterThan(std.DefaultH);
         bil.MinH.Should().BeGreaterOrEqualTo(std.MinH);
@@ -291,16 +318,18 @@ public class NormativeValidatorTests
     [Fact]
     public void LomloeMadrid_GetSubjects_ReturnsCorrectModalityData()
     {
-        LomloeMadrid.GetSubjects("estandar").Should().BeSameAs(LomloeMadrid.StandardSubjects);
-        LomloeMadrid.GetSubjects("bilingue").Should().BeSameAs(LomloeMadrid.BilingueSubjects);
-        LomloeMadrid.GetSubjects("BILINGUE").Should().BeSameAs(LomloeMadrid.BilingueSubjects);
-        LomloeMadrid.GetSubjects("otro").Should().BeSameAs(LomloeMadrid.StandardSubjects);
+        var std = LomloeMadrid.GetSubjects("estandar");
+        var bil = LomloeMadrid.GetSubjects("bilingue");
+        
+        std.First(s => s.SubjectKey == "ing").DefaultH.Should().Be(4);
+        bil.First(s => s.SubjectKey == "ing").DefaultH.Should().Be(5);
     }
 
     [Fact]
     public void LomloeMadrid_AllSubjectMinH_LessThanOrEqualMaxH()
     {
-        foreach (var s in LomloeMadrid.StandardSubjects.Concat(LomloeMadrid.BilingueSubjects))
+        var allSubjects = LomloeMadrid.GetSubjects("ordinario").Concat(LomloeMadrid.GetSubjects("bilingue"));
+        foreach (var s in allSubjects)
         {
             s.MinH.Should().BeLessOrEqualTo(s.MaxH, $"área '{s.SubjectKey}' tiene Min > Max");
             s.DefaultH.Should().BeInRange(s.MinH, s.MaxH,

@@ -29,6 +29,37 @@ services:
       timeout: 5s
       retries: 5
 
+  # API contenerizada (opt-in): docker compose --profile api up -d
+  # En desarrollo normal la API se ejecuta con `dotnet run` fuera de Docker.
+  api:
+    build: .
+    container_name: lectivo-api
+    profiles: ["api"]
+    ports:
+      - "5000:5000"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__Default=Server=sql-server,1433;Database=Lectivo;User Id=sa;Password=Lectivo_Dev_2024!;TrustServerCertificate=True
+      - ConnectionStrings__Redis=redis:6379
+    depends_on:
+      sql-server:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  seq:
+    image: datalust/seq:latest
+    container_name: lectivo-seq
+    environment:
+      - ACCEPT_EULA=Y
+      - SEQ_FIRSTRUN_ADMINPASSWORD=Lectivo_Dev_2024!
+    ports:
+      - "5341:5341"
+      - "8081:80"
+    volumes:
+      - seq-data:/data
+
 volumes:
   sqlserver-data:
   redis-data:
+  seq-data:

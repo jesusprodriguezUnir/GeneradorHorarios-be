@@ -2,6 +2,11 @@
   <Folder Name="/apps/">
     <Project Path="apps/api/api.csproj" />
   </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/HorariosEscolares.Domain/HorariosEscolares.Domain.csproj" />
+    <Project Path="src/HorariosEscolares.Application/HorariosEscolares.Application.csproj" />
+    <Project Path="src/HorariosEscolares.Infrastructure/HorariosEscolares.Infrastructure.csproj" />
+  </Folder>
   <Folder Name="/tests/" />
   <Folder Name="/tests/api/">
     <Project Path="tests/api/Lectivo.IntegrationTests/Lectivo.IntegrationTests.csproj" />

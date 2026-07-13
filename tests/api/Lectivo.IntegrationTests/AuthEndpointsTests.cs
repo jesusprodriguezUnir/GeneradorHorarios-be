@@ -23,7 +23,7 @@ public class AuthEndpointsTests
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var json = await response.Content.ReadAsStringAsync();
-        json.Should().Contain("school_admin");
+        json.Should().Contain("director");
     }
 
     [Fact]

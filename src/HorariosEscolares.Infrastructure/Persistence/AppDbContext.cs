@@ -1,0 +1,314 @@
+using Microsoft.EntityFrameworkCore;
+using HorariosEscolares.Domain.Abstractions;
+using HorariosEscolares.Domain.Entities;
+
+namespace HorariosEscolares.Infrastructure.Persistence;
+
+public class AppDbContext(DbContextOptions<AppDbContext> options, ITenantProvider? tenantProvider = null)
+    : DbContext(options), IAppDbContext
+{
+    /// <summary>
+    /// Tenant actual evaluado en tiempo de query. Null (seed, jobs, middleware de auth)
+    /// desactiva los filtros globales; con valor, cada query queda acotada al colegio.
+    /// </summary>
+    private Guid? TenantSchoolId => tenantProvider?.SchoolId;
+
+    public DbSet<School> Schools => Set<School>();
+    public DbSet<SchoolStage> SchoolStages => Set<SchoolStage>();
+    public DbSet<AppUser> AppUsers => Set<AppUser>();
+    public DbSet<Teacher> Teachers => Set<Teacher>();
+    public DbSet<Classroom> Classrooms => Set<Classroom>();
+    public DbSet<CurriculumTemplate> CurriculumTemplates => Set<CurriculumTemplate>();
+    public DbSet<SubjectAllocation> SubjectAllocations => Set<SubjectAllocation>();
+    public DbSet<CourseGroup> CourseGroups => Set<CourseGroup>();
+    public DbSet<GroupSubjectHour> GroupSubjectHours => Set<GroupSubjectHour>();
+    public DbSet<Assignment> Assignments => Set<Assignment>();
+    public DbSet<TeacherConstraint> TeacherConstraints => Set<TeacherConstraint>();
+    public DbSet<ScheduleRecord> Schedules => Set<ScheduleRecord>();
+    public DbSet<ScheduleEntry> ScheduleEntries => Set<ScheduleEntry>();
+    public DbSet<ScheduleConflictRecord> ScheduleConflicts => Set<ScheduleConflictRecord>();
+    public DbSet<CycleSchedule> CycleSchedules => Set<CycleSchedule>();
+    public DbSet<CycleBreak> CycleBreaks => Set<CycleBreak>();
+    public DbSet<SchoolPeriod> SchoolPeriods => Set<SchoolPeriod>();
+    public DbSet<PeriodAssignmentHours> PeriodAssignmentHours => Set<PeriodAssignmentHours>();
+    public DbSet<Role> Roles => Set<Role>();
+    public DbSet<TeacherStageAssignment> TeacherStageAssignments => Set<TeacherStageAssignment>();
+    public DbSet<TeacherSubjectHour> TeacherSubjectHours => Set<TeacherSubjectHour>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<School>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.Slug).IsUnique();
+            e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Slug).HasMaxLength(100).IsRequired();
+            e.Property(x => x.CenterCode).HasMaxLength(20);
+            e.Property(x => x.Locality).HasMaxLength(150);
+            e.Property(x => x.Community).HasMaxLength(50).HasDefaultValue("madrid");
+            e.Property(x => x.AcademicYear).HasMaxLength(20).HasDefaultValue("2025/2026");
+            e.Property(x => x.ScheduleType).HasMaxLength(20).HasDefaultValue("continua");
+            e.Property(x => x.MorningStart).HasColumnType("time");
+            e.Property(x => x.AfternoonStart).HasColumnType("time");
+            e.Property(x => x.WorkingDays).HasMaxLength(100).HasDefaultValue("[1,2,3,4,5]");
+        });
+
+        modelBuilder.Entity<SchoolStage>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.SchoolId);
+            e.HasIndex(x => new { x.SchoolId, x.StageType }).IsUnique();
+            e.Property(x => x.StageType).HasMaxLength(20).IsRequired();
+            e.Property(x => x.Name).HasMaxLength(100).IsRequired();
+            e.Property(x => x.ScheduleType).HasMaxLength(20).HasDefaultValue("continua");
+            e.Property(x => x.MorningStart).HasColumnType("time");
+            e.Property(x => x.AfternoonStart).HasColumnType("time");
+            e.Property(x => x.WorkingDays).HasMaxLength(100).HasDefaultValue("[1,2,3,4,5]");
+        });
+
+        modelBuilder.Entity<Role>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.Code).IsUnique();
+            e.Property(x => x.Code).HasMaxLength(40).IsRequired();
+            e.Property(x => x.Name).HasMaxLength(100).IsRequired();
+            e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(20).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<AppUser>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.Email).IsUnique();
+            e.Property(x => x.Email).HasMaxLength(200).IsRequired();
+            e.Property(x => x.FullName).HasMaxLength(200).IsRequired();
+            e.HasOne(x => x.Role)
+             .WithMany()
+             .HasForeignKey(x => x.RoleId)
+             .OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(x => x.RoleId);
+        });
+
+        modelBuilder.Entity<Teacher>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.SchoolId, x.Email }).IsUnique();
+            e.Property(x => x.FullName).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Email).HasMaxLength(200).IsRequired();
+            e.Property(x => x.TeacherType).HasMaxLength(30).HasDefaultValue("definitivo");
+            e.Property(x => x.ColorKey).HasMaxLength(10).HasDefaultValue("mat");
+        });
+
+        modelBuilder.Entity<Classroom>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.SchoolId);
+            e.Property(x => x.Name).HasMaxLength(100).IsRequired();
+            e.Property(x => x.ClassroomType).HasMaxLength(20).HasDefaultValue("regular");
+            e.Property(x => x.StageId).IsRequired(false);
+            e.HasIndex(x => x.StageId);
+            e.HasOne(x => x.Stage).WithMany().HasForeignKey(x => x.StageId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<CurriculumTemplate>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.StageId);
+            e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Region).HasMaxLength(50).HasDefaultValue("madrid");
+            e.Property(x => x.Stage).HasMaxLength(50).HasDefaultValue("primaria");
+            e.HasOne<SchoolStage>()
+             .WithMany()
+             .HasForeignKey(x => x.StageId)
+             .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<SubjectAllocation>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.Property(x => x.SubjectName).HasMaxLength(150).IsRequired();
+            e.Property(x => x.SubjectShort).HasMaxLength(50);
+            e.Property(x => x.SubjectKey).HasMaxLength(10);
+            e.Property(x => x.RequiredClassroomType).HasMaxLength(20);
+        });
+
+        modelBuilder.Entity<CourseGroup>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.SchoolId);
+            e.HasIndex(x => new { x.StageId, x.CourseLevel, x.GroupLabel }).IsUnique();
+            e.Property(x => x.GroupLabel).HasMaxLength(5).IsRequired();
+            e.Ignore(x => x.DisplayName);
+            e.HasOne<SchoolStage>()
+             .WithMany()
+             .HasForeignKey(x => x.StageId)
+             .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<GroupSubjectHour>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.GroupId, x.SubjectKey }).IsUnique();
+            e.Property(x => x.SubjectKey).HasMaxLength(10).IsRequired();
+            e.HasOne(x => x.Group)
+             .WithMany(x => x.SubjectHoursList)
+             .HasForeignKey(x => x.GroupId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Assignment>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.SchoolId);
+            e.HasIndex(x => new { x.TeacherId, x.GroupId, x.AllocationId }).IsUnique();
+        });
+
+        modelBuilder.Entity<TeacherConstraint>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.SchoolId);
+            e.Property(x => x.ConstraintType).HasMaxLength(20).IsRequired();
+            e.Property(x => x.Reason).HasMaxLength(300);
+        });
+
+        modelBuilder.Entity<ScheduleRecord>(e =>
+        {
+            e.ToTable("Schedules");
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.SchoolId);
+            e.HasIndex(x => x.StageId);
+            e.Property(x => x.AcademicYear).HasMaxLength(20).IsRequired();
+            e.Property(x => x.Status).HasMaxLength(20).HasDefaultValue("draft");
+            e.HasOne<SchoolStage>()
+             .WithMany()
+             .HasForeignKey(x => x.StageId)
+             .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ScheduleEntry>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.SchoolId);
+        });
+
+        modelBuilder.Entity<ScheduleConflictRecord>(e =>
+        {
+            e.ToTable("ScheduleConflicts");
+            e.HasKey(x => x.Id);
+            e.Property(x => x.ConflictType).HasMaxLength(20).IsRequired();
+            e.Property(x => x.Severity).HasMaxLength(20).IsRequired();
+            e.Property(x => x.Description).HasMaxLength(500).IsRequired();
+            e.Property(x => x.Suggestions).HasMaxLength(2000).HasDefaultValue("[]");
+        });
+
+        modelBuilder.Entity<SchoolPeriod>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.SchoolId);
+            e.HasIndex(x => x.StageId);
+            e.HasIndex(x => new { x.StageId, x.Key }).IsUnique();
+            e.Property(x => x.Key).HasMaxLength(50).IsRequired();
+            e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Months).HasMaxLength(100).HasDefaultValue("[10,11,12,1,2,3,4,5]");
+            e.Property(x => x.ScheduleType).HasMaxLength(20).HasDefaultValue("continua");
+            e.HasMany(x => x.Cycles)
+             .WithOne(x => x.Period)
+             .HasForeignKey(x => x.PeriodId)
+             .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne<SchoolStage>()
+             .WithMany()
+             .HasForeignKey(x => x.StageId)
+             .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<PeriodAssignmentHours>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.PeriodId, x.AssignmentId }).IsUnique();
+        });
+
+        modelBuilder.Entity<CycleSchedule>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.PeriodId, x.Cycle }).IsUnique();
+            e.HasIndex(x => new { x.SchoolId, x.Cycle });
+            e.HasIndex(x => x.StageId);
+            e.HasOne<SchoolStage>()
+             .WithMany()
+             .HasForeignKey(x => x.StageId)
+             .OnDelete(DeleteBehavior.Restrict);
+            e.Property(x => x.MorningStart).HasColumnType("time");
+            e.Property(x => x.MorningEnd).HasColumnType("time");
+            e.Property(x => x.AfternoonStart).HasColumnType("time");
+            e.Property(x => x.AfternoonEnd).HasColumnType("time");
+            e.Property(x => x.EndTime).HasColumnType("time");
+            e.HasMany(x => x.Breaks)
+             .WithOne(x => x.Cycle)
+             .HasForeignKey(x => x.CycleScheduleId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<CycleBreak>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => x.CycleScheduleId);
+            e.Property(x => x.Minutes).HasDefaultValue(30);
+        });
+
+        modelBuilder.Entity<TeacherStageAssignment>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.TeacherId, x.StageId, x.Cycle }).IsUnique();
+            e.HasOne(x => x.Teacher)
+             .WithMany(x => x.StageAssignments)
+             .HasForeignKey(x => x.TeacherId)
+             .OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Stage)
+             .WithMany()
+             .HasForeignKey(x => x.StageId)
+             .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<TeacherSubjectHour>(e =>
+        {
+            e.HasKey(x => x.Id);
+            e.HasIndex(x => new { x.TeacherId, x.SubjectKey }).IsUnique();
+            e.Property(x => x.SubjectKey).HasMaxLength(20).IsRequired();
+            e.HasOne(x => x.Teacher)
+             .WithMany(x => x.SubjectHours)
+             .HasForeignKey(x => x.TeacherId)
+             .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ── Aislamiento multi-tenant ─────────────────────────────────────────
+        // Red de seguridad global: toda query sobre entidades con SchoolId queda
+        // acotada al colegio del usuario actual. Con TenantSchoolId == null
+        // (seed, jobs de Hangfire, middleware de auth) el filtro se desactiva.
+        modelBuilder.Entity<School>()
+            .HasQueryFilter(x => TenantSchoolId == null || x.Id == TenantSchoolId);
+        modelBuilder.Entity<SchoolStage>()
+            .HasQueryFilter(x => TenantSchoolId == null || x.SchoolId == TenantSchoolId);
+        modelBuilder.Entity<AppUser>()
+            .HasQueryFilter(x => TenantSchoolId == null || x.SchoolId == TenantSchoolId);
+        modelBuilder.Entity<Teacher>()
+            .HasQueryFilter(x => TenantSchoolId == null || x.SchoolId == TenantSchoolId);
+        modelBuilder.Entity<Classroom>()
+            .HasQueryFilter(x => TenantSchoolId == null || x.SchoolId == TenantSchoolId);
+        modelBuilder.Entity<CourseGroup>()
+            .HasQueryFilter(x => TenantSchoolId == null || x.SchoolId == TenantSchoolId);
+        modelBuilder.Entity<Assignment>()
+            .HasQueryFilter(x => TenantSchoolId == null || x.SchoolId == TenantSchoolId);
+        modelBuilder.Entity<TeacherConstraint>()
+            .HasQueryFilter(x => TenantSchoolId == null || x.SchoolId == TenantSchoolId);
+        modelBuilder.Entity<ScheduleRecord>()
+            .HasQueryFilter(x => TenantSchoolId == null || x.SchoolId == TenantSchoolId);
+        modelBuilder.Entity<ScheduleEntry>()
+            .HasQueryFilter(x => TenantSchoolId == null || x.SchoolId == TenantSchoolId);
+        modelBuilder.Entity<SchoolPeriod>()
+            .HasQueryFilter(x => TenantSchoolId == null || x.SchoolId == TenantSchoolId);
+        modelBuilder.Entity<CycleSchedule>()
+            .HasQueryFilter(x => TenantSchoolId == null || x.SchoolId == TenantSchoolId);
+    }
+}

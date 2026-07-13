@@ -28,14 +28,14 @@ public class LectivoApiFactory : WebApplicationFactory<Program>
     public HttpClient CreateAdminClient()
     {
         var client = CreateClient();
-        client.DefaultRequestHeaders.Add("X-User-Email", "elena.castro@ceip-miguel-hernandez.es");
+        client.DefaultRequestHeaders.Add("X-User-Email", "elena.castro@ceipso-antonio-machado.es");
         return client;
     }
 
     public HttpClient CreateTeacherClient()
     {
         var client = CreateClient();
-        client.DefaultRequestHeaders.Add("X-User-Email", "laura.fernandez@ceip-miguel-hernandez.es");
+        client.DefaultRequestHeaders.Add("X-User-Email", "laura.fernandez@ceipso-antonio-machado.es");
         return client;
     }
 

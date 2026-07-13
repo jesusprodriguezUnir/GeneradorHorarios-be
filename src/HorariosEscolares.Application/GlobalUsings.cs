@@ -1,0 +1,1 @@
+global using HorariosEscolares.Application.Common.Exceptions;

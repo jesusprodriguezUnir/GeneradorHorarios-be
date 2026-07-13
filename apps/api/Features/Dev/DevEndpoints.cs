@@ -1,4 +1,5 @@
 using HorariosEscolares.Infrastructure.Persistence;
+using Microsoft.Extensions.Configuration;
 
 namespace HorariosEscolares.Features.Dev;
 
@@ -11,6 +12,9 @@ namespace HorariosEscolares.Features.Dev;
 public record ReseedRequest(
     int?    Levels         = null,
     int?    LinesPerLevel  = null,
+    int?    InfantilLines  = null,
+    int?    PrimariaLines  = null,
+    int?    SecundariaLines = null,
     string? Modality       = null,
     string? ScheduleType   = null);
 
@@ -38,14 +42,18 @@ public static class DevEndpoints
         //   { "levels": 3, "linesPerLevel": 2,
         //     "modality": "bilingue",
         //     "scheduleType": "partida" }               → 3 cursos × 2 líneas bilingüe partida
-        g.MapPost("/reseed", async (AppDbContext db, ReseedRequest? req) =>
+        g.MapPost("/reseed", async (AppDbContext db, IConfiguration config, ReseedRequest? req) =>
         {
+            var cfgOpts = config.GetSection("Seed").Get<SeedOptions>() ?? new SeedOptions();
             var opts = new SeedOptions
             {
-                Levels        = req?.Levels        ?? 6,
-                LinesPerLevel = req?.LinesPerLevel  ?? 3,
-                Modality      = req?.Modality       ?? "estandar",
-                ScheduleType  = req?.ScheduleType   ?? "continua",
+                Levels          = req?.Levels          ?? cfgOpts.Levels,
+                LinesPerLevel   = req?.LinesPerLevel   ?? cfgOpts.LinesPerLevel,
+                InfantilLines   = req?.InfantilLines   ?? cfgOpts.InfantilLines,
+                PrimariaLines   = req?.PrimariaLines   ?? cfgOpts.PrimariaLines,
+                SecundariaLines = req?.SecundariaLines ?? cfgOpts.SecundariaLines,
+                Modality        = req?.Modality        ?? cfgOpts.Modality,
+                ScheduleType    = req?.ScheduleType    ?? cfgOpts.ScheduleType,
             };
 
             await DbInitializer.ReseedAsync(db, opts);
@@ -53,11 +61,16 @@ public static class DevEndpoints
             return Results.Ok(new
             {
                 message       = "Reseed completado.",
-                levels        = opts.Levels,
-                linesPerLevel = opts.LinesPerLevel,
-                totalGroups   = opts.Levels * opts.LinesPerLevel,
-                modality      = opts.Modality,
-                scheduleType  = opts.ScheduleType,
+                levels          = opts.Levels,
+                linesPerLevel   = opts.LinesPerLevel,
+                infantilLines   = opts.InfantilLines,
+                primariaLines   = opts.PrimariaLines,
+                secundariaLines = opts.SecundariaLines,
+                totalGroups     = (3 * (opts.InfantilLines ?? opts.LinesPerLevel)) + 
+                                  (opts.Levels * (opts.PrimariaLines ?? opts.LinesPerLevel)) + 
+                                  (4 * (opts.SecundariaLines ?? opts.LinesPerLevel)),
+                modality        = opts.Modality,
+                scheduleType    = opts.ScheduleType,
             });
         });
 

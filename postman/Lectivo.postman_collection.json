@@ -1,0 +1,750 @@
+{
+  "info": {
+    "_postman_id": "lectivo-collection-2026",
+    "name": "Lectivo API",
+    "description": "Colección completa de la API de Lectivo — generador de horarios escolares LOMLOE.\n\n**Autenticación:** Configura la variable `apiKey` en el entorno con el valor de `ApiKey:Key` (appsettings.Local.json). El header `X-Api-Key` se incluye automáticamente en todas las peticiones.\n\n**Alternativa:** Usa `X-User-Email` con el email de uno de los usuarios demo en lugar de la API key.\n\n**Hub SignalR:** El hub de progreso de generación de horarios está en `ws://{{baseUrl}}/hubs/generation` (no es una petición REST; conéctate con un cliente SignalR).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      { "key": "key", "value": "X-Api-Key", "type": "string" },
+      { "key": "value", "value": "{{apiKey}}", "type": "string" },
+      { "key": "in", "value": "header", "type": "string" }
+    ]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Mi perfil",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/auth/me", "host": ["{{baseUrl}}"], "path": ["api", "auth", "me"] },
+            "description": "Devuelve el perfil del usuario autenticado (mediante X-Api-Key o X-User-Email). 401 si no hay usuario identificado."
+          }
+        },
+        {
+          "name": "Usuarios demo",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/auth/demo-users", "host": ["{{baseUrl}}"], "path": ["api", "auth", "demo-users"] },
+            "description": "Lista todos los usuarios demo disponibles con sus emails y roles."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Roles",
+      "item": [
+        {
+          "name": "Listar roles",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/roles/", "host": ["{{baseUrl}}"], "path": ["api", "roles", ""] },
+            "description": "Catálogo global de roles (director, jefe_estudios, secretario, profesor, tutor, coordinador_ciclo, orientador)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Schools",
+      "item": [
+        {
+          "name": "Datos del colegio",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/schools/me", "host": ["{{baseUrl}}"], "path": ["api", "schools", "me"] },
+            "description": "Devuelve los datos del colegio del usuario autenticado."
+          }
+        },
+        {
+          "name": "Comprobación normativa",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/schools/me/normative-check", "host": ["{{baseUrl}}"], "path": ["api", "schools", "me", "normative-check"] },
+            "description": "Verifica que la configuración del colegio cumple la normativa LOMLOE."
+          }
+        },
+        {
+          "name": "Actualizar colegio [Admin]",
+          "request": {
+            "method": "PUT",
+            "url": { "raw": "{{baseUrl}}/api/schools/me", "host": ["{{baseUrl}}"], "path": ["api", "schools", "me"] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"CEIP Miguel Hernández\",\n  \"centerCode\": \"28012345\",\n  \"locality\": \"Madrid\",\n  \"community\": \"Madrid\",\n  \"academicYear\": \"2025-2026\",\n  \"scheduleType\": \"partida\",\n  \"morningStart\": \"09:00\",\n  \"slotMinutes\": 60,\n  \"breakAfterSlot\": 2,\n  \"breakMinutes\": 30,\n  \"slotsPerDay\": 5,\n  \"afternoonSlots\": 0,\n  \"afternoonStart\": null,\n  \"workingDays\": [1, 2, 3, 4, 5]\n}"
+            },
+            "description": "Actualiza los datos del colegio. Requiere rol Admin."
+          }
+        },
+        {
+          "name": "Horario de ciclo",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/schools/me/cycles/{{cycle}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "schools", "me", "cycles", "{{cycle}}"]
+            },
+            "description": "Devuelve la configuración de horario de un ciclo concreto."
+          }
+        },
+        {
+          "name": "Actualizar horario de ciclo [Admin]",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/schools/me/cycles/{{cycle}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "schools", "me", "cycles", "{{cycle}}"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"morningStart\": \"09:00\",\n  \"endTime\": \"14:00\",\n  \"afternoonStart\": null,\n  \"breaks\": [\n    { \"afterSlot\": 2, \"minutes\": 30 }\n  ]\n}"
+            },
+            "description": "Actualiza la configuración de horario de un ciclo. Requiere rol Admin."
+          }
+        },
+        {
+          "name": "Listar etapas",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/schools/me/stages", "host": ["{{baseUrl}}"], "path": ["api", "schools", "me", "stages"] },
+            "description": "Lista las etapas educativas configuradas en el colegio."
+          }
+        },
+        {
+          "name": "Crear etapa [Admin]",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/schools/me/stages", "host": ["{{baseUrl}}"], "path": ["api", "schools", "me", "stages"] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stageType\": \"primaria\"\n}"
+            },
+            "description": "Crea una nueva etapa educativa. stageType: 'infantil' | 'primaria' | 'secundaria'. Requiere rol Admin."
+          }
+        },
+        {
+          "name": "Actualizar etapa [Admin]",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/schools/me/stages/{{stageId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "schools", "me", "stages", "{{stageId}}"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Educación Primaria\",\n  \"minLevel\": 1,\n  \"maxLevel\": 6,\n  \"sortOrder\": 1,\n  \"scheduleType\": \"partida\",\n  \"morningStart\": \"09:00\",\n  \"slotMinutes\": 60,\n  \"breakAfterSlot\": 2,\n  \"breakMinutes\": 30,\n  \"slotsPerDay\": 5,\n  \"afternoonSlots\": 0,\n  \"daysPerWeek\": 5,\n  \"workingDays\": [1, 2, 3, 4, 5]\n}"
+            },
+            "description": "Actualiza una etapa educativa por su ID. Requiere rol Admin."
+          }
+        },
+        {
+          "name": "Eliminar etapa [Admin]",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/schools/me/stages/{{stageId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "schools", "me", "stages", "{{stageId}}"]
+            },
+            "description": "Elimina una etapa educativa. Requiere rol Admin."
+          }
+        },
+        {
+          "name": "Listar periodos",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/schools/me/periods?stageId={{stageId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "schools", "me", "periods"],
+              "query": [{ "key": "stageId", "value": "{{stageId}}", "description": "Filtrar por etapa (opcional)" }]
+            },
+            "description": "Lista los periodos del colegio. Se puede filtrar por stageId."
+          }
+        },
+        {
+          "name": "Obtener periodo",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/schools/me/periods/{{periodId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "schools", "me", "periods", "{{periodId}}"]
+            },
+            "description": "Devuelve los detalles de un periodo concreto."
+          }
+        },
+        {
+          "name": "Crear periodo [Admin]",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/schools/me/periods", "host": ["{{baseUrl}}"], "path": ["api", "schools", "me", "periods"] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stageId\": \"{{stageId}}\",\n  \"key\": \"ordinario\",\n  \"name\": \"Período ordinario\",\n  \"months\": [9, 10, 11, 12, 1, 2, 3, 4, 5, 6],\n  \"scheduleType\": \"partida\",\n  \"slotMinutes\": 60,\n  \"slotsPerDay\": 5,\n  \"afternoonSlots\": 0,\n  \"sortOrder\": 1\n}"
+            },
+            "description": "Crea un nuevo periodo. Requiere rol Admin."
+          }
+        },
+        {
+          "name": "Actualizar periodo [Admin]",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/schools/me/periods/{{periodId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "schools", "me", "periods", "{{periodId}}"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Período ordinario\",\n  \"months\": [9, 10, 11, 12, 1, 2, 3, 4, 5, 6],\n  \"scheduleType\": \"partida\",\n  \"slotMinutes\": 60,\n  \"slotsPerDay\": 5,\n  \"afternoonSlots\": 0,\n  \"sortOrder\": 1\n}"
+            },
+            "description": "Actualiza un periodo. Requiere rol Admin."
+          }
+        },
+        {
+          "name": "Eliminar periodo [Admin]",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/schools/me/periods/{{periodId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "schools", "me", "periods", "{{periodId}}"]
+            },
+            "description": "Elimina un periodo. Requiere rol Admin."
+          }
+        },
+        {
+          "name": "Horario de ciclo en periodo",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/schools/me/periods/{{periodId}}/cycles/{{cycle}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "schools", "me", "periods", "{{periodId}}", "cycles", "{{cycle}}"]
+            },
+            "description": "Devuelve la configuración de horario de un ciclo dentro de un periodo."
+          }
+        },
+        {
+          "name": "Actualizar horario de ciclo en periodo [Admin]",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/schools/me/periods/{{periodId}}/cycles/{{cycle}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "schools", "me", "periods", "{{periodId}}", "cycles", "{{cycle}}"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"morningStart\": \"09:00\",\n  \"endTime\": \"14:00\",\n  \"afternoonStart\": null,\n  \"breaks\": [\n    { \"afterSlot\": 2, \"minutes\": 30 }\n  ]\n}"
+            },
+            "description": "Actualiza el horario de un ciclo dentro de un periodo. Requiere rol Admin."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Teachers",
+      "item": [
+        {
+          "name": "Listar profesores",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/teachers/", "host": ["{{baseUrl}}"], "path": ["api", "teachers", ""] },
+            "description": "Lista todos los profesores del colegio."
+          }
+        },
+        {
+          "name": "Obtener profesor",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/teachers/{{teacherId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "teachers", "{{teacherId}}"]
+            },
+            "description": "Devuelve los detalles de un profesor por su ID."
+          }
+        },
+        {
+          "name": "Crear profesor [Admin]",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/teachers/", "host": ["{{baseUrl}}"], "path": ["api", "teachers", ""] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Nombre Apellidos\",\n  \"email\": \"profesor@ceip-miguel-hernandez.es\",\n  \"teacherType\": \"generalista\",\n  \"maxWeeklyHours\": 25,\n  \"specialties\": [\"Matemáticas\", \"Lengua\"],\n  \"colorKey\": \"blue\",\n  \"stageAssignments\": [\n    { \"stageId\": \"{{stageId}}\", \"cycle\": 1 }\n  ]\n}"
+            },
+            "description": "Crea un nuevo profesor. Requiere rol Admin."
+          }
+        },
+        {
+          "name": "Actualizar profesor [Admin]",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/teachers/{{teacherId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "teachers", "{{teacherId}}"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Nombre Apellidos Actualizado\",\n  \"maxWeeklyHours\": 23,\n  \"specialties\": [\"Matemáticas\"],\n  \"colorKey\": \"green\"\n}"
+            },
+            "description": "Actualiza los datos de un profesor. Requiere rol Admin."
+          }
+        },
+        {
+          "name": "Eliminar profesor [Admin]",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/teachers/{{teacherId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "teachers", "{{teacherId}}"]
+            },
+            "description": "Elimina un profesor. Requiere rol Admin."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Groups",
+      "item": [
+        {
+          "name": "Listar grupos",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/groups/?stageId={{stageId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "groups", ""],
+              "query": [{ "key": "stageId", "value": "{{stageId}}", "description": "Filtrar por etapa (opcional)" }]
+            },
+            "description": "Lista los grupos del colegio. Se puede filtrar por stageId."
+          }
+        },
+        {
+          "name": "Crear grupo [Admin]",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/groups/", "host": ["{{baseUrl}}"], "path": ["api", "groups", ""] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stageId\": \"{{stageId}}\",\n  \"courseLevel\": 1,\n  \"groupLabel\": \"A\",\n  \"studentCount\": 25,\n  \"tutorId\": null,\n  \"homeClassroomId\": null,\n  \"subjectHours\": {\n    \"matematicas\": 5,\n    \"lengua\": 6\n  }\n}"
+            },
+            "description": "Crea un nuevo grupo (clase). Requiere rol Admin."
+          }
+        },
+        {
+          "name": "Actualizar grupo [Admin]",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/groups/{{groupId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "groups", "{{groupId}}"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"studentCount\": 27,\n  \"tutorId\": \"{{teacherId}}\",\n  \"subjectHours\": {\n    \"matematicas\": 5,\n    \"lengua\": 6\n  }\n}"
+            },
+            "description": "Actualiza un grupo. Requiere rol Admin."
+          }
+        },
+        {
+          "name": "Eliminar grupo [Admin]",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/groups/{{groupId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "groups", "{{groupId}}"]
+            },
+            "description": "Elimina un grupo. Requiere rol Admin."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Classrooms",
+      "item": [
+        {
+          "name": "Listar aulas",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/classrooms/", "host": ["{{baseUrl}}"], "path": ["api", "classrooms", ""] },
+            "description": "Lista todas las aulas del colegio."
+          }
+        },
+        {
+          "name": "Crear aula [Admin]",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/classrooms/", "host": ["{{baseUrl}}"], "path": ["api", "classrooms", ""] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Aula 101\",\n  \"classroomType\": \"ordinaria\",\n  \"capacity\": 30,\n  \"isShared\": false\n}"
+            },
+            "description": "Crea un nueva aula. Requiere rol Admin."
+          }
+        },
+        {
+          "name": "Actualizar aula [Admin]",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/classrooms/{{classroomId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "classrooms", "{{classroomId}}"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Aula 101 Renovada\",\n  \"capacity\": 32,\n  \"isShared\": true\n}"
+            },
+            "description": "Actualiza un aula. Requiere rol Admin."
+          }
+        },
+        {
+          "name": "Eliminar aula [Admin]",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/classrooms/{{classroomId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "classrooms", "{{classroomId}}"]
+            },
+            "description": "Elimina un aula. Requiere rol Admin."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Subjects",
+      "item": [
+        {
+          "name": "Listar asignaturas",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/subjects/", "host": ["{{baseUrl}}"], "path": ["api", "subjects", ""] },
+            "description": "Lista todas las asignaturas del colegio."
+          }
+        },
+        {
+          "name": "Clonar asignaturas oficiales [Admin]",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/subjects/clone-official", "host": ["{{baseUrl}}"], "path": ["api", "subjects", "clone-official"] },
+            "description": "Clona las asignaturas oficiales LOMLOE para el colegio. No requiere body. Requiere rol Admin."
+          }
+        },
+        {
+          "name": "Actualizar horas de asignatura [Admin]",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/subjects/{{subjectId}}/hours",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "subjects", "{{subjectId}}", "hours"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"weeklyHoursDefault\": 5\n}"
+            },
+            "description": "Actualiza las horas semanales por defecto de una asignatura. Requiere rol Admin."
+          }
+        },
+        {
+          "name": "Crear asignatura [Admin]",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/subjects/", "host": ["{{baseUrl}}"], "path": ["api", "subjects", ""] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subjectName\": \"Matemáticas\",\n  \"subjectShort\": \"MAT\",\n  \"subjectKey\": \"matematicas\",\n  \"weeklyHoursMin\": 4,\n  \"weeklyHoursMax\": 6,\n  \"weeklyHoursDefault\": 5,\n  \"requiresSpecialist\": false,\n  \"requiredClassroomType\": null,\n  \"maxConsecutiveSlots\": 2,\n  \"splittableAcrossDays\": true\n}"
+            },
+            "description": "Crea una nueva asignatura personalizada. Requiere rol Admin."
+          }
+        },
+        {
+          "name": "Actualizar asignatura [Admin]",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/subjects/{{subjectId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "subjects", "{{subjectId}}"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subjectName\": \"Matemáticas Actualizado\",\n  \"weeklyHoursDefault\": 6,\n  \"maxConsecutiveSlots\": 2\n}"
+            },
+            "description": "Actualiza una asignatura. Requiere rol Admin."
+          }
+        },
+        {
+          "name": "Eliminar asignatura [Admin]",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/subjects/{{subjectId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "subjects", "{{subjectId}}"]
+            },
+            "description": "Elimina una asignatura. Requiere rol Admin."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Assignments",
+      "item": [
+        {
+          "name": "Listar asignaciones",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/assignments/", "host": ["{{baseUrl}}"], "path": ["api", "assignments", ""] },
+            "description": "Lista todas las asignaciones (profesor + grupo + asignatura + horas semanales)."
+          }
+        },
+        {
+          "name": "Crear asignación [Admin]",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/assignments/", "host": ["{{baseUrl}}"], "path": ["api", "assignments", ""] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"teacherId\": \"{{teacherId}}\",\n  \"groupId\": \"{{groupId}}\",\n  \"allocationId\": \"{{subjectId}}\",\n  \"weeklyHours\": 5\n}"
+            },
+            "description": "Crea una nueva asignación de profesor a grupo/asignatura. Requiere rol Admin."
+          }
+        },
+        {
+          "name": "Eliminar asignación [Admin]",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/assignments/{{assignmentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "assignments", "{{assignmentId}}"]
+            },
+            "description": "Elimina una asignación. Requiere rol Admin."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Constraints",
+      "item": [
+        {
+          "name": "Listar restricciones",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/constraints/", "host": ["{{baseUrl}}"], "path": ["api", "constraints", ""] },
+            "description": "Lista todas las restricciones de horario del colegio."
+          }
+        },
+        {
+          "name": "Restricciones de un profesor",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/constraints/teacher/{{teacherId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "constraints", "teacher", "{{teacherId}}"]
+            },
+            "description": "Lista las restricciones de horario de un profesor concreto."
+          }
+        },
+        {
+          "name": "Crear restricción [Admin]",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/constraints/", "host": ["{{baseUrl}}"], "path": ["api", "constraints", ""] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"teacherId\": \"{{teacherId}}\",\n  \"constraintType\": \"unavailable\",\n  \"dayOfWeek\": 5,\n  \"slotIndex\": 4,\n  \"weight\": 100,\n  \"reason\": \"Coordinación de ciclo\"\n}"
+            },
+            "description": "Crea una restricción de horario para un profesor. constraintType: 'unavailable' | 'preferred' | 'avoid'. dayOfWeek: 1=lunes…5=viernes. slotIndex: índice de franja (0-based). weight: 1-100. Requiere rol Admin."
+          }
+        },
+        {
+          "name": "Eliminar restricción [Admin]",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/constraints/{{constraintId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "constraints", "{{constraintId}}"]
+            },
+            "description": "Elimina una restricción de horario. Requiere rol Admin."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Schedules",
+      "item": [
+        {
+          "name": "Listar horarios",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/schedules/?stageId={{stageId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "schedules", ""],
+              "query": [{ "key": "stageId", "value": "{{stageId}}", "description": "Filtrar por etapa (opcional)" }]
+            },
+            "description": "Lista los horarios generados. Los profesores solo ven los publicados."
+          }
+        },
+        {
+          "name": "Generar horario [Admin]",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/schedules/generate", "host": ["{{baseUrl}}"], "path": ["api", "schedules", "generate"] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"stageId\": \"{{stageId}}\",\n  \"periodId\": \"{{periodId}}\",\n  \"academicYear\": \"2025-2026\",\n  \"timeoutSeconds\": 60\n}"
+            },
+            "description": "Encola un job de generación de horario. Devuelve 202 con { jobId }. Monitoriza el progreso vía SignalR en /hubs/generation o consulta el estado con GET /api/schedules/jobs/{jobId}. Requiere rol Admin."
+          }
+        },
+        {
+          "name": "Estado del job de generación",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/schedules/jobs/{{jobId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "schedules", "jobs", "{{jobId}}"]
+            },
+            "description": "Consulta el estado de un job Hangfire de generación de horario."
+          }
+        },
+        {
+          "name": "Mi horario (profesor)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/schedules/me", "host": ["{{baseUrl}}"], "path": ["api", "schedules", "me"] },
+            "description": "Devuelve el horario publicado del profesor autenticado."
+          }
+        },
+        {
+          "name": "Obtener horario",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/schedules/{{scheduleId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "schedules", "{{scheduleId}}"]
+            },
+            "description": "Devuelve los detalles de un horario. Los profesores solo pueden ver horarios publicados."
+          }
+        },
+        {
+          "name": "Publicar horario [Admin]",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/api/schedules/{{scheduleId}}/publish",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "schedules", "{{scheduleId}}", "publish"]
+            },
+            "description": "Publica un horario, haciéndolo visible para los profesores. Requiere rol Admin."
+          }
+        },
+        {
+          "name": "Actualizar entrada de horario [Admin]",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/api/schedules/{{scheduleId}}/entries/{{entryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "schedules", "{{scheduleId}}", "entries", "{{entryId}}"]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"teacherId\": \"{{teacherId}}\",\n  \"classroomId\": \"{{classroomId}}\"\n}"
+            },
+            "description": "Modifica manualmente una entrada del horario (reasignar profesor o aula). Requiere rol Admin."
+          }
+        },
+        {
+          "name": "Eliminar horario [Admin]",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/api/schedules/{{scheduleId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "schedules", "{{scheduleId}}"]
+            },
+            "description": "Elimina un horario generado. Requiere rol Admin."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Dev",
+      "description": "Endpoints solo disponibles fuera de Production. Útiles para restablecer el estado de la base de datos a los datos demo.",
+      "item": [
+        {
+          "name": "Re-seed base de datos",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/dev/reseed", "host": ["{{baseUrl}}"], "path": ["api", "dev", "reseed"] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"levels\": 6,\n  \"linesPerLevel\": 2,\n  \"modality\": \"bilingue\",\n  \"scheduleType\": \"partida\"\n}"
+            },
+            "description": "Borra y regenera todos los datos demo. Todos los campos son opcionales; los omitidos toman el valor de la configuración Seed. modality: 'estandar' | 'bilingue'. scheduleType: 'continua' | 'partida'. Solo disponible fuera de Production."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Infraestructura",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"] },
+            "description": "Estado de salud de la API (y Redis si está configurado)."
+          }
+        }
+      ]
+    }
+  ]
+}

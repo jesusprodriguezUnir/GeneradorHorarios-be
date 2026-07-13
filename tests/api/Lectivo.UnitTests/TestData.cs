@@ -19,14 +19,15 @@ public static class TestData
     public static SchoolConfig DefaultSchool(int slotsPerDay = 5, int daysPerWeek = 5)
     {
         var slots = Enumerable.Range(0, slotsPerDay)
-            .Select(i => new SlotConfig(i, IsBreak: false))
+            .Select(i => new SlotConfig(i, IsBreak: false, StartMinute: i * 60, EndMinute: (i + 1) * 60))
             .ToList();
         var workingDays = Enumerable.Range(1, daysPerWeek).ToList();
+        var cycles = new List<CycleGrid> { new(1, slots) };
         return new SchoolConfig(
             slotsPerDay,
             daysPerWeek,
             workingDays,
-            slots,
+            cycles,
             new List<ClassroomInfo>
             {
                 new(RegularClassroomId, "Aula 1A", ClassroomType.Regular),
@@ -46,10 +47,11 @@ public static class TestData
         ClassroomType? requiredClassroomType = null,
         int maxConsecutiveSlots = 2,
         bool requiresSpecialist = false,
-        IReadOnlyList<string>? teacherSpecialties = null,
+        IReadOnlyDictionary<string, int>? teacherSubjectHours = null,
         string subjectKey = "tut",
         int teacherMaxWeeklyHours = 25,
-        bool splittableAcrossDays = true)
+        bool splittableAcrossDays = true,
+        int cycle = 1)
         => new(
             assignmentId ?? Guid.NewGuid(),
             groupId ?? Group1Id,
@@ -61,10 +63,11 @@ public static class TestData
             requiredClassroomType,
             maxConsecutiveSlots,
             requiresSpecialist,
-            teacherSpecialties ?? new List<string> { "Generalista" },
+            teacherSubjectHours ?? new Dictionary<string, int> { [subjectKey] = teacherMaxWeeklyHours },
             subjectKey,
             teacherMaxWeeklyHours,
-            splittableAcrossDays);
+            splittableAcrossDays,
+            cycle);
 
     public static GenerationContext Context(
         IReadOnlyList<SessionToAssign>? sessions = null,

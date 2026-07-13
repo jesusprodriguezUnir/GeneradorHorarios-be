@@ -43,7 +43,6 @@ public class SchoolConfigTests
         root.GetProperty("centerCode").GetString().Should().Be("28013291");
         root.GetProperty("locality").GetString().Should().Be("Madrid");
         root.GetProperty("community").GetString().Should().Be("madrid");
-        root.GetProperty("stage").GetString().Should().Be("primaria");
         root.GetProperty("minCourseLevel").GetInt32().Should().Be(1);
         root.GetProperty("maxCourseLevel").GetInt32().Should().Be(6);
         root.GetProperty("academicYear").GetString().Should().Be("2025/2026");
@@ -230,7 +229,7 @@ public class SchoolConfigTests
             centerCode = "28099001",
             locality = "Alcalá de Henares",
             community = "madrid",
-            stage = "primaria",
+            stage = "primaria,infantil,secundaria",
             minCourseLevel = 1,
             maxCourseLevel = 6,
             academicYear = "2026/2027",
