@@ -1,0 +1,13 @@
+**/bin/
+**/obj/
+**/TestResults/
+tests/
+doc/
+tmp_check_build/
+.git/
+.github/
+.opencode/
+.agents/
+*.md
+docker-compose.yml
+Dockerfile

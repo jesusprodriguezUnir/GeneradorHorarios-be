@@ -9,6 +9,7 @@ public interface IScheduleGenerationOrchestrator
         Guid stageId,
         Guid periodId,
         string academicYear,
+        Guid createdBy,
         int timeoutSeconds,
         IProgress<GenerationProgress>? progress,
         CancellationToken ct);

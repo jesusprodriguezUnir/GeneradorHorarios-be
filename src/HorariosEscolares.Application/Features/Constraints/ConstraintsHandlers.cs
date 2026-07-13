@@ -61,6 +61,12 @@ public sealed class CreateConstraintHandler(IAppDbContext db, IConstraintReposit
 {
     public async Task<ConstraintDto> Handle(CreateConstraintCommand request, CancellationToken ct)
     {
+        var name = await db.Teachers.AsNoTracking()
+            .Where(t => t.Id == request.TeacherId && t.SchoolId == user.SchoolId)
+            .Select(t => t.FullName).FirstOrDefaultAsync(ct);
+        if (name is null)
+            throw new NotFoundException($"Teacher {request.TeacherId} not found");
+
         var c = new TeacherConstraint
         {
             SchoolId = user.SchoolId, TeacherId = request.TeacherId,
@@ -69,8 +75,6 @@ public sealed class CreateConstraintHandler(IAppDbContext db, IConstraintReposit
         };
         await repository.AddAsync(c, ct);
         await repository.SaveChangesAsync(ct);
-        var name = await db.Teachers.AsNoTracking()
-            .Where(t => t.Id == request.TeacherId).Select(t => t.FullName).FirstOrDefaultAsync(ct) ?? "?";
         return new ConstraintDto(c.Id, c.TeacherId, name, c.ConstraintType,
             c.DayOfWeek, c.SlotIndex, c.Weight, c.Reason);
     }

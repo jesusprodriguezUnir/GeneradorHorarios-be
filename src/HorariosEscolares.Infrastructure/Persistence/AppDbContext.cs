@@ -4,8 +4,15 @@ using HorariosEscolares.Domain.Entities;
 
 namespace HorariosEscolares.Infrastructure.Persistence;
 
-public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options), IAppDbContext
+public class AppDbContext(DbContextOptions<AppDbContext> options, ITenantProvider? tenantProvider = null)
+    : DbContext(options), IAppDbContext
 {
+    /// <summary>
+    /// Tenant actual evaluado en tiempo de query. Null (seed, jobs, middleware de auth)
+    /// desactiva los filtros globales; con valor, cada query queda acotada al colegio.
+    /// </summary>
+    private Guid? TenantSchoolId => tenantProvider?.SchoolId;
+
     public DbSet<School> Schools => Set<School>();
     public DbSet<SchoolStage> SchoolStages => Set<SchoolStage>();
     public DbSet<AppUser> AppUsers => Set<AppUser>();
@@ -274,5 +281,34 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
              .HasForeignKey(x => x.TeacherId)
              .OnDelete(DeleteBehavior.Cascade);
         });
+
+        // ── Aislamiento multi-tenant ─────────────────────────────────────────
+        // Red de seguridad global: toda query sobre entidades con SchoolId queda
+        // acotada al colegio del usuario actual. Con TenantSchoolId == null
+        // (seed, jobs de Hangfire, middleware de auth) el filtro se desactiva.
+        modelBuilder.Entity<School>()
+            .HasQueryFilter(x => TenantSchoolId == null || x.Id == TenantSchoolId);
+        modelBuilder.Entity<SchoolStage>()
+            .HasQueryFilter(x => TenantSchoolId == null || x.SchoolId == TenantSchoolId);
+        modelBuilder.Entity<AppUser>()
+            .HasQueryFilter(x => TenantSchoolId == null || x.SchoolId == TenantSchoolId);
+        modelBuilder.Entity<Teacher>()
+            .HasQueryFilter(x => TenantSchoolId == null || x.SchoolId == TenantSchoolId);
+        modelBuilder.Entity<Classroom>()
+            .HasQueryFilter(x => TenantSchoolId == null || x.SchoolId == TenantSchoolId);
+        modelBuilder.Entity<CourseGroup>()
+            .HasQueryFilter(x => TenantSchoolId == null || x.SchoolId == TenantSchoolId);
+        modelBuilder.Entity<Assignment>()
+            .HasQueryFilter(x => TenantSchoolId == null || x.SchoolId == TenantSchoolId);
+        modelBuilder.Entity<TeacherConstraint>()
+            .HasQueryFilter(x => TenantSchoolId == null || x.SchoolId == TenantSchoolId);
+        modelBuilder.Entity<ScheduleRecord>()
+            .HasQueryFilter(x => TenantSchoolId == null || x.SchoolId == TenantSchoolId);
+        modelBuilder.Entity<ScheduleEntry>()
+            .HasQueryFilter(x => TenantSchoolId == null || x.SchoolId == TenantSchoolId);
+        modelBuilder.Entity<SchoolPeriod>()
+            .HasQueryFilter(x => TenantSchoolId == null || x.SchoolId == TenantSchoolId);
+        modelBuilder.Entity<CycleSchedule>()
+            .HasQueryFilter(x => TenantSchoolId == null || x.SchoolId == TenantSchoolId);
     }
 }

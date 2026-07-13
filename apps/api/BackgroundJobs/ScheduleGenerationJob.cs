@@ -27,6 +27,7 @@ public sealed class ScheduleGenerationJob(
         Guid stageId,
         Guid periodId,
         string academicYear,
+        Guid createdBy,
         int timeoutSeconds,
         string signalRGroup,
         CancellationToken ct)
@@ -53,7 +54,7 @@ public sealed class ScheduleGenerationJob(
         try
         {
             var result = await orchestrator.GenerateAsync(
-                schoolId, stageId, periodId, academicYear, timeoutSeconds, progress, ct);
+                schoolId, stageId, periodId, academicYear, createdBy, timeoutSeconds, progress, ct);
 
             object payload = result switch
             {

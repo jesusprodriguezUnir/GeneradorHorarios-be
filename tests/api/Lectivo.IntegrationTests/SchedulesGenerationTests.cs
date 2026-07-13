@@ -30,7 +30,7 @@ public class SchedulesGenerationTests
         using var scope = _factory.Services.CreateScope();
         var orchestrator = scope.ServiceProvider.GetRequiredService<IScheduleGenerationOrchestrator>();
         var result = await orchestrator.GenerateAsync(
-            SchoolId, StageId, PeriodId, academicYear, timeoutSeconds, null, CancellationToken.None);
+            SchoolId, StageId, PeriodId, academicYear, Guid.Empty, timeoutSeconds, null, CancellationToken.None);
 
         return result switch
         {
@@ -139,7 +139,7 @@ public class SchedulesGenerationTests
         using var scope = _factory.Services.CreateScope();
         var orchestrator = scope.ServiceProvider.GetRequiredService<IScheduleGenerationOrchestrator>();
         var result = await orchestrator.GenerateAsync(
-            SchoolId, StageId, PeriodId, "2025-2026", 30, null, CancellationToken.None);
+            SchoolId, StageId, PeriodId, "2025-2026", Guid.Empty, 30, null, CancellationToken.None);
 
         result.Should().BeOfType<GenerateScheduleResult.Success>();
         var success = (GenerateScheduleResult.Success)result;
@@ -152,7 +152,7 @@ public class SchedulesGenerationTests
         using var scope = _factory.Services.CreateScope();
         var orchestrator = scope.ServiceProvider.GetRequiredService<IScheduleGenerationOrchestrator>();
         var result = await orchestrator.GenerateAsync(
-            SchoolId, InfantilStageId, InfantilPeriodId, "2025-2026", 30, null, CancellationToken.None);
+            SchoolId, InfantilStageId, InfantilPeriodId, "2025-2026", Guid.Empty, 30, null, CancellationToken.None);
 
         result.Should().BeOfType<GenerateScheduleResult.Success>();
         var success = (GenerateScheduleResult.Success)result;
@@ -165,7 +165,7 @@ public class SchedulesGenerationTests
         using var scope = _factory.Services.CreateScope();
         var orchestrator = scope.ServiceProvider.GetRequiredService<IScheduleGenerationOrchestrator>();
         var result = await orchestrator.GenerateAsync(
-            SchoolId, SecundariaStageId, SecundariaPeriodId, "2025-2026", 30, null, CancellationToken.None);
+            SchoolId, SecundariaStageId, SecundariaPeriodId, "2025-2026", Guid.Empty, 30, null, CancellationToken.None);
 
         result.Should().BeOfType<GenerateScheduleResult.Success>();
         var success = (GenerateScheduleResult.Success)result;
@@ -186,7 +186,7 @@ public class SchedulesGenerationTests
             using var scope = _factory.Services.CreateScope();
             var orchestrator = scope.ServiceProvider.GetRequiredService<IScheduleGenerationOrchestrator>();
             var result = await orchestrator.GenerateAsync(
-                SchoolId, InfantilStageId, InfantilPeriodId, "2025-2026", 30, null, CancellationToken.None);
+                SchoolId, InfantilStageId, InfantilPeriodId, "2025-2026", Guid.Empty, 30, null, CancellationToken.None);
 
             result.Should().BeOfType<GenerateScheduleResult.Success>();
             var success = (GenerateScheduleResult.Success)result;

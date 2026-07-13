@@ -92,6 +92,7 @@ public static class ScheduleEndpoints
                     stageId,
                     periodId,
                     req.AcademicYear,
+                    user.UserId,
                     req.TimeoutSeconds,
                     user.SchoolId.ToString(),
                     CancellationToken.None));

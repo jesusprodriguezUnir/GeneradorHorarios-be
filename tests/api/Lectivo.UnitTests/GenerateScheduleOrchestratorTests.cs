@@ -213,7 +213,7 @@ public class GenerateScheduleOrchestratorTests
     {
         return new GenerateScheduleOrchestrator(
             db,
-            repository ?? new FakeScheduleRepository(),
+            new ScheduleResultPersister(db, repository ?? new FakeScheduleRepository()),
             engine ?? new BacktrackingScheduleEngine(),
             normativeValidator ?? new FakeNormativeValidator(),
             new CycleResolver());
@@ -228,7 +228,7 @@ public class GenerateScheduleOrchestratorTests
         var orchestrator = CreateOrchestrator(db);
 
         var act = async () => await orchestrator.GenerateAsync(
-            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "2025/2026", 30, null, CancellationToken.None);
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "2025/2026", Guid.Empty, 30, null, CancellationToken.None);
 
         await act.Should().ThrowAsync<NotFoundException>();
     }
@@ -244,7 +244,7 @@ public class GenerateScheduleOrchestratorTests
 
         var orchestrator = CreateOrchestrator(db);
         var result = await orchestrator.GenerateAsync(
-            SchoolId, StageId, PeriodId, "2025/2026", 30, null, CancellationToken.None);
+            SchoolId, StageId, PeriodId, "2025/2026", Guid.Empty, 30, null, CancellationToken.None);
 
         result.Should().BeOfType<GenerateScheduleResult.NoAssignments>();
     }
@@ -257,7 +257,7 @@ public class GenerateScheduleOrchestratorTests
 
         var orchestrator = CreateOrchestrator(db);
         var result = await orchestrator.GenerateAsync(
-            SchoolId, StageId, PeriodId, "2025/2026", 30, null, CancellationToken.None);
+            SchoolId, StageId, PeriodId, "2025/2026", Guid.Empty, 30, null, CancellationToken.None);
 
         var failedResult = result.Should().BeOfType<GenerateScheduleResult.ViabilityFailed>().Subject;
         failedResult.TotalConflicts.Should().BeGreaterThan(0);
@@ -276,7 +276,7 @@ public class GenerateScheduleOrchestratorTests
         var orchestrator = CreateOrchestrator(db, fakeRepo);
 
         var result = await orchestrator.GenerateAsync(
-            SchoolId, StageId, PeriodId, "2025/2026", 30, null, CancellationToken.None);
+            SchoolId, StageId, PeriodId, "2025/2026", Guid.Empty, 30, null, CancellationToken.None);
 
         var success = result.Should().BeOfType<GenerateScheduleResult.Success>().Subject;
         success.TotalAssigned.Should().Be(2);
@@ -298,7 +298,7 @@ public class GenerateScheduleOrchestratorTests
         var orchestrator = CreateOrchestrator(db, fakeRepo);
 
         await orchestrator.GenerateAsync(
-            SchoolId, StageId, PeriodId, "2025/2026", 30, null, CancellationToken.None);
+            SchoolId, StageId, PeriodId, "2025/2026", Guid.Empty, 30, null, CancellationToken.None);
 
         fakeRepo.LastSchedule.Should().NotBeNull();
         fakeRepo.LastSchedule!.Status.Should().Be("failed");

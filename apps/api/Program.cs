@@ -114,9 +114,10 @@ builder.Services.AddHangfireServer(options =>
 // Register IAppDbContext → AppDbContext (same scoped instance)
 builder.Services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
 
-// Current user accessor
+// Current user accessor + tenant para los query filters multi-tenant
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, CurrentUserAccessor>();
+builder.Services.AddScoped<ITenantProvider, HttpTenantProvider>();
 
 var app = builder.Build();
 
@@ -186,7 +187,10 @@ app.Use(async (context, next) =>
         logger.LogError(ex, "Error no controlado en {Method} {Path}", context.Request.Method, context.Request.Path);
 #pragma warning restore CA1848
         context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-        await context.Response.WriteAsJsonAsync(new { error = ex.Message, type = ex.GetType().Name });
+        if (app.Environment.IsDevelopment())
+            await context.Response.WriteAsJsonAsync(new { error = ex.Message, type = ex.GetType().Name });
+        else
+            await context.Response.WriteAsJsonAsync(new { error = "Se ha producido un error interno." });
     }
 });
 

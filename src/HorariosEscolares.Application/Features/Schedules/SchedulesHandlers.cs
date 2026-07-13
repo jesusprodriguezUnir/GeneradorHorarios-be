@@ -1,6 +1,7 @@
 using System.Text.Json;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using HorariosEscolares.Domain.Abstractions;
 using HorariosEscolares.Domain.Entities;
 using HorariosEscolares.Domain.Scheduling;
@@ -112,7 +113,7 @@ public sealed class GetSchedulesListHandler(IAppDbContext db, ICurrentUser user)
     }
 }
 
-public sealed class GetScheduleGridHandler(IAppDbContext db, ICurrentUser user)
+public sealed class GetScheduleGridHandler(IAppDbContext db, ICurrentUser user, ILogger<GetScheduleGridHandler> logger)
     : IRequestHandler<GetScheduleGridQuery, ScheduleGridDto?>
 {
     public async Task<ScheduleGridDto?> Handle(GetScheduleGridQuery request, CancellationToken ct)
@@ -127,7 +128,10 @@ public sealed class GetScheduleGridHandler(IAppDbContext db, ICurrentUser user)
             .Where(e => e.ScheduleId == schedule.Id).ToListAsync(ct);
         var dbConflicts = await db.ScheduleConflicts.AsNoTracking()
             .Where(c => c.ScheduleId == schedule.Id).ToListAsync(ct);
-        var allocations = await db.SubjectAllocations.AsNoTracking().ToDictionaryAsync(a => a.Id, ct);
+        var entryAllocationIds = entries.Select(e => e.AllocationId).Distinct().ToList();
+        var allocations = await db.SubjectAllocations.AsNoTracking()
+            .Where(a => entryAllocationIds.Contains(a.Id))
+            .ToDictionaryAsync(a => a.Id, ct);
         var teachers = await db.Teachers.AsNoTracking()
             .Where(t => t.SchoolId == schedule.SchoolId).ToDictionaryAsync(t => t.Id, ct);
         var groups = await db.CourseGroups.AsNoTracking()
@@ -208,7 +212,11 @@ public sealed class GetScheduleGridHandler(IAppDbContext db, ICurrentUser user)
         {
             string[] suggestions;
             try { suggestions = JsonSerializer.Deserialize<string[]>(c.Suggestions) ?? []; }
-            catch { suggestions = []; }
+            catch (JsonException ex)
+            {
+                logger.LogWarning(ex, "Sugerencias corruptas en el conflicto {ConflictId} del horario {ScheduleId}", c.Id, schedule.Id);
+                suggestions = [];
+            }
             return new ConflictDto(c.ConflictType, c.Severity, c.Description, suggestions,
                 c.GroupId, c.TeacherId, c.DayOfWeek, c.SlotIndex);
         }).ToList();
@@ -216,7 +224,7 @@ public sealed class GetScheduleGridHandler(IAppDbContext db, ICurrentUser user)
         return new ScheduleGridDto(
             schedule.Id, schedule.Status, schedule.AcademicYear,
             gridEntries, conflictDtos,
-            slots.Select(sl => new SlotInfoDto(sl.Index, sl.StartTime, sl.EndTime, sl.IsBreak)).ToList(),
+            slots,
             slotsByCycle,
             schedule.PeriodId,
             schedule.PeriodId.HasValue && period is not null ? period.Name : null);
@@ -253,7 +261,10 @@ public sealed class GetMyScheduleHandler(IAppDbContext db, ICurrentUser user)
             .Where(e => e.ScheduleId == schedule.Id && e.TeacherId == teacher.Id)
             .ToListAsync(ct);
 
-        var allocations = await db.SubjectAllocations.AsNoTracking().ToDictionaryAsync(a => a.Id, ct);
+        var myAllocationIds = entries.Select(e => e.AllocationId).Distinct().ToList();
+        var allocations = await db.SubjectAllocations.AsNoTracking()
+            .Where(a => myAllocationIds.Contains(a.Id))
+            .ToDictionaryAsync(a => a.Id, ct);
         var groups = await db.CourseGroups.AsNoTracking()
             .Where(g => g.SchoolId == user.SchoolId)
             .ToDictionaryAsync(g => g.Id, ct);
@@ -262,14 +273,15 @@ public sealed class GetMyScheduleHandler(IAppDbContext db, ICurrentUser user)
             .ToDictionaryAsync(c => c.Id, ct);
 
         var slots = school is not null ? SlotCalculator.Compute(school, school.SlotsPerDay) : [];
-        var lecSlots = slots.Where(s => !s.IsBreak).ToList();
+        var slotStartByIndex = slots.Where(s => !s.IsBreak)
+            .ToDictionary(s => s.Index, s => s.StartTime);
 
         var myEntries = entries.Select(e =>
         {
             var alloc = allocations.GetValueOrDefault(e.AllocationId);
             var group = groups.GetValueOrDefault(e.GroupId);
             var classroom = classrooms.GetValueOrDefault(e.ClassroomId);
-            var slotTime = lecSlots.Count > e.SlotIndex ? lecSlots[e.SlotIndex].StartTime : "?";
+            var slotTime = slotStartByIndex.GetValueOrDefault(e.SlotIndex, "?");
             return new MyScheduleEntry(
                 e.DayOfWeek, e.SlotIndex, slotTime,
                 alloc?.SubjectName ?? "?", alloc?.SubjectKey ?? "tut", alloc?.SubjectShort ?? "?",

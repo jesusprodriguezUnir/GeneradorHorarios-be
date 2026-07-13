@@ -21,8 +21,14 @@ public sealed class ScheduleRepository(AppDbContext db) : IScheduleRepository
 
     public async Task DeleteAsync(Guid scheduleId, CancellationToken ct)
     {
-        await db.ScheduleConflicts.Where(c => c.ScheduleId == scheduleId).ExecuteDeleteAsync(ct);
-        await db.ScheduleEntries.Where(e => e.ScheduleId == scheduleId).ExecuteDeleteAsync(ct);
-        await db.Schedules.Where(s => s.Id == scheduleId).ExecuteDeleteAsync(ct);
+        var strategy = db.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
+        {
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            await db.ScheduleConflicts.Where(c => c.ScheduleId == scheduleId).ExecuteDeleteAsync(ct);
+            await db.ScheduleEntries.Where(e => e.ScheduleId == scheduleId).ExecuteDeleteAsync(ct);
+            await db.Schedules.Where(s => s.Id == scheduleId).ExecuteDeleteAsync(ct);
+            await transaction.CommitAsync(ct);
+        });
     }
 }

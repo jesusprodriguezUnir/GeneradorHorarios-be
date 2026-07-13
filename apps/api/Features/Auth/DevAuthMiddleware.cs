@@ -67,6 +67,16 @@ public sealed class CurrentUserDto(Guid userId, Guid schoolId, Guid roleId, Role
     public bool IsTeacher => RoleKind == RoleKind.Teacher;
 }
 
+/// <summary>
+/// Tenant del request actual para los query filters globales de <see cref="AppDbContext"/>.
+/// Devuelve null fuera de un request autenticado (seed, Hangfire, el propio middleware de auth).
+/// </summary>
+public sealed class HttpTenantProvider(IHttpContextAccessor httpContextAccessor) : ITenantProvider
+{
+    public Guid? SchoolId =>
+        (httpContextAccessor.HttpContext?.Items["CurrentUser"] as ICurrentUser)?.SchoolId;
+}
+
 public sealed class CurrentUserAccessor(IHttpContextAccessor httpContextAccessor) : Domain.Abstractions.ICurrentUser
 {
     private ICurrentUser? User => httpContextAccessor.HttpContext?.Items["CurrentUser"] as ICurrentUser;

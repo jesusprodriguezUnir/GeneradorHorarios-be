@@ -20,6 +20,7 @@ public static class DependencyInjection
 
         services.AddValidatorsFromAssembly(Assembly.GetExecutingAssembly());
         services.AddScoped<IScheduleGenerationOrchestrator, GenerateScheduleOrchestrator>();
+        services.AddScoped<ScheduleResultPersister>();
 
         return services;
     }
